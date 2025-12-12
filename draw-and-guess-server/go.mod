@@ -14,6 +14,7 @@ require (
 	github.com/swaggo/swag v1.16.6
 	github.com/valkey-io/valkey-go v1.0.50
 	go.mongodb.org/mongo-driver v1.13.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

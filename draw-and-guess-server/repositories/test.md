@@ -1,0 +1,1 @@
+Now I only use handlers, but I can use this for a three-tiered architecture

@@ -22,6 +22,7 @@ type GameRoom struct {
 	UsedWords               []string           `bson:"used_words" json:"used_words"`       // 사용된 단어들
 	MaxRounds               int                `bson:"max_rounds" json:"max_rounds"`       // 최대 라운드 (3)
 	WinningScore            int                `bson:"winning_score" json:"winning_score"` // 우승 점수 (3)
+	GameType                GameType           `bson:"game_type" json:"game_type"`
 	CreatedAt               time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt               time.Time          `bson:"updated_at" json:"updated_at"`
 }
@@ -30,6 +31,28 @@ type Player struct {
 	Username string `bson:"username" json:"username"`
 	Score    int    `bson:"score" json:"score"`
 	Attempts int    `bson:"attempts" json:"attempts"` // 이번 라운드 제출 횟수
+}
+
+// GameType은 게임 타입을 나타냅니다 (enum 패턴)
+type GameType string
+
+const (
+	GameTypeOX    GameType = "ox"    // OX 퀴즈
+	GameTypeGuess GameType = "guess" // 그림 맞추기
+)
+
+// IsValid는 GameType이 유효한 값인지 검증합니다
+func (g GameType) IsValid() bool {
+	switch g {
+	case GameTypeOX, GameTypeGuess:
+		return true
+	}
+	return false
+}
+
+// String은 GameType을 문자열로 반환합니다
+func (g GameType) String() string {
+	return string(g)
 }
 
 type GameTopic struct {

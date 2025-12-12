@@ -14,8 +14,12 @@ definitions:
         type: string
       current_word:
         type: string
+      current_word_translations:
+        additionalProperties:
+          type: string
+        type: object
       drawer_user:
-        description: 방장 (그림 그리는 사람)
+        description: 현재 그림 그리는 사람
         type: string
       game_status:
         description: waiting, playing, finished
@@ -24,6 +28,9 @@ definitions:
         type: string
       is_active:
         type: boolean
+      last_round_winner:
+        description: 이전 라운드 우승자
+        type: string
       max_rounds:
         description: 최대 라운드 (3)
         type: integer
@@ -32,6 +39,9 @@ definitions:
         items:
           $ref: '#/definitions/models.Player'
         type: array
+      room_creator:
+        description: 방 생성자
+        type: string
       round_number:
         description: 현재 라운드 (1-3)
         type: integer
@@ -75,6 +85,33 @@ info:
   title: Draw and Guess Game API
   version: "1.0"
 paths:
+  /asyncapi:
+    get:
+      description: WebSocket API의 AsyncAPI 3.0 스펙을 반환합니다 (Accept 헤더에 따라 JSON 또는 YAML)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: AsyncAPI 스펙
+          schema:
+            additionalProperties: true
+            type: object
+      summary: AsyncAPI 스펙 조회
+      tags:
+      - WebSocket
+  /asyncapi/docs:
+    get:
+      description: WebSocket API의 AsyncAPI HTML 문서를 제공합니다
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML 문서
+          schema:
+            type: string
+      summary: AsyncAPI HTML 문서
+      tags:
+      - WebSocket
   /game/room:
     post:
       consumes:

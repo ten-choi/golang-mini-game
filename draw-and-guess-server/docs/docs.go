@@ -24,6 +24,47 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/asyncapi": {
+            "get": {
+                "description": "WebSocket API의 AsyncAPI 3.0 스펙을 반환합니다 (Accept 헤더에 따라 JSON 또는 YAML)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "WebSocket"
+                ],
+                "summary": "AsyncAPI 스펙 조회",
+                "responses": {
+                    "200": {
+                        "description": "AsyncAPI 스펙",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/asyncapi/docs": {
+            "get": {
+                "description": "WebSocket API의 AsyncAPI HTML 문서를 제공합니다",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "WebSocket"
+                ],
+                "summary": "AsyncAPI HTML 문서",
+                "responses": {
+                    "200": {
+                        "description": "HTML 문서",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/game/room": {
             "post": {
                 "description": "Create a new game room with the specified drawer",
@@ -639,8 +680,14 @@ const docTemplate = `{
                 "current_word": {
                     "type": "string"
                 },
+                "current_word_translations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "drawer_user": {
-                    "description": "방장 (그림 그리는 사람)",
+                    "description": "현재 그림 그리는 사람",
                     "type": "string"
                 },
                 "game_status": {
@@ -653,6 +700,10 @@ const docTemplate = `{
                 "is_active": {
                     "type": "boolean"
                 },
+                "last_round_winner": {
+                    "description": "이전 라운드 우승자",
+                    "type": "string"
+                },
                 "max_rounds": {
                     "description": "최대 라운드 (3)",
                     "type": "integer"
@@ -663,6 +714,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/models.Player"
                     }
+                },
+                "room_creator": {
+                    "description": "방 생성자",
+                    "type": "string"
                 },
                 "round_number": {
                     "description": "현재 라운드 (1-3)",

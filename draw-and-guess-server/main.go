@@ -106,8 +106,18 @@ func main() {
 	r.PATCH("/app/game/room/:id", handlers.UpdateGameRoom)
 	r.DELETE("/app/game/room/:id", handlers.DeleteGameRoom)
 
+	// User routes
+	r.GET("/app/user/:id", handlers.GetUser)
+	r.POST("/app/user", handlers.CreateUser)
+	r.PATCH("/app/user/:id", handlers.UpdateUser)
+
 	// WebSocket route
 	r.GET("/app/ws", websocket.HandleWebSocket)
+
+	// AsyncAPI documentation routes
+	r.GET("/app/asyncapi", handlers.AsyncAPIDocumentation)
+	r.GET("/app/asyncapi.yaml", handlers.GetAsyncAPISpec)
+	r.GET("/app/asyncapi.json", handlers.GetAsyncAPISpec)
 
 	// Swagger documentation route
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -115,7 +125,8 @@ func main() {
 	// Start server
 	port := config.ServerPort
 	log.Printf("Starting server on port %s...", port)
-	log.Printf("Swagger UI available at: http://localhost:%s/swagger/index.html", port)
+	log.Printf("Swagger UI (REST API) available at: http://localhost:%s/swagger/index.html", port)
+	log.Printf("AsyncAPI (WebSocket) available at: http://localhost:%s/app/asyncapi", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
