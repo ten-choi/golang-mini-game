@@ -8,34 +8,16 @@ import (
 
 	"draw-and-guess-server/config"
 	"draw-and-guess-server/database"
-	_ "draw-and-guess-server/docs"
+	"draw-and-guess-server/graphql"
 	"draw-and-guess-server/handlers"
 	"draw-and-guess-server/valkey"
 	"draw-and-guess-server/websocket"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+	gqlhandler "github.com/graphql-go/handler"
 )
 
-// @title Draw and Guess Game API
-// @version 1.0
-// @description API for Draw and Guess multiplayer game
-// @termsOfService http://swagger.io/terms/
-
-// @contact.name API Support
-// @contact.url http://www.swagger.io/support
-// @contact.email support@swagger.io
-
-// @license.name Apache 2.0
-// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
-
-// @host localhost:8080
-// @BasePath /app
-
-// @schemes http https
 func main() {
 	// Initialize config
 	config.Init()
@@ -114,19 +96,19 @@ func main() {
 	// WebSocket route
 	r.GET("/app/ws", websocket.HandleWebSocket)
 
-	// AsyncAPI documentation routes
-	r.GET("/app/asyncapi", handlers.AsyncAPIDocumentation)
-	r.GET("/app/asyncapi.yaml", handlers.GetAsyncAPISpec)
-	r.GET("/app/asyncapi.json", handlers.GetAsyncAPISpec)
-
-	// Swagger documentation route
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// GraphQL endpoint
+	h := gqlhandler.New(&gqlhandler.Config{
+		Schema:   &graphql.Schema,
+		Pretty:   true,
+		GraphiQL: true,
+	})
+	r.POST("/graphql", gin.WrapH(h))
+	r.GET("/graphql", gin.WrapH(h))
 
 	// Start server
 	port := config.ServerPort
 	log.Printf("Starting server on port %s...", port)
-	log.Printf("Swagger UI (REST API) available at: http://localhost:%s/swagger/index.html", port)
-	log.Printf("AsyncAPI (WebSocket) available at: http://localhost:%s/app/asyncapi", port)
+	log.Printf("GraphQL Playground available at: http://localhost:%s/graphql", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}

@@ -695,24 +695,6 @@ func LoadTopicsFromMongo(ctx context.Context) error {
 	return nil
 }
 
-// respondError standardizes error responses for handlers.
-func respondError(c *gin.Context, status int, message string) {
-	c.JSON(status, models.ApiResult{
-		Status:  false,
-		Message: message,
-		Result:  nil,
-	})
-}
-
-// respondSuccess standardizes success responses for handlers.
-func respondSuccess(c *gin.Context, message string, result interface{}) {
-	c.JSON(http.StatusOK, models.ApiResult{
-		Status:  true,
-		Message: message,
-		Result:  result,
-	})
-}
-
 // persistRoom sets the update timestamp and stores the room in Valkey with TTL.
 func persistRoom(roomID string, room *models.GameRoom) error {
 	room.UpdatedAt = time.Now()
