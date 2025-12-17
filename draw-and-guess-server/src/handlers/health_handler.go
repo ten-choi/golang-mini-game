@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"draw-and-guess-server/models"
+	"draw-and-guess-server/src/models"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

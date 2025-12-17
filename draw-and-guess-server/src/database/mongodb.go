@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"draw-and-guess-server/config"
+	"draw-and-guess-server/src/config"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

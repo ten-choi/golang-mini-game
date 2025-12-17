@@ -6,12 +6,12 @@ import (
 	"log"
 	"time"
 
-	"draw-and-guess-server/config"
-	"draw-and-guess-server/database"
-	"draw-and-guess-server/graphql"
-	"draw-and-guess-server/handlers"
-	"draw-and-guess-server/valkey"
-	"draw-and-guess-server/websocket"
+	"draw-and-guess-server/src/config"
+	"draw-and-guess-server/src/database"
+	"draw-and-guess-server/src/graphql"
+	"draw-and-guess-server/src/handlers"
+	"draw-and-guess-server/src/valkey"
+	"draw-and-guess-server/src/websocket"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -22,15 +22,18 @@ func main() {
 	// Initialize config
 	config.Init()
 
-	// Connect to Valkey
+	// Connect to Valkey (optional - log warning but continue)
 	if err := valkey.Connect(); err != nil {
-		log.Fatalf("Failed to connect to Valkey: %v", err)
+		log.Printf("Valkey connection warning: %v (continuing without cache)", err)
+	} else {
+		log.Println("Successfully connected to Valkey")
 	}
 
 	// Connect to MongoDB (optional for now - using hardcoded topics)
 	if err := database.Connect(); err != nil {
 		log.Printf("MongoDB connection warning: %v (continuing with hardcoded topics)", err)
 	} else {
+		log.Println("Successfully connected to MongoDB")
 		defer func() {
 			if err := database.Disconnect(); err != nil {
 				log.Printf("Failed to disconnect MongoDB: %v", err)
@@ -40,7 +43,7 @@ func main() {
 
 	// Load topics (currently using hardcoded data for testing)
 	if err := handlers.LoadTopicsFromMongo(context.Background()); err != nil {
-		log.Fatalf("Failed to load topics: %v", err)
+		log.Printf("Failed to load topics from MongoDB, using hardcoded data: %v", err)
 	}
 
 	// Create Gin router

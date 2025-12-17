@@ -2,7 +2,7 @@ package websocket
 
 import (
 	"context"
-	"draw-and-guess-server/valkey"
+	"draw-and-guess-server/src/valkey"
 	"encoding/json"
 	"log"
 	"net/http"

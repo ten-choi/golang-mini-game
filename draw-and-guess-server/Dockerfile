@@ -25,7 +25,7 @@ ENV CGO_ENABLED=0 \
 
 # 애플리케이션 컴파일.
 # 실행 파일 이름은 'server'입니다.
-RUN go build -o /server -ldflags="-s -w" -trimpath ./main.go
+RUN go build -o /server -ldflags="-s -w" -trimpath ./src/main.go
 
 # ----------------------------------------------------
 # 2단계: 최종 이미지 (Final Stage) - 실행 환경 (보안 및 경량화)

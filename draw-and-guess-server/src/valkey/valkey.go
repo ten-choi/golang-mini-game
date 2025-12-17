@@ -2,7 +2,7 @@ package valkey
 
 import (
 	"context"
-	"draw-and-guess-server/config"
+	"draw-and-guess-server/src/config"
 	"encoding/json"
 	"log"
 

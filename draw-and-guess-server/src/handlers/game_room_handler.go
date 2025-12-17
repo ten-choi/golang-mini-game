@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"context"
-	"draw-and-guess-server/models"
-	"draw-and-guess-server/valkey"
+	"draw-and-guess-server/src/models"
+	"draw-and-guess-server/src/valkey"
 	"encoding/json"
 	"errors"
 	"log"

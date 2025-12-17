@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"context"
-	"draw-and-guess-server/database"
-	"draw-and-guess-server/models"
+	"draw-and-guess-server/src/database"
+	"draw-and-guess-server/src/models"
 	"fmt"
 	"log"
 	"time"

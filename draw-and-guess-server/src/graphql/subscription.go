@@ -2,7 +2,7 @@ package graphql
 
 import (
 	"context"
-	"draw-and-guess-server/valkey"
+	"draw-and-guess-server/src/valkey"
 	"encoding/json"
 	"log"
 	"time"
