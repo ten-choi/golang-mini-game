@@ -60,6 +60,22 @@ type GameTopic struct {
 	Translations map[string]string `bson:"translations" json:"translations"`
 }
 
+// GetTestTopics는 테스트용 하드코딩된 퀴즈 데이터를 반환합니다
+// GuessQuiz 데이터를 GameTopic 형식으로 변환하여 반환합니다
+func GetTestTopics() []GameTopic {
+	guessQuizzes := GetTestGuessQuizzes()
+	topics := make([]GameTopic, len(guessQuizzes))
+
+	for i, quiz := range guessQuizzes {
+		topics[i] = GameTopic{
+			Canonical:    quiz.Topic,
+			Translations: quiz.Translations,
+		}
+	}
+
+	return topics
+}
+
 type ApiResult struct {
 	Status  bool        `json:"status"`
 	Message string      `json:"message"`

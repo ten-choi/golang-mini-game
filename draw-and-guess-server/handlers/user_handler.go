@@ -5,7 +5,6 @@ import (
 	"draw-and-guess-server/database"
 	"draw-and-guess-server/models"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,13 +15,13 @@ import (
 func GetUser(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		respondError(c, http.StatusBadRequest, "user ID is required")
+		JSONBadRequest(c, "user ID is required")
 		return
 	}
 
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		respondError(c, http.StatusBadRequest, "invalid user ID format")
+		JSONBadRequest(c, "invalid user ID format")
 		return
 	}
 
@@ -34,13 +33,11 @@ func GetUser(c *gin.Context) {
 	err = collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&user)
 	if err != nil {
 		log.Printf("User %s not found: %v", userID, err)
-		respondError(c, http.StatusNotFound, "user not found")
+		JSONNotFound(c, "user not found")
 		return
 	}
 
-	respondSuccess(c, "User retrieved successfully", map[string]interface{}{
-		"user": user,
-	})
+	JSONSuccess(c, user)
 }
 
 func CreateUser(c *gin.Context) {
@@ -49,18 +46,18 @@ func CreateUser(c *gin.Context) {
 	birthDate := c.PostForm("birth_date")
 
 	if nicknameLen := len(nickname); nicknameLen < 3 || nicknameLen > 20 {
-		respondError(c, http.StatusBadRequest, "nickname must be between 3 and 20 characters")
+		JSONBadRequest(c, "nickname must be between 3 and 20 characters")
 		return
 	}
 
 	if password == "" {
-		respondError(c, http.StatusBadRequest, "password is missing")
+		JSONBadRequest(c, "password is missing")
 		return
 	}
 
 	parsedBirthDate, err := time.Parse("2006-01-02", birthDate)
 	if err != nil {
-		respondError(c, http.StatusBadRequest, "invalid birth_date format, expected YYYY-MM-DD")
+		JSONBadRequest(c, "invalid birth_date format, expected YYYY-MM-DD")
 		return
 	}
 
@@ -73,17 +70,17 @@ func CreateUser(c *gin.Context) {
 	count, err := collection.CountDocuments(ctx, bson.M{"nickname": nickname})
 	if err != nil {
 		log.Printf("Failed to check nickname existence: %v", err)
-		respondError(c, http.StatusInternalServerError, "database error")
+		JSONInternalError(c, "database error")
 		return
 	}
 	if count > 0 {
-		respondError(c, http.StatusConflict, "nickname already exists")
+		JSONConflict(c, "nickname already exists")
 		return
 	}
 
 	user := models.User{
 		Nickname:     nickname,
-		PassWrod:     password,
+		Password:     password,
 		BirthDate:    parsedBirthDate,
 		WinningPoint: 0,
 		ProfileImage: "",
@@ -94,13 +91,13 @@ func CreateUser(c *gin.Context) {
 	result, err := collection.InsertOne(ctx, user)
 	if err != nil {
 		log.Printf("Failed to create user %s: %v", nickname, err)
-		respondError(c, http.StatusInternalServerError, "failed to create user")
+		JSONInternalError(c, "failed to create user")
 		return
 	}
 
 	log.Printf("Created user: %s", nickname)
 
-	respondSuccess(c, "User created successfully", map[string]interface{}{
+	JSONSuccess(c, map[string]interface{}{
 		"id":       result.InsertedID,
 		"nickname": nickname,
 	})
@@ -109,13 +106,13 @@ func CreateUser(c *gin.Context) {
 func UpdateUser(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		respondError(c, http.StatusBadRequest, "user ID is required")
+		JSONBadRequest(c, "user ID is required")
 		return
 	}
 
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		respondError(c, http.StatusBadRequest, "invalid user ID format")
+		JSONBadRequest(c, "invalid user ID format")
 		return
 	}
 
@@ -138,7 +135,7 @@ func UpdateUser(c *gin.Context) {
 	if birthDate := c.PostForm("birth_date"); birthDate != "" {
 		parsedBirthDate, err := time.Parse("2006-01-02", birthDate)
 		if err != nil {
-			respondError(c, http.StatusBadRequest, "invalid birth_date format, expected YYYY-MM-DD")
+			JSONBadRequest(c, "invalid birth_date format, expected YYYY-MM-DD")
 			return
 		}
 		update["$set"].(bson.M)["birth_date"] = parsedBirthDate
@@ -150,18 +147,19 @@ func UpdateUser(c *gin.Context) {
 	result, err := collection.UpdateOne(ctx, bson.M{"_id": objectID}, update)
 	if err != nil {
 		log.Printf("Failed to update user %s: %v", userID, err)
-		respondError(c, http.StatusInternalServerError, "failed to update user")
+		JSONInternalError(c, "failed to update user")
 		return
 	}
 
 	if result.MatchedCount == 0 {
-		respondError(c, http.StatusNotFound, "user not found")
+		JSONNotFound(c, "user not found")
 		return
 	}
 
 	log.Printf("Updated user: %s", userID)
 
-	respondSuccess(c, "User updated successfully", map[string]interface{}{
+	JSONSuccess(c, map[string]interface{}{
+		"id":             userID,
 		"modified_count": result.ModifiedCount,
 	})
 }

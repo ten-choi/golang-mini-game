@@ -27,18 +27,21 @@ func main() {
 		log.Fatalf("Failed to connect to Valkey: %v", err)
 	}
 
-	// Connect to MongoDB (required for topics)
+	// Connect to MongoDB (optional for now - using hardcoded topics)
 	if err := database.Connect(); err != nil {
-		log.Fatalf("MongoDB connection failed: %v", err)
+		log.Printf("MongoDB connection warning: %v (continuing with hardcoded topics)", err)
+	} else {
+		defer func() {
+			if err := database.Disconnect(); err != nil {
+				log.Printf("Failed to disconnect MongoDB: %v", err)
+			}
+		}()
 	}
+
+	// Load topics (currently using hardcoded data for testing)
 	if err := handlers.LoadTopicsFromMongo(context.Background()); err != nil {
-		log.Fatalf("Failed to load topics from MongoDB: %v", err)
+		log.Fatalf("Failed to load topics: %v", err)
 	}
-	defer func() {
-		if err := database.Disconnect(); err != nil {
-			log.Printf("Failed to disconnect MongoDB: %v", err)
-		}
-	}()
 
 	// Create Gin router
 	r := gin.Default()

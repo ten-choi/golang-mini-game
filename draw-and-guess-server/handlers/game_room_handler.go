@@ -2,21 +2,18 @@ package handlers
 
 import (
 	"context"
-	"draw-and-guess-server/database"
 	"draw-and-guess-server/models"
 	"draw-and-guess-server/valkey"
 	"encoding/json"
 	"errors"
 	"log"
 	"math/rand"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 var topics []models.GameTopic
@@ -95,18 +92,18 @@ func GetGameRooms(c *gin.Context) {
 		var room models.GameRoom
 		err := valkey.GetJSON(roomKeyPrefix+id, &room)
 		if err != nil {
-			respondError(c, http.StatusNotFound, "Room not found")
+			JSONNotFound(c, "Room not found")
 			return
 		}
 
-		respondSuccess(c, "Get Game Room", []models.GameRoom{room})
+		JSONSuccess(c, []models.GameRoom{room})
 		return
 	}
 
 	// Get all active rooms
 	keys, err := valkey.GetKeys(roomKeyPrefix + "*")
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, "Failed to fetch game rooms")
+		JSONInternalError(c, "Failed to fetch game rooms")
 		return
 	}
 
@@ -119,7 +116,7 @@ func GetGameRooms(c *gin.Context) {
 		}
 	}
 
-	respondSuccess(c, "Get Game Rooms", rooms)
+	JSONSuccess(c, rooms)
 }
 
 // CreateGameRoom godoc
@@ -136,7 +133,7 @@ func GetGameRooms(c *gin.Context) {
 func CreateGameRoom(c *gin.Context) {
 	ldapUser := c.PostForm("ldap_user")
 	if ldapUser == "" {
-		respondError(c, http.StatusBadRequest, "ldap_user is missing")
+		JSONBadRequest(c, "ldap_user is missing")
 		return
 	}
 
@@ -144,7 +141,7 @@ func CreateGameRoom(c *gin.Context) {
 
 	topic, err := selectNextWord(nil)
 	if err != nil {
-		respondError(c, http.StatusInternalServerError, "No drawing topics are available. Please check MongoDB data.")
+		JSONInternalError(c, "No drawing topics are available. Please check MongoDB data.")
 		return
 	}
 
@@ -168,13 +165,13 @@ func CreateGameRoom(c *gin.Context) {
 
 	if err := persistRoom(roomUUID, &room); err != nil {
 		log.Printf("Failed to create game room: %v", err)
-		respondError(c, http.StatusInternalServerError, "Failed to create game room")
+		JSONInternalError(c, "Failed to create game room")
 		return
 	}
 
 	log.Printf("Created game room with ID: %s", roomUUID)
 
-	respondSuccess(c, "Insert Game Room", map[string]interface{}{
+	JSONSuccess(c, map[string]interface{}{
 		"room_id":                   roomUUID,
 		"current_word":              room.CurrentWord,
 		"current_word_translations": room.CurrentWordTranslations,
@@ -199,19 +196,19 @@ func JoinGameRoom(c *gin.Context) {
 	username := c.PostForm("username")
 
 	if id == "" || username == "" {
-		respondError(c, http.StatusBadRequest, "id or username is missing")
+		JSONBadRequest(c, "id or username is missing")
 		return
 	}
 
 	var room models.GameRoom
 	err := valkey.GetJSON(roomKeyPrefix+id, &room)
 	if err != nil {
-		respondError(c, http.StatusNotFound, "Game room not found")
+		JSONNotFound(c, "Game room not found")
 		return
 	}
 
 	if findPlayerIndex(room.Players, username) != -1 {
-		respondError(c, http.StatusBadRequest, "Already joined")
+		JSONBadRequest(c, "Already joined")
 		return
 	}
 
@@ -225,11 +222,14 @@ func JoinGameRoom(c *gin.Context) {
 	room.UpdatedAt = time.Now()
 
 	if err := persistRoom(id, &room); err != nil {
-		respondError(c, http.StatusInternalServerError, "Failed to join room")
+		JSONInternalError(c, "Failed to join room")
 		return
 	}
 
-	respondSuccess(c, "Joined Game Room", nil)
+	JSONSuccess(c, map[string]interface{}{
+		"room_id":      id,
+		"player_count": len(room.Players),
+	})
 }
 
 // StartGame godoc
@@ -249,20 +249,20 @@ func StartGame(c *gin.Context) {
 	id := c.Param("id")
 
 	if id == "" {
-		respondError(c, http.StatusBadRequest, "id is missing")
+		JSONBadRequest(c, "id is missing")
 		return
 	}
 
 	var room models.GameRoom
 	err := valkey.GetJSON(roomKeyPrefix+id, &room)
 	if err != nil {
-		respondError(c, http.StatusNotFound, "Game room not found")
+		JSONNotFound(c, "Game room not found")
 		return
 	}
 
 	// 최소 2명 이상 필요
 	if len(room.Players) < 1 {
-		respondError(c, http.StatusBadRequest, "Need at least 1 player to start")
+		JSONBadRequest(c, "Need at least 1 player to start")
 		return
 	}
 
@@ -272,7 +272,7 @@ func StartGame(c *gin.Context) {
 	room.UpdatedAt = time.Now()
 
 	if err := persistRoom(id, &room); err != nil {
-		respondError(c, http.StatusInternalServerError, "Failed to start game")
+		JSONInternalError(c, "Failed to start game")
 		return
 	}
 
@@ -284,7 +284,7 @@ func StartGame(c *gin.Context) {
 	// Start timer management goroutine
 	go manageGameTimer(id)
 
-	respondSuccess(c, "Game started", map[string]interface{}{
+	JSONSuccess(c, map[string]interface{}{
 		"game_status":  "playing",
 		"round_number": room.RoundNumber,
 	})
@@ -310,26 +310,26 @@ func CheckAnswer(c *gin.Context) {
 	username := c.PostForm("username")
 
 	if id == "" || answer == "" || username == "" {
-		respondError(c, http.StatusBadRequest, "id, answer or username is missing")
+		JSONBadRequest(c, "id, answer or username is missing")
 		return
 	}
 
 	var room models.GameRoom
 	err := valkey.GetJSON(roomKeyPrefix+id, &room)
 	if err != nil {
-		respondError(c, http.StatusNotFound, "Game room not found")
+		JSONNotFound(c, "Game room not found")
 		return
 	}
 
 	playerIndex := findPlayerIndex(room.Players, username)
 	if playerIndex == -1 {
-		respondError(c, http.StatusBadRequest, "Player not found")
+		JSONBadRequest(c, "Player not found")
 		return
 	}
 
 	// 3회 제출 제한 확인
 	if room.Players[playerIndex].Attempts >= 3 {
-		respondError(c, http.StatusBadRequest, "Maximum attempts reached (3/3)")
+		JSONBadRequest(c, "Maximum attempts reached (3/3)")
 		return
 	}
 
@@ -345,7 +345,7 @@ func CheckAnswer(c *gin.Context) {
 
 		if !gameFinished && room.RoundNumber < room.MaxRounds {
 			if err := advanceToNextRound(&room); err != nil {
-				respondError(c, http.StatusInternalServerError, "No drawing topics are available. Please check MongoDB data.")
+				JSONInternalError(c, "No drawing topics are available. Please check MongoDB data.")
 				return
 			}
 		}
@@ -355,11 +355,11 @@ func CheckAnswer(c *gin.Context) {
 		}
 
 		if err := persistRoom(id, &room); err != nil {
-			respondError(c, http.StatusInternalServerError, "Failed to update game state")
+			JSONInternalError(c, "Failed to update game state")
 			return
 		}
 
-		respondSuccess(c, "Correct answer!", map[string]interface{}{
+		JSONSuccess(c, map[string]interface{}{
 			"is_correct":                true,
 			"current_word":              room.CurrentWord,
 			"current_word_translations": room.CurrentWordTranslations,
@@ -371,11 +371,11 @@ func CheckAnswer(c *gin.Context) {
 	}
 
 	if err := persistRoom(id, &room); err != nil {
-		respondError(c, http.StatusInternalServerError, "Failed to update attempt")
+		JSONInternalError(c, "Failed to update attempt")
 		return
 	}
 
-	respondSuccess(c, "Wrong answer", map[string]interface{}{
+	JSONSuccess(c, map[string]interface{}{
 		"is_correct":      false,
 		"attempts_left":   3 - room.Players[playerIndex].Attempts,
 		"current_attempt": room.Players[playerIndex].Attempts,
@@ -400,7 +400,7 @@ func CheckAnswer(c *gin.Context) {
 func UpdateGameRoom(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		respondError(c, http.StatusBadRequest, "id is missing in URL")
+		JSONBadRequest(c, "id is missing in URL")
 		return
 	}
 
@@ -409,22 +409,25 @@ func UpdateGameRoom(c *gin.Context) {
 		var room models.GameRoom
 		err := valkey.GetJSON(roomKeyPrefix+id, &room)
 		if err != nil {
-			respondError(c, http.StatusNotFound, "Room not found")
+			JSONNotFound(c, "Room not found")
 			return
 		}
 
 		// Advance to next round
 		if err := advanceToNextRound(&room); err != nil {
-			respondError(c, http.StatusInternalServerError, "No drawing topics are available. Please check MongoDB data.")
+			JSONInternalError(c, "No drawing topics are available. Please check MongoDB data.")
 			return
 		}
 
 		if err := persistRoom(id, &room); err != nil {
-			respondError(c, http.StatusInternalServerError, "Failed to advance round")
+			JSONInternalError(c, "Failed to advance round")
 			return
 		}
 
-		respondSuccess(c, "Round advanced", nil)
+		JSONSuccess(c, map[string]interface{}{
+			"room_id":      id,
+			"round_number": room.RoundNumber,
+		})
 		return
 	}
 
@@ -432,7 +435,7 @@ func UpdateGameRoom(c *gin.Context) {
 	var room models.GameRoom
 	err := valkey.GetJSON(roomKeyPrefix+id, &room)
 	if err != nil {
-		respondError(c, http.StatusNotFound, "Game room not found")
+		JSONNotFound(c, "Game room not found")
 		return
 	}
 
@@ -458,11 +461,14 @@ func UpdateGameRoom(c *gin.Context) {
 	// Save updated room to Valkey
 	if err := persistRoom(id, &room); err != nil {
 		log.Printf("Failed to update game room: %v", err)
-		respondError(c, http.StatusInternalServerError, "Failed to update game room")
+		JSONInternalError(c, "Failed to update game room")
 		return
 	}
 
-	respondSuccess(c, "Update Game Room", nil)
+	JSONSuccess(c, map[string]interface{}{
+		"room_id":   id,
+		"is_active": room.IsActive,
+	})
 }
 
 // DeleteGameRoom godoc
@@ -479,7 +485,7 @@ func UpdateGameRoom(c *gin.Context) {
 func DeleteGameRoom(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		respondError(c, http.StatusBadRequest, "id is missing in URL")
+		JSONBadRequest(c, "id is missing in URL")
 		return
 	}
 
@@ -487,11 +493,14 @@ func DeleteGameRoom(c *gin.Context) {
 	err := valkey.DeleteKey(roomKeyPrefix + id)
 	if err != nil {
 		log.Printf("Failed to delete game room: %v", err)
-		respondError(c, http.StatusInternalServerError, "Failed to delete game room")
+		JSONInternalError(c, "Failed to delete game room")
 		return
 	}
 
-	respondSuccess(c, "Delete Game Room", nil)
+	JSONSuccess(c, map[string]interface{}{
+		"room_id": id,
+		"deleted": true,
+	})
 }
 
 // LeaveGameRoom godoc
@@ -512,14 +521,14 @@ func LeaveGameRoom(c *gin.Context) {
 	username := c.Query("username")
 
 	if id == "" || username == "" {
-		respondError(c, http.StatusBadRequest, "id or username is missing")
+		JSONBadRequest(c, "id or username is missing")
 		return
 	}
 
 	var room models.GameRoom
 	err := valkey.GetJSON(roomKeyPrefix+id, &room)
 	if err != nil {
-		respondError(c, http.StatusNotFound, "Room not found")
+		JSONNotFound(c, "Room not found")
 		return
 	}
 
@@ -535,7 +544,7 @@ func LeaveGameRoom(c *gin.Context) {
 	}
 
 	if !found {
-		respondError(c, http.StatusNotFound, "Player not in room")
+		JSONNotFound(c, "Player not in room")
 		return
 	}
 
@@ -545,7 +554,10 @@ func LeaveGameRoom(c *gin.Context) {
 			log.Printf("Failed to delete empty room: %v", err)
 		}
 
-		respondSuccess(c, "Left room and room deleted", nil)
+		JSONSuccess(c, map[string]interface{}{
+			"room_id": id,
+			"deleted": true,
+		})
 		return
 	}
 
@@ -554,11 +566,14 @@ func LeaveGameRoom(c *gin.Context) {
 	room.UpdatedAt = time.Now()
 
 	if err := persistRoom(id, &room); err != nil {
-		respondError(c, http.StatusInternalServerError, "Failed to update room")
+		JSONInternalError(c, "Failed to update room")
 		return
 	}
 
-	respondSuccess(c, "Left room", nil)
+	JSONSuccess(c, map[string]interface{}{
+		"room_id":      id,
+		"player_count": len(room.Players),
+	})
 }
 
 // HandleChatMessage godoc
@@ -576,7 +591,7 @@ func LeaveGameRoom(c *gin.Context) {
 func HandleChatMessage(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		respondError(c, http.StatusBadRequest, "Room ID is required")
+		JSONBadRequest(c, "Room ID is required")
 		return
 	}
 
@@ -586,20 +601,20 @@ func HandleChatMessage(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
-		respondError(c, http.StatusBadRequest, "Invalid request body")
+		JSONBadRequest(c, "Invalid request body")
 		return
 	}
 
 	var room models.GameRoom
 	err := valkey.GetJSON(roomKeyPrefix+id, &room)
 	if err != nil {
-		respondError(c, http.StatusNotFound, "Room not found")
+		JSONNotFound(c, "Room not found")
 		return
 	}
 
 	// If game is not playing, just return the message as regular chat
 	if room.GameStatus != "playing" {
-		respondSuccess(c, "Chat message", map[string]interface{}{
+		JSONSuccess(c, map[string]interface{}{
 			"is_correct": false,
 			"is_chat":    true,
 		})
@@ -608,7 +623,7 @@ func HandleChatMessage(c *gin.Context) {
 
 	// Drawer cannot guess - only players can
 	if request.Username == room.DrawerUser {
-		respondSuccess(c, "Chat message", map[string]interface{}{
+		JSONSuccess(c, map[string]interface{}{
 			"is_correct": false,
 			"is_chat":    true,
 		})
@@ -629,7 +644,7 @@ func HandleChatMessage(c *gin.Context) {
 		room.LastRoundWinner = request.Username // 정답자를 다음 라운드 drawer로 설정
 
 		if err := advanceToNextRound(&room); err != nil {
-			respondError(c, http.StatusInternalServerError, "No drawing topics are available. Please check MongoDB data.")
+			JSONInternalError(c, "No drawing topics are available. Please check MongoDB data.")
 			return
 		}
 
@@ -642,56 +657,18 @@ func HandleChatMessage(c *gin.Context) {
 		}
 	}
 
-	respondSuccess(c, "Message processed", map[string]interface{}{
+	JSONSuccess(c, map[string]interface{}{
 		"is_correct": isCorrect,
 		"is_chat":    !isCorrect,
 	})
 }
 
 // LoadTopicsFromMongo refreshes in-memory topics from MongoDB.
+// 현재는 테스트를 위해 하드코딩된 데이터를 사용합니다.
 func LoadTopicsFromMongo(ctx context.Context) error {
-	collection := database.GetCollection("game_topics")
-	if collection == nil {
-		return errors.New("mongodb is not connected")
-	}
-
-	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	cursor, err := collection.Find(queryCtx, bson.M{})
-	if err != nil {
-		return err
-	}
-	defer cursor.Close(queryCtx)
-
-	var loaded []models.GameTopic
-	for cursor.Next(queryCtx) {
-		var topic models.GameTopic
-		if err := cursor.Decode(&topic); err != nil {
-			return err
-		}
-		if topic.Canonical == "" {
-			continue
-		}
-		if topic.Translations == nil {
-			topic.Translations = map[string]string{}
-		}
-		if _, exists := topic.Translations["en"]; !exists {
-			topic.Translations["en"] = topic.Canonical
-		}
-		loaded = append(loaded, topic)
-	}
-
-	if err := cursor.Err(); err != nil {
-		return err
-	}
-
-	if len(loaded) == 0 {
-		return errors.New("no topics found in MongoDB")
-	}
-
-	topics = loaded
-	log.Printf("Loaded %d topics from MongoDB", len(loaded))
+	// models.GetTestTopics()에서 테스트용 하드코딩 데이터 로드
+	topics = models.GetTestTopics()
+	log.Printf("Loaded %d topics from hardcoded data (test mode)", len(topics))
 	return nil
 }
 
