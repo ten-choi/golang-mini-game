@@ -2,7 +2,7 @@
 # 1단계: 빌더 (Builder Stage) - 컴파일 환경
 # ----------------------------------------------------
 # 최신 Go 버전을 사용합니다. (Go 1.24-alpine 유지)
-FROM golang:1.24-alpine AS builder
+FROM docker.io/library/golang:1.24-alpine AS builder
 
 # 작업 디렉토리 설정
 WORKDIR /app
