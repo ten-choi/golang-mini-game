@@ -83,6 +83,9 @@ func main() {
 		log.Println(logMessage)
 	})
 
+	// Health check endpoint
+	r.GET("/health", handlers.HealthCheck)
+
 	// Game Room routes
 	r.GET("/app/game/rooms", handlers.GetGameRooms)
 	r.POST("/app/game/room", handlers.CreateGameRoom)
