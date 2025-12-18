@@ -33,6 +33,7 @@ export class WebSocketService {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private subscriptions: Map<string, MessageCallback> = new Map();
+  private messageHandlers: Map<string, Set<MessageCallback>> = new Map();
   private isConnecting = false;
   private reconnectAttempts = 0;
   private config: Required<WebSocketConfig>;
@@ -232,13 +233,49 @@ export class WebSocketService {
       const message: WebSocketResponse = JSON.parse(event.data);
       
       if (message.type === 'message' && message.channel) {
+        // Call channel-specific callback
         const callback = this.subscriptions.get(message.channel);
         if (callback) {
           callback(message.data);
         }
+
+        // Call message type handlers
+        if (message.data && typeof message.data === 'object' && 'type' in message.data) {
+          const handlers = this.messageHandlers.get(message.data.type);
+          if (handlers) {
+            handlers.forEach(handler => handler(message.data));
+          }
+        }
       }
     } catch (error) {
       console.error('[WebSocket] Error parsing message:', error);
+    }
+  }
+
+  /**
+   * Add a message handler for a specific message type
+   * @param type - Message type (e.g., 'room_update', 'chat')
+   * @param callback - Callback function
+   */
+  addMessageHandler(type: string, callback: MessageCallback): void {
+    if (!this.messageHandlers.has(type)) {
+      this.messageHandlers.set(type, new Set());
+    }
+    this.messageHandlers.get(type)!.add(callback);
+  }
+
+  /**
+   * Remove a message handler
+   * @param type - Message type
+   * @param callback - Callback function to remove
+   */
+  removeMessageHandler(type: string, callback: MessageCallback): void {
+    const handlers = this.messageHandlers.get(type);
+    if (handlers) {
+      handlers.delete(callback);
+      if (handlers.size === 0) {
+        this.messageHandlers.delete(type);
+      }
     }
   }
 

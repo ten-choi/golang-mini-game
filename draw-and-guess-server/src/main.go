@@ -61,6 +61,7 @@ func main() {
 			"http://vpocket-alpha-ap-0.coconefk:30080",
 			"http://localhost:8080",
 			"http://localhost:3000",
+			"http://localhost:5174", // Vite dev server
 		},
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PATCH", "PUT", "DELETE"},
 		AllowHeaders: []string{

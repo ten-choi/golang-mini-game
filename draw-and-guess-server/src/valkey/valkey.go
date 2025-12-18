@@ -33,6 +33,11 @@ func Connect() error {
 
 // PublishMessage publishes a message to a channel
 func PublishMessage(channel string, message interface{}) error {
+	if Client == nil {
+		log.Println("Valkey client is not connected, skipping publish")
+		return nil
+	}
+
 	ctx := context.Background()
 	var data string
 
@@ -54,6 +59,11 @@ func PublishMessage(channel string, message interface{}) error {
 
 // SubscribeChannel subscribes to a channel and returns messages
 func SubscribeChannel(ctx context.Context, channel string, handler func(string)) error {
+	if Client == nil {
+		log.Println("Valkey client is not connected, skipping subscription")
+		return nil
+	}
+
 	err := Client.Receive(ctx, Client.B().Subscribe().Channel(channel).Build(), func(msg valkey.PubSubMessage) {
 		handler(msg.Message)
 	})
@@ -62,6 +72,11 @@ func SubscribeChannel(ctx context.Context, channel string, handler func(string))
 
 // SetJSON sets a JSON value with expiration
 func SetJSON(key string, value interface{}, expirationSeconds int) error {
+	if Client == nil {
+		log.Println("Valkey client is not connected, skipping SetJSON")
+		return nil
+	}
+
 	ctx := context.Background()
 	jsonData, err := json.Marshal(value)
 	if err != nil {
@@ -73,6 +88,10 @@ func SetJSON(key string, value interface{}, expirationSeconds int) error {
 
 // GetJSON gets a JSON value
 func GetJSON(key string, result interface{}) error {
+	if Client == nil {
+		return nil
+	}
+
 	ctx := context.Background()
 	cmd := Client.B().Get().Key(key).Build()
 	resp := Client.Do(ctx, cmd)
@@ -91,12 +110,22 @@ func GetJSON(key string, result interface{}) error {
 
 // DeleteKey deletes a key
 func DeleteKey(key string) error {
+	if Client == nil {
+		log.Println("Valkey client is not connected, skipping DeleteKey")
+		return nil
+	}
+
 	ctx := context.Background()
 	return Client.Do(ctx, Client.B().Del().Key(key).Build()).Error()
 }
 
 // GetKeys gets all keys matching a pattern
 func GetKeys(pattern string) ([]string, error) {
+	if Client == nil {
+		log.Println("Valkey client is not connected, returning empty keys")
+		return []string{}, nil
+	}
+
 	ctx := context.Background()
 	cmd := Client.B().Keys().Pattern(pattern).Build()
 	resp := Client.Do(ctx, cmd)

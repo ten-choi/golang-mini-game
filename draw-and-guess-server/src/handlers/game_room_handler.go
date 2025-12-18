@@ -179,6 +179,7 @@ func CreateGameRoom(c *gin.Context) {
 		UsedWords:    []string{},
 		MaxRounds:    3,        // 최대 3라운드
 		WinningScore: 3,        // 승리 점수 3점
+		MaxPlayers:   4,        // 최대 플레이어 수
 		GameType:     gameType, // 게임 타입
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -206,6 +207,9 @@ func CreateGameRoom(c *gin.Context) {
 	}
 
 	log.Printf("Created game room with ID: %s, Type: %s", roomUUID, gameType)
+
+	// WebSocket으로 방 목록 업데이트 브로드캐스트
+	broadcastRoomListUpdate()
 
 	response := map[string]interface{}{
 		"room_id":   roomUUID,
@@ -286,6 +290,12 @@ func JoinGameRoom(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Player %s joined room %s (total players: %d)", username, id, len(room.Players))
+
+	// WebSocket으로 방 상태 업데이트 브로드캐스트
+	broadcastRoomUpdate(id)
+	broadcastRoomListUpdate()
+
 	JSONSuccess(c, map[string]interface{}{
 		"room_id":      id,
 		"player_count": len(room.Players),
@@ -340,11 +350,16 @@ func StartGame(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Game started in room %s by %s", id, room.DrawerUser)
+
 	// 모든 클라이언트에게 게임 시작 알림
 	broadcastGame(id, map[string]interface{}{
 		"type":        "update",
 		"game_status": "playing",
 	})
+
+	// 방 목록 업데이트 (게임 중 방은 참가 불가)
+	broadcastRoomListUpdate()
 
 	// 타이머 관리 고루틴 시작
 	go manageGameTimer(id)
@@ -638,6 +653,9 @@ func LeaveGameRoom(c *gin.Context) {
 			log.Printf("Failed to delete empty room: %v", err)
 		}
 
+		log.Printf("Room %s deleted (empty)", id)
+		broadcastRoomListUpdate()
+
 		JSONSuccess(c, map[string]interface{}{
 			"room_id": id,
 			"deleted": true,
@@ -655,6 +673,12 @@ func LeaveGameRoom(c *gin.Context) {
 		JSONInternalError(c, "Failed to update room")
 		return
 	}
+
+	log.Printf("Player %s left room %s (remaining players: %d)", username, id, len(room.Players))
+
+	// WebSocket으로 방 상태 업데이트 브로드캐스트
+	broadcastRoomUpdate(id)
+	broadcastRoomListUpdate()
 
 	JSONSuccess(c, map[string]interface{}{
 		"room_id":      id,
@@ -905,4 +929,42 @@ func findPlayerIndex(players []models.Player, username string) int {
 		}
 	}
 	return -1
+}
+
+// broadcastRoomUpdate는 특정 방의 상태가 변경되었을 때 해당 방에 있는 모든 클라이언트에게 업데이트를 전송
+func broadcastRoomUpdate(roomID string) {
+	var room models.GameRoom
+	if err := valkey.GetJSON(roomKeyPrefix+roomID, &room); err != nil {
+		log.Printf("Failed to get room for broadcast: %v", err)
+		return
+	}
+
+	payload := map[string]interface{}{
+		"type": "room_update",
+		"data": room,
+	}
+
+	broadcastGame(roomID, payload)
+}
+
+// broadcastRoomListUpdate는 방 목록이 변경되었을 때 (방 생성/삭제/상태 변경) 모든 클라이언트에게 업데이트를 전송
+func broadcastRoomListUpdate() {
+	// 전역 채널로 방 목록 업데이트 브로드캐스트
+	payload := map[string]interface{}{
+		"type": "room_list_update",
+		"data": map[string]interface{}{
+			"message": "Room list has been updated",
+		},
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal room list payload: %v", err)
+		return
+	}
+
+	// 전역 채널로 발행
+	if err := valkey.PublishMessage("lobby", string(data)); err != nil {
+		log.Printf("Failed to publish room list update: %v", err)
+	}
 }

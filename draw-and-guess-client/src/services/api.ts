@@ -44,7 +44,7 @@ export class ApiError extends Error {
 
 const handleApiError = (error: unknown): never => {
   if (axios.isAxiosError(error)) {
-    const axiosError = error as AxiosError<ApiResult>;
+    const axiosError = error as AxiosError<{code?: string, message?: string}>;
     const message = axiosError.response?.data?.message || axiosError.message;
     const statusCode = axiosError.response?.status;
     throw new ApiError(message, statusCode, error);
@@ -65,8 +65,8 @@ export const apiService = {
   getGameRooms: async (uuid?: string): Promise<GameRoom[]> => {
     try {
       const params = uuid ? { id: uuid } : {};
-      const response = await api.get<ApiResult<GameRoom[]>>('/game/rooms', { params });
-      return response.data.result || [];
+      const response = await api.get<GameRoom[]>('/game/rooms', { params });
+      return response.data || [];
     } catch (error) {
       return handleApiError(error);
     }
@@ -83,8 +83,8 @@ export const apiService = {
       const formData = new URLSearchParams();
       formData.append('ldap_user', ldapUser);
       formData.append('game_type', gameType);
-      const response = await api.post<ApiResult<CreateRoomResponse>>('/game/room', formData);
-      return response.data.result;
+      const response = await api.post<CreateRoomResponse>('/game/room', formData);
+      return response.data;
     } catch (error) {
       return handleApiError(error);
     }
@@ -95,11 +95,11 @@ export const apiService = {
    * @param roomId - Room UUID
    * @param username - Username of the player joining
    */
-  joinGameRoom: async (roomId: string, username: string): Promise<ApiResult> => {
+  joinGameRoom: async (roomId: string, username: string): Promise<any> => {
     try {
       const formData = new URLSearchParams();
       formData.append('username', username);
-      const response = await api.post<ApiResult>(`/game/room/${roomId}/join`, formData);
+      const response = await api.post(`/game/room/${roomId}/join`, formData);
       return response.data;
     } catch (error) {
       return handleApiError(error);
@@ -110,9 +110,9 @@ export const apiService = {
    * Start the game (only host can call this)
    * @param roomId - Room UUID
    */
-  startGame: async (roomId: string): Promise<ApiResult> => {
+  startGame: async (roomId: string): Promise<any> => {
     try {
-      const response = await api.post<ApiResult>(`/game/room/${roomId}/start`, new URLSearchParams());
+      const response = await api.post(`/game/room/${roomId}/start`, new URLSearchParams());
       return response.data;
     } catch (error) {
       return handleApiError(error);
@@ -125,12 +125,12 @@ export const apiService = {
    * @param username - Username of the player
    * @param answer - The answer to submit
    */
-  submitAnswer: async (roomId: string, username: string, answer: string): Promise<ApiResult> => {
+  submitAnswer: async (roomId: string, username: string, answer: string): Promise<any> => {
     try {
       const formData = new URLSearchParams();
       formData.append('username', username);
       formData.append('answer', answer);
-      const response = await api.post<ApiResult>(`/game/room/${roomId}/answer`, formData);
+      const response = await api.post(`/game/room/${roomId}/answer`, formData);
       return response.data;
     } catch (error) {
       return handleApiError(error);
@@ -148,9 +148,9 @@ export const apiService = {
     roomId: string, 
     username: string, 
     message: string
-  ): Promise<ApiResult<AnswerSubmitResponse>> => {
+  ): Promise<any> => {
     try {
-      const response = await api.post<ApiResult<AnswerSubmitResponse>>(
+      const response = await api.post(
         `/game/room/${roomId}/chat`,
         { username, message },
         { headers: { 'Content-Type': 'application/json' } }
@@ -165,11 +165,11 @@ export const apiService = {
    * Advance to the next round (internal use)
    * @param roomId - Room UUID
    */
-  advanceRound: async (roomId: string): Promise<ApiResult> => {
+  advanceRound: async (roomId: string): Promise<any> => {
     try {
       const formData = new URLSearchParams();
       formData.append('action', 'advance_round');
-      const response = await api.patch<ApiResult>(`/game/room/${roomId}`, formData);
+      const response = await api.patch(`/game/room/${roomId}`, formData);
       return response.data;
     } catch (error) {
       return handleApiError(error);
@@ -189,14 +189,14 @@ export const apiService = {
       isCorrect?: boolean; 
       is_active?: boolean;
     }
-  ): Promise<ApiResult> => {
+  ): Promise<any> => {
     try {
       const formData = new URLSearchParams();
       if (data.user_count !== undefined) formData.append('user_count', data.user_count.toString());
       if (data.topic) formData.append('topic', data.topic);
       if (data.isCorrect !== undefined) formData.append('isCorrect', data.isCorrect.toString());
       if (data.is_active !== undefined) formData.append('is_active', data.is_active.toString());
-      const response = await api.patch<ApiResult>(`/game/room/${uuid}`, formData);
+      const response = await api.patch(`/game/room/${uuid}`, formData);
       return response.data;
     } catch (error) {
       return handleApiError(error);
@@ -207,9 +207,9 @@ export const apiService = {
    * Delete a game room
    * @param uuid - Room UUID
    */
-  deleteGameRoom: async (uuid: string): Promise<ApiResult> => {
+  deleteGameRoom: async (uuid: string): Promise<any> => {
     try {
-      const response = await api.delete<ApiResult>(`/game/room/${uuid}`);
+      const response = await api.delete(`/game/room/${uuid}`);
       return response.data;
     } catch (error) {
       return handleApiError(error);
@@ -221,11 +221,11 @@ export const apiService = {
    * @param roomId - Room UUID
    * @param username - Username of the player leaving
    */
-  leaveGameRoom: async (roomId: string, username: string): Promise<ApiResult> => {
+  leaveGameRoom: async (roomId: string, username: string): Promise<any> => {
     try {
       const formData = new URLSearchParams();
       formData.append('username', username);
-      const response = await api.post<ApiResult>(`/game/room/${roomId}/leave`, formData);
+      const response = await api.post(`/game/room/${roomId}/leave`, formData);
       return response.data;
     } catch (error) {
       return handleApiError(error);

@@ -49,7 +49,7 @@ const GameRoom: React.FC = () => {
     loadRoom();
 
     const gameSubscription = wsService.subscribe(`game/${roomId}`, (data) => {
-      if (data.type === 'update') {
+      if (data.type === 'update' || data.type === 'room_update') {
         // Update timer from WebSocket if available
         if (data.time_left !== undefined) {
           setTimeLeft(data.time_left);
@@ -59,6 +59,15 @@ const GameRoom: React.FC = () => {
         }
         // Always reload full room data
         loadRoom();
+      } else if (data.type === 'timer_update') {
+        // Timer update from WebSocket
+        if (data.data) {
+          setTimeLeft(data.data.time_left);
+          if (data.data.game_status === 'finished') {
+            setMessage(t.gameRoom.gameFinished);
+            loadRoom();
+          }
+        }
       }
     });
 

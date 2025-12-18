@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
+import { wsService } from '../services/websocket';
 import { GameRoom } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -12,6 +13,24 @@ const RoomList: React.FC = () => {
 
   useEffect(() => {
     loadRooms();
+
+    // WebSocket 연결 및 lobby 채널 구독
+    wsService.connect(
+      () => console.log('WebSocket connected for room list'),
+      (error) => console.error('WebSocket connection error:', error)
+    );
+
+    // lobby 채널 구독하여 방 목록 업데이트 수신
+    const subscription = wsService.subscribe('lobby', (data) => {
+      console.log('Lobby update received:', data);
+      if (data.type === 'room_list_update') {
+        loadRooms(); // 방 목록 새로고침
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadRooms = async () => {
