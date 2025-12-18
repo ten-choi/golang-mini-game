@@ -28,6 +28,11 @@ func Init() {
 	DatabaseName = getEnv("DATABASE_NAME", "draw_and_guess_db")
 	ServerPort = getEnv("SERVER_PORT", "8080")
 
+	// Validate essential configurations
+	if ServerPort == "" {
+		log.Fatal("SERVER_PORT must be set")
+	}
+
 	log.Printf("Config loaded - ServerPort: %s, ValkeyAddr: %s, MongoURI: %s", ServerPort, ValkeyAddr, MongoURI)
 }
 

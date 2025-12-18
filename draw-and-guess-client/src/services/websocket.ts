@@ -75,8 +75,7 @@ export class WebSocketService {
 
     return new Promise((resolve, reject) => {
       try {
-        const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8080';
-        const wsUrl = `${wsBaseUrl}/app/ws`;
+        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/app/ws';
         
         console.log(`[WebSocket] Connecting to ${wsUrl}...`);
         this.ws = new WebSocket(wsUrl);

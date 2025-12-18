@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"draw-and-guess-server/src/config"
@@ -58,7 +62,7 @@ func main() {
 	corsConfig := cors.Config{
 		AllowOrigins: []string{
 			"https://studio.apollographql.com",
-			"http://vpocket-alpha-ap-0.coconefk:30080",
+			"http://10.33.255.58:8080",
 			"http://localhost:8080",
 			"http://localhost:3000",
 			"http://localhost:5174", // Vite dev server
@@ -82,13 +86,7 @@ func main() {
 	}
 	r.Use(cors.New(corsConfig))
 
-	// (Optional but helpful) Explicit OPTIONS handler for /graphql
-	// Some proxies/ingress setups can be picky about OPTIONS.
-	// r.OPTIONS("/graphql", func(c *gin.Context) {
-	// 	c.Status(http.StatusNoContent)
-	// })
-
-	// Logging middleware
+	// Logging middleware (after CORS)
 	r.Use(func(c *gin.Context) {
 		startTime := time.Now()
 		c.Next()
@@ -141,17 +139,46 @@ func main() {
 		Pretty: true,
 	})
 
-	// GraphQL UI + endpoint
-	// Using "/graphql" makes the UI use the current host automatically.
-	r.GET("/graphql", gin.WrapH(playground.ApolloSandboxHandler("GraphQL", "/graphql")))
-	r.POST("/graphql", gin.WrapH(h))
+	// GraphQL UI options
+	r.GET("/graphql/playground", gin.WrapH(playground.Handler("GraphQL Playground", "/graphql")))
+	r.GET("/graphql/sandbox", gin.WrapH(playground.ApolloSandboxHandler("Apollo Sandbox", "/graphql")))
 
-	// Start server
+	// GraphQL endpoint
+	r.POST("/graphql", gin.WrapH(h))
+	r.GET("/graphql", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/graphql/sandbox")
+	})
+
+	// Start server with graceful shutdown
 	port := config.ServerPort
 	addr := "0.0.0.0:" + port
-	log.Printf("Server started on %s", addr)
 
-	if err := r.Run(addr); err != nil {
-		log.Fatal("Server failed to start:", err)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: r,
 	}
+
+	// Start server in goroutine
+	go func() {
+		log.Printf("Server started on %s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	// Graceful shutdown with 5 second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server exited")
 }
