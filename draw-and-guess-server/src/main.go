@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"draw-and-guess-server/src/config"
@@ -50,30 +50,64 @@ func main() {
 	// Create Gin router
 	r := gin.Default()
 
-	// CORS configuration
-	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowAllOrigins = true
-	corsConfig.AllowMethods = []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"}
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
-	corsConfig.AllowCredentials = true
+	// -----------------------------
+	// CORS (server-safe settings)
+	// -----------------------------
+	// IMPORTANT:
+	// - If AllowCredentials = true, you MUST NOT use AllowAllOrigins = true.
+	// - Add Apollo Studio/Sandbox related headers.
+	corsConfig := cors.Config{
+		AllowOrigins: []string{
+			"https://studio.apollographql.com",
+			// Add your real domain(s) here if you have them, e.g.:
+			// "https://your-service.example.com",
+			// Local dev (optional):
+			"http://localhost:8080",
+			"http://localhost:3000",
+		},
+		AllowMethods: []string{"GET", "POST", "OPTIONS", "PATCH", "PUT", "DELETE"},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Type",
+			"Accept",
+			"Authorization",
+
+			// Apollo Sandbox / Studio often sends these:
+			"apollo-require-preflight",
+			"x-apollo-operation-name",
+			"apollo-client-name",
+			"apollo-client-version",
+		},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}
 	r.Use(cors.New(corsConfig))
+
+	// (Optional but helpful) Explicit OPTIONS handler for /graphql
+	// Some proxies/ingress setups can be picky about OPTIONS.
+	r.OPTIONS("/graphql", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
 
 	// Logging middleware
 	r.Use(func(c *gin.Context) {
 		startTime := time.Now()
 		c.Next()
-		endTime := time.Now()
-		latency := endTime.Sub(startTime)
-		latencyInMilliseconds := float64(latency) / float64(time.Millisecond)
+		latency := time.Since(startTime)
 
 		statusCode := c.Writer.Status()
 		clientIP := c.ClientIP()
 		method := c.Request.Method
 		endpoint := c.Request.URL.Path
 
-		logMessage := fmt.Sprintf("| %d | %.3fms | %s | %s %s",
-			statusCode, latencyInMilliseconds, clientIP, method, endpoint)
-		log.Println(logMessage)
+		log.Printf("| %d | %.3fms | %s | %s %s",
+			statusCode,
+			float64(latency)/float64(time.Millisecond),
+			clientIP,
+			method,
+			endpoint,
+		)
 	})
 
 	// Health check
@@ -98,19 +132,23 @@ func main() {
 	// WebSocket route
 	r.GET("/app/ws", websocket.HandleWebSocket)
 
-	// GraphQL endpoint
+	// GraphQL handler
 	h := gqlhandler.New(&gqlhandler.Config{
 		Schema: &graphql.Schema,
 		Pretty: true,
 	})
+
+	// GraphQL UI + endpoint
+	// Using "/graphql" makes the UI use the current host automatically.
 	r.GET("/graphql", gin.WrapH(playground.ApolloSandboxHandler("GraphQL", "/graphql")))
 	r.POST("/graphql", gin.WrapH(h))
 
 	// Start server
 	port := config.ServerPort
-	log.Printf("Server started on port %s", port)
-	log.Printf("Apollo Sandbox: http://localhost:%s/graphql", port)
-	if err := r.Run(":" + port); err != nil {
+	addr := "0.0.0.0:" + port
+	log.Printf("Server started on %s", addr)
+
+	if err := r.Run(addr); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
 }
