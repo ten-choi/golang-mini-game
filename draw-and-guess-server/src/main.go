@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"time"
 
 	"draw-and-guess-server/src/config"
@@ -59,9 +58,7 @@ func main() {
 	corsConfig := cors.Config{
 		AllowOrigins: []string{
 			"https://studio.apollographql.com",
-			// Add your real domain(s) here if you have them, e.g.:
-			// "https://your-service.example.com",
-			// Local dev (optional):
+			"http://vpocket-alpha-ap-0.coconefk:30080",
 			"http://localhost:8080",
 			"http://localhost:3000",
 		},
@@ -86,9 +83,9 @@ func main() {
 
 	// (Optional but helpful) Explicit OPTIONS handler for /graphql
 	// Some proxies/ingress setups can be picky about OPTIONS.
-	r.OPTIONS("/graphql", func(c *gin.Context) {
-		c.Status(http.StatusNoContent)
-	})
+	// r.OPTIONS("/graphql", func(c *gin.Context) {
+	// 	c.Status(http.StatusNoContent)
+	// })
 
 	// Logging middleware
 	r.Use(func(c *gin.Context) {
@@ -123,6 +120,11 @@ func main() {
 	r.POST("/app/game/room/:id/chat", handlers.HandleChatMessage)
 	r.PATCH("/app/game/room/:id", handlers.UpdateGameRoom)
 	r.DELETE("/app/game/room/:id", handlers.DeleteGameRoom)
+
+	// Quiz routes
+	r.GET("/app/quiz/ox", handlers.GetOXQuiz)
+	r.GET("/app/quiz/general", handlers.GetGeneralQuiz)
+	r.GET("/app/quiz/:type", handlers.GetQuizByType)
 
 	// User routes
 	r.GET("/app/user/:id", handlers.GetUser)

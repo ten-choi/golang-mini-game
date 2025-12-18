@@ -90,11 +90,17 @@ const Home: React.FC = () => {
 
         <div style={styles.buttonGroup}>
           <button
-            onClick={handleCreateRoom}
-            disabled={loading}
+            onClick={() => {
+              if (!username.trim()) {
+                alert(t.home.enterUsername);
+                return;
+              }
+              sessionStorage.setItem('username', username.trim());
+              navigate('/game-mode');
+            }}
             style={styles.button}
           >
-            {loading ? '...' : `🎮 ${t.home.createRoom}`}
+            🎯 게임 시작
           </button>
 
           <button

@@ -77,11 +77,19 @@ const RoomList: React.FC = () => {
             {rooms.map((room) => (
               <div key={room.uuid} style={styles.roomCard}>
                 <div style={styles.roomInfo}>
-                  <div style={styles.roomTitle}>
-                    👑 호스트: {room.drawer_user}
+                  <div style={styles.roomHeader}>
+                    <div style={styles.roomTitle}>
+                      👑 호스트: {room.drawer_user}
+                    </div>
+                    <div style={{
+                      ...styles.gameTypeBadge,
+                      background: room.game_type === 'guess' ? '#FF6B6B' : room.game_type === 'ox' ? '#4ECDC4' : '#95E1D3'
+                    }}>
+                      {room.game_type === 'guess' ? '🎨 그림' : room.game_type === 'ox' ? '⭕❌ OX' : '📚 상식'}
+                    </div>
                   </div>
                   <div style={styles.roomStats}>
-                    <span>👥 {room.players.length}</span>
+                    <span>👥 {room.players.length}/4</span>
                     {room.game_status === 'playing' && (
                       <>
                         <span style={styles.separator}>•</span>
@@ -204,11 +212,25 @@ const styles: { [key: string]: React.CSSProperties } = {
     flex: '1 1 auto',
     minWidth: '200px',
   },
+  roomHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '4px',
+    gap: '10px',
+  },
   roomTitle: {
     fontSize: 'clamp(14px, 3vw, 16px)',
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: '4px',
+  },
+  gameTypeBadge: {
+    fontSize: 'clamp(10px, 2vw, 12px)',
+    padding: '4px 10px',
+    borderRadius: '12px',
+    color: 'white',
+    fontWeight: 'bold',
+    whiteSpace: 'nowrap',
   },
   roomStats: {
     fontSize: 'clamp(12px, 2.5vw, 14px)',

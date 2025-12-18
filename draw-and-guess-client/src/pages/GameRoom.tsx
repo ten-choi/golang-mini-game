@@ -93,6 +93,12 @@ const GameRoom: React.FC = () => {
       if (rooms.length > 0) {
         const newRoom = rooms[0];
         
+        // If it's a quiz game, redirect to QuizRoom
+        if (newRoom.game_type === 'ox' || newRoom.game_type === 'general') {
+          navigate(`/quiz-room/${roomId}`, { replace: true });
+          return;
+        }
+        
         // Check if round changed - clear canvas if so
         if (prevRoundRef.current !== newRoom.round_number) {
           setClearCanvasTrigger(prev => prev + 1);

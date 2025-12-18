@@ -141,6 +141,7 @@ func GetGameRooms(c *gin.Context) {
 // @Accept x-www-form-urlencoded
 // @Produce json
 // @Param ldap_user formData string true "Username of the room creator"
+// @Param game_type formData string true "Game type: ox, general, or guess"
 // @Success 200 {object} models.ApiResult{result=models.GameRoom}
 // @Failure 400 {object} models.ApiResult
 // @Failure 500 {object} models.ApiResult
@@ -152,35 +153,50 @@ func CreateGameRoom(c *gin.Context) {
 		return
 	}
 
-	// UUID 생성 (방 고유 ID)
-	roomUUID := uuid.New().String()
+	// 게임 타입 가져오기 (기본값: guess)
+	gameTypeStr := c.DefaultPostForm("game_type", "guess")
+	gameType := models.GameType(gameTypeStr)
 
-	// 첫 번째 그림 주제 선택
-	topic, err := selectNextWord(nil)
-	if err != nil {
-		JSONInternalError(c, "No drawing topics are available. Please check MongoDB data.")
+	// 게임 타입 검증
+	if !gameType.IsValid() {
+		JSONBadRequest(c, "Invalid game_type. Must be: ox, general, or guess")
 		return
 	}
+
+	// UUID 생성 (방 고유 ID)
+	roomUUID := uuid.New().String()
 
 	// 방 초기 설정
 	room := models.GameRoom{
 		UUID:         roomUUID,
 		IsActive:     true,
-		DrawerUser:   ldapUser, // 방장이 첫 그림 그리는 사람
+		DrawerUser:   ldapUser, // 방장 (guess 타입에서는 그림 그리는 사람)
 		RoomCreator:  ldapUser,
 		Players:      []models.Player{},
 		RoundNumber:  1,
 		TimeLeft:     60,
 		GameStatus:   "waiting", // 대기 중 상태로 시작
 		UsedWords:    []string{},
-		MaxRounds:    3, // 최대 3라운드
-		WinningScore: 3, // 승리 점수 3점
+		MaxRounds:    3,        // 최대 3라운드
+		WinningScore: 3,        // 승리 점수 3점
+		GameType:     gameType, // 게임 타입
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
 
-	// 선택된 주제를 방에 적용
-	applyTopicToRoom(&room, topic)
+	// 게임 타입에 따라 초기 문제/주제 설정
+	if gameType == models.GameTypeGuess {
+		// 그림 맞추기: 첫 번째 그림 주제 선택
+		topic, err := selectNextWord(nil)
+		if err != nil {
+			JSONInternalError(c, "No drawing topics are available. Please check MongoDB data.")
+			return
+		}
+		applyTopicToRoom(&room, topic)
+	} else {
+		// OX 또는 일반 퀴즈: 게임 시작 시 문제 설정
+		room.CurrentWord = "" // 문제는 게임 시작 시 설정
+	}
 
 	// Valkey에 방 정보 저장
 	if err := persistRoom(roomUUID, &room); err != nil {
@@ -189,13 +205,19 @@ func CreateGameRoom(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Created game room with ID: %s", roomUUID)
+	log.Printf("Created game room with ID: %s, Type: %s", roomUUID, gameType)
 
-	JSONSuccess(c, map[string]interface{}{
-		"room_id":                   roomUUID,
-		"current_word":              room.CurrentWord,
-		"current_word_translations": room.CurrentWordTranslations,
-	})
+	response := map[string]interface{}{
+		"room_id":   roomUUID,
+		"game_type": gameType,
+	}
+
+	if gameType == models.GameTypeGuess {
+		response["current_word"] = room.CurrentWord
+		response["current_word_translations"] = room.CurrentWordTranslations
+	}
+
+	JSONSuccess(c, response)
 }
 
 // JoinGameRoom은 게임 방에 참가하는 API 핸들러
@@ -234,6 +256,18 @@ func JoinGameRoom(c *gin.Context) {
 	// 이미 참가한 플레이어인지 확인
 	if findPlayerIndex(room.Players, username) != -1 {
 		JSONBadRequest(c, "Already joined")
+		return
+	}
+
+	// 최대 인원 체크 (방장 제외 최대 3명, 총 4명)
+	maxPlayers := 4
+	if room.MaxPlayers > 0 {
+		maxPlayers = room.MaxPlayers
+	}
+
+	// 방장을 제외한 플레이어 수 확인
+	if len(room.Players) >= maxPlayers-1 {
+		JSONBadRequest(c, "Room is full (max 4 players)")
 		return
 	}
 

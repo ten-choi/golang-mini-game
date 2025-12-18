@@ -22,7 +22,8 @@ type GameRoom struct {
 	UsedWords               []string           `bson:"used_words" json:"used_words"`       // 사용된 단어들
 	MaxRounds               int                `bson:"max_rounds" json:"max_rounds"`       // 최대 라운드 (3)
 	WinningScore            int                `bson:"winning_score" json:"winning_score"` // 우승 점수 (3)
-	GameType                GameType           `bson:"game_type" json:"game_type"`
+	MaxPlayers              int                `bson:"max_players" json:"max_players"`     // 최대 플레이어 수 (4)
+	GameType                GameType           `bson:"game_type" json:"game_type"`         // 게임 타입 (ox, general, guess)
 	CreatedAt               time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt               time.Time          `bson:"updated_at" json:"updated_at"`
 }
@@ -37,14 +38,15 @@ type Player struct {
 type GameType string
 
 const (
-	GameTypeOX    GameType = "ox"    // OX 퀴즈
-	GameTypeGuess GameType = "guess" // 그림 맞추기
+	GameTypeOX      GameType = "ox"      // OX 퀴즈
+	GameTypeGeneral GameType = "general" // 일반 상식 퀴즈 (객관식)
+	GameTypeGuess   GameType = "guess"   // 그림 맞추기
 )
 
 // IsValid는 GameType이 유효한 값인지 검증합니다
 func (g GameType) IsValid() bool {
 	switch g {
-	case GameTypeOX, GameTypeGuess:
+	case GameTypeOX, GameTypeGeneral, GameTypeGuess:
 		return true
 	}
 	return false
