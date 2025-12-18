@@ -4,29 +4,29 @@ import (
 	"encoding/json"
 )
 
-// WSSuccessMessage represents a successful WebSocket message
-// Format: { "type": "DRAW_EVENT", "payload": { ... } }
+// WSSuccessMessage는 성공적인 WebSocket 메시지 형식
+// 형식: { "type": "DRAW_EVENT", "payload": { ... } }
 type WSSuccessMessage struct {
 	Type    string      `json:"type"`
 	Payload interface{} `json:"payload"`
 }
 
-// WSErrorMessage represents an error WebSocket message
-// Format: { "type": "ERROR", "code": "UNAUTHORIZED", "message": "token expired" }
+// WSErrorMessage는 에러 WebSocket 메시지 형식
+// 형식: { "type": "ERROR", "code": "UNAUTHORIZED", "message": "token expired" }
 type WSErrorMessage struct {
 	Type    string `json:"type"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
-// GameEventPayload represents game state change data
+// GameEventPayload는 게임 상태 변경 데이터
 type GameEventPayload struct {
 	EventType string      `json:"eventType"` // "player_joined", "player_left", "game_started", "round_started"
 	RoomID    string      `json:"roomId"`
 	Data      interface{} `json:"data"`
 }
 
-// ChatMessagePayload represents a chat message
+// ChatMessagePayload는 채팅 메시지 데이터
 type ChatMessagePayload struct {
 	RoomID     string `json:"roomId"`
 	PlayerID   string `json:"playerId"`
@@ -34,7 +34,7 @@ type ChatMessagePayload struct {
 	Message    string `json:"message"`
 }
 
-// DrawingEventPayload represents drawing stroke data
+// DrawingEventPayload는 그림 그리기 데이터
 type DrawingEventPayload struct {
 	RoomID    string      `json:"roomId"`
 	PlayerID  string      `json:"playerId"`
@@ -45,13 +45,13 @@ type DrawingEventPayload struct {
 	Action    string      `json:"action"` // "start", "draw", "end", "clear"
 }
 
-// DrawPoint represents a single point in a drawing stroke
+// DrawPoint는 그리기에서 하나의 점을 나타냄
 type DrawPoint struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
 }
 
-// BuildWSSuccess creates a success WebSocket message
+// BuildWSSuccess는 성공 WebSocket 메시지를 생성
 func BuildWSSuccess(msgType string, payload interface{}) []byte {
 	msg := WSSuccessMessage{
 		Type:    msgType,
@@ -61,7 +61,7 @@ func BuildWSSuccess(msgType string, payload interface{}) []byte {
 	return bytes
 }
 
-// BuildWSError creates an error WebSocket message
+// BuildWSError는 에러 WebSocket 메시지를 생성
 func BuildWSError(code string, message string) []byte {
 	msg := WSErrorMessage{
 		Type:    "ERROR",
@@ -72,7 +72,7 @@ func BuildWSError(code string, message string) []byte {
 	return bytes
 }
 
-// BuildGameEvent creates a game event WebSocket message
+// BuildGameEvent는 게임 이벤트 WebSocket 메시지를 생성
 func BuildGameEvent(roomID string, eventType string, data interface{}) []byte {
 	payload := GameEventPayload{
 		EventType: eventType,
@@ -82,7 +82,7 @@ func BuildGameEvent(roomID string, eventType string, data interface{}) []byte {
 	return BuildWSSuccess("GAME_EVENT", payload)
 }
 
-// BuildChatMessage creates a chat WebSocket message
+// BuildChatMessage는 채팅 WebSocket 메시지를 생성
 func BuildChatMessage(roomID, playerID, playerName, message string) []byte {
 	payload := ChatMessagePayload{
 		RoomID:     roomID,
@@ -93,7 +93,7 @@ func BuildChatMessage(roomID, playerID, playerName, message string) []byte {
 	return BuildWSSuccess("CHAT_MESSAGE", payload)
 }
 
-// BuildDrawingEvent creates a drawing WebSocket message
+// BuildDrawingEvent는 그리기 WebSocket 메시지를 생성
 func BuildDrawingEvent(roomID, playerID, action string, data interface{}) []byte {
 	payload := DrawingEventPayload{
 		RoomID:   roomID,

@@ -14,7 +14,7 @@ mutation {
     id
     nickname
     profileImage
-    winningPoint
+    money
     createdAt
     updatedAt
   }
@@ -28,7 +28,7 @@ query {
     id
     nickname
     profileImage
-    winningPoint
+    money
     createdAt
   }
 }

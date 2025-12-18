@@ -11,8 +11,9 @@ type User struct {
 	Nickname     string             `bson:"nickname" json:"nickname"`
 	Password     string             `bson:"password,omitempty" json:"-"`
 	BirthDate    time.Time          `bson:"birth_date" json:"birth_date"`
+	Level        int                `bson:"level" json:"level"`
 	ProfileImage string             `bson:"profile_image" json:"profile_image"`
-	WinningPoint int                `bson:"winning_point" json:"winning_point"`
+	Money        int                `bson:"money" json:"money"`
 	CreatedAt    time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt    time.Time          `bson:"updated_at" json:"updated_at"`
 }

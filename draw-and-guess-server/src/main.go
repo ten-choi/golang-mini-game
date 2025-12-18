@@ -13,6 +13,7 @@ import (
 	"draw-and-guess-server/src/valkey"
 	"draw-and-guess-server/src/websocket"
 
+	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	gqlhandler "github.com/graphql-go/handler"
@@ -22,14 +23,14 @@ func main() {
 	// Initialize config
 	config.Init()
 
-	// Connect to Valkey (optional - log warning but continue)
+	// Connect to Valkey
 	if err := valkey.Connect(); err != nil {
 		log.Printf("Valkey connection warning: %v (continuing without cache)", err)
 	} else {
 		log.Println("Successfully connected to Valkey")
 	}
 
-	// Connect to MongoDB (optional for now - using hardcoded topics)
+	// Connect to MongoDB
 	if err := database.Connect(); err != nil {
 		log.Printf("MongoDB connection warning: %v (continuing with hardcoded topics)", err)
 	} else {
@@ -41,7 +42,7 @@ func main() {
 		}()
 	}
 
-	// Load topics (currently using hardcoded data for testing)
+	// Load topics
 	if err := handlers.LoadTopicsFromMongo(context.Background()); err != nil {
 		log.Printf("Failed to load topics from MongoDB, using hardcoded data: %v", err)
 	}
@@ -51,9 +52,9 @@ func main() {
 
 	// CORS configuration
 	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowAllOrigins = true // Allow all origins for ngrok compatibility
+	corsConfig.AllowAllOrigins = true
 	corsConfig.AllowMethods = []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"}
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	corsConfig.AllowCredentials = true
 	r.Use(cors.New(corsConfig))
 
@@ -70,20 +71,12 @@ func main() {
 		method := c.Request.Method
 		endpoint := c.Request.URL.Path
 
-		var logMessage string
-		if method == "GET" {
-			params := c.Request.URL.RawQuery
-			logMessage = fmt.Sprintf("| %d | %.3fms | %s | %s %s?%s",
-				statusCode, latencyInMilliseconds, clientIP, method, endpoint, params)
-		} else {
-			logMessage = fmt.Sprintf("| %d | %.3fms | %s | %s %s",
-				statusCode, latencyInMilliseconds, clientIP, method, endpoint)
-		}
-
+		logMessage := fmt.Sprintf("| %d | %.3fms | %s | %s %s",
+			statusCode, latencyInMilliseconds, clientIP, method, endpoint)
 		log.Println(logMessage)
 	})
 
-	// Health check endpoint
+	// Health check
 	r.GET("/health", handlers.HealthCheck)
 
 	// Game Room routes
@@ -107,17 +100,16 @@ func main() {
 
 	// GraphQL endpoint
 	h := gqlhandler.New(&gqlhandler.Config{
-		Schema:   &graphql.Schema,
-		Pretty:   true,
-		GraphiQL: true,
+		Schema: &graphql.Schema,
+		Pretty: true,
 	})
+	r.GET("/graphql", gin.WrapH(playground.ApolloSandboxHandler("GraphQL", "/graphql")))
 	r.POST("/graphql", gin.WrapH(h))
-	r.GET("/graphql", gin.WrapH(h))
 
 	// Start server
 	port := config.ServerPort
-	log.Printf("Starting server on port %s...", port)
-	log.Printf("GraphQL Playground available at: http://localhost:%s/graphql", port)
+	log.Printf("Server started on port %s", port)
+	log.Printf("Apollo Sandbox: http://localhost:%s/graphql", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}

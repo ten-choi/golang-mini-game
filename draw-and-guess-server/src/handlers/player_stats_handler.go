@@ -14,6 +14,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// GetPlayerStats는 플레이어의 통계를 조회하는 API 핸들러
+// GET /player-stats/:id
+// 용도: 사용자 ID로 플레이어의 게임 통계 정보를 조회
 func GetPlayerStats(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
@@ -22,6 +25,7 @@ func GetPlayerStats(c *gin.Context) {
 		return
 	}
 
+	// 문자열 ID를 ObjectID로 변환
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		log.Printf("GetPlayerStats: invalid user ID format: %s, error: %v", userID, err)
@@ -32,6 +36,7 @@ func GetPlayerStats(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// MongoDB에서 사용자 정보 조회
 	var user models.User
 	collection := database.GetCollection("users")
 	err = collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&user)
@@ -50,6 +55,10 @@ func GetPlayerStats(c *gin.Context) {
 	JSONSuccess(c, user)
 }
 
+// UpsertPlayerStats는 플레이어의 게임 통계를 생성하거나 업데이트하는 API 핸들러
+// POST /player-stats
+// JSON 데이터: {nickname, correctGuessesThisGame, drawSuccessesThisGame}
+// 용도: 게임 종료 후 플레이어의 누적 통계를 갱신 (기존 통계가 있으면 업데이트, 없으면 생성)
 func UpsertPlayerStats(c *gin.Context) {
 	var request struct {
 		Nickname               string `json:"nickname"`
@@ -57,19 +66,21 @@ func UpsertPlayerStats(c *gin.Context) {
 		DrawSuccessesThisGame  int    `json:"drawSuccessesThisGame"`
 	}
 
+	// JSON 요청 바디 파싱
 	if err := c.ShouldBindJSON(&request); err != nil {
 		log.Printf("UpsertPlayerStats: invalid request body: %v", err)
 		JSONBadRequest(c, fmt.Sprintf("invalid request body: %v", err))
 		return
 	}
 
+	// 닉네임 필수 확인
 	if request.Nickname == "" {
 		log.Printf("UpsertPlayerStats: missing nickname")
 		JSONBadRequest(c, "nickname is required")
 		return
 	}
 
-	// Validate stats values
+	// 통계 값 유효성 검사 (음수 불가)
 	if request.CorrectGuessesThisGame < 0 || request.DrawSuccessesThisGame < 0 {
 		log.Printf("UpsertPlayerStats: invalid stats values for %s: correctGuesses=%d, drawSuccesses=%d",
 			request.Nickname, request.CorrectGuessesThisGame, request.DrawSuccessesThisGame)
@@ -82,7 +93,7 @@ func UpsertPlayerStats(c *gin.Context) {
 
 	collection := database.GetCollection("player_stats")
 
-	// Check if player stats exist
+	// 기존 플레이어 통계 확인
 	var existingStats models.PlayerStats
 	err := collection.FindOne(ctx, bson.M{"nickname": request.Nickname}).Decode(&existingStats)
 
@@ -93,7 +104,7 @@ func UpsertPlayerStats(c *gin.Context) {
 			return
 		}
 
-		// Player stats don't exist, create new
+		// 플레이어 통계가 없으면 새로 생성
 		newStats := models.PlayerStats{
 			Nickname:       request.Nickname,
 			CorrectGuesses: request.CorrectGuessesThisGame,
@@ -103,6 +114,7 @@ func UpsertPlayerStats(c *gin.Context) {
 			UpdatedAt:      time.Now(),
 		}
 
+		// MongoDB에 새 통계 삽입
 		result, err := collection.InsertOne(ctx, newStats)
 		if err != nil {
 			log.Printf("UpsertPlayerStats: failed to insert stats for %s: %v", request.Nickname, err)
@@ -122,11 +134,12 @@ func UpsertPlayerStats(c *gin.Context) {
 		return
 	}
 
-	// Player stats exist, update them
+	// 플레이어 통계가 이미 존재하면 업데이트
 	newCorrectGuesses := existingStats.CorrectGuesses + request.CorrectGuessesThisGame
 	newDrawSuccesses := existingStats.DrawSuccesses + request.DrawSuccessesThisGame
 	newTotalGames := existingStats.TotalGames + 1
 
+	// 업데이트 문서 작성
 	update := bson.M{
 		"$set": bson.M{
 			"correctGuesses": newCorrectGuesses,
@@ -136,6 +149,7 @@ func UpsertPlayerStats(c *gin.Context) {
 		},
 	}
 
+	// MongoDB 업데이트 실행
 	result, err := collection.UpdateOne(ctx, bson.M{"nickname": request.Nickname}, update)
 	if err != nil {
 		log.Printf("UpsertPlayerStats: failed to update stats for %s: %v", request.Nickname, err)

@@ -30,7 +30,7 @@ var userType = graphql.NewObject(graphql.ObjectConfig{
 			Type:        graphql.String,
 			Description: "프로필 이미지 URL",
 		},
-		"winningPoint": &graphql.Field{
+		"money": &graphql.Field{
 			Type:        graphql.Int,
 			Description: "승리 포인트 (총 획득 점수)",
 		},
@@ -473,7 +473,7 @@ func resolveUser(p graphql.ResolveParams) (interface{}, error) {
 		"id":           user.ID.Hex(),
 		"nickname":     user.Nickname,
 		"profileImage": user.ProfileImage,
-		"winningPoint": user.WinningPoint,
+		"money":        user.Money,
 		"createdAt":    user.CreatedAt.Format(time.RFC3339),
 		"updatedAt":    user.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -498,7 +498,7 @@ func resolveCreateUser(p graphql.ResolveParams) (interface{}, error) {
 		ID:           primitive.NewObjectID(),
 		Nickname:     nickname,
 		ProfileImage: "",
-		WinningPoint: 0,
+		Money:        0,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -512,7 +512,7 @@ func resolveCreateUser(p graphql.ResolveParams) (interface{}, error) {
 		"id":           user.ID.Hex(),
 		"nickname":     user.Nickname,
 		"profileImage": user.ProfileImage,
-		"winningPoint": user.WinningPoint,
+		"money":        user.Money,
 		"createdAt":    user.CreatedAt.Format(time.RFC3339),
 		"updatedAt":    user.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -553,7 +553,7 @@ func resolveUpdateUser(p graphql.ResolveParams) (interface{}, error) {
 		"id":           user.ID.Hex(),
 		"nickname":     user.Nickname,
 		"profileImage": user.ProfileImage,
-		"winningPoint": user.WinningPoint,
+		"money":        user.Money,
 		"createdAt":    user.CreatedAt.Format(time.RFC3339),
 		"updatedAt":    user.UpdatedAt.Format(time.RFC3339),
 	}, nil
