@@ -3,6 +3,45 @@
 ## 🎯 개요
 GraphQL + WebSocket 기반의 멀티플레이어 그림 맞추기 게임 서버
 
+**빅테크 표준 Go 프로젝트 구조** (Standard Go Project Layout)
+
+## 📂 프로젝트 구조
+
+```
+.
+├── api/                    # API 정의 파일 (GraphQL 스키마, OpenAPI 등)
+│   └── graphql/           # GraphQL 스키마
+├── build/                  # 빌드 및 패키징 파일
+│   └── docker/            # Dockerfile, .dockerignore
+├── cmd/                    # 애플리케이션 엔트리포인트
+│   └── server/            # 메인 서버 애플리케이션
+│       └── main.go        # ✅ main.go의 올바른 위치
+├── deployments/            # 배포 설정 (Kubernetes, Helm 등)
+│   └── k8s/               # Kubernetes manifests
+├── internal/               # Private 애플리케이션 코드
+│   ├── common/            # 공통 유틸리티 (에러, 로깅, 응답)
+│   ├── config/            # 설정 관리
+│   ├── database/          # 데이터베이스 연결
+│   ├── graph/             # GraphQL 리졸버
+│   ├── handlers/          # HTTP 핸들러
+│   ├── middleware/        # HTTP 미들웨어
+│   ├── models/            # 도메인 모델
+│   ├── repository/        # 데이터 액세스 인터페이스
+│   ├── routes/            # 라우팅
+│   ├── service/           # 비즈니스 로직
+│   ├── valkey/            # 캐시 클라이언트
+│   └── websocket/         # WebSocket 핸들러
+├── pkg/                    # 외부 공개 가능한 라이브러리
+│   ├── constants/         # 공통 상수
+│   └── utils/             # 유틸리티 함수
+├── test/                   # 테스트 헬퍼 및 인테그레이션 테스트
+│   ├── integration/       # 통합 테스트
+│   └── mocks/             # Mock 객체
+└── scripts/                # 빌드/배포 스크립트
+```
+
+> **Note**: `cmd/server/main.go`가 **표준 위치**입니다. `src/` 디렉토리는 Go 프로젝트에서 사용하지 않습니다.
+
 ## 📦 기술 스택
 - **Language**: Go 1.24+
 - **GraphQL**: gqlgen (schema-first)
@@ -21,22 +60,28 @@ go mod download
 ### 2. 데이터베이스 준비 (Kubernetes)
 ```bash
 # PostgreSQL & Valkey 배포
-cd k8s
+cd deployments/k8s
 .\deploy-all.ps1
 
 # 데이터베이스 생성
-kubectl exec -n data postgres-0 -- psql -U postgres -c "CREATE DATABASE draw_guess_game;"
+kubectl exec -n data postgres-0 -- psql -U postgres -c "CREATE DATABASE draw_and_guess_db;"
 ```
 
 ### 3. 환경 변수 설정 (.env)
 ```env
+# PostgreSQL (Kubernetes NodePort)
 POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
+POSTGRES_PORT=30432
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=draw_guess_game
-VALKEY_ADDR=localhost:6379
+POSTGRES_PASSWORD=password
+POSTGRES_DB=draw_and_guess_db
+
+# Valkey (Kubernetes NodePort)
+VALKEY_ADDR=localhost:30379
+
+# Server
 SERVER_PORT=8080
+GIN_MODE=debug
 ```
 
 ### 4. 서버 실행
@@ -60,29 +105,51 @@ go run ./cmd/server/main.go
 ### 주요 엔드포인트
 - `GET  /health` - 헬스 체크
 - `POST /api/v1/graphql` - GraphQL 쿼리/뮤테이션
-- `GET  /api/v1/graphql` - GraphQL Playground (개발용)
+- `GET  /api/v1/graphql` - Apollo Sandbox (개발용)
 - `WS   /api/v1/ws/lobby` - 로비 WebSocket
 - `WS   /api/v1/ws/rooms/:id` - 게임방 WebSocket
 
-## 🏗️ 프로젝트 구조
+자세한 API 문서는 [PRD.md](PRD.md)를 참조하세요.
+
+## 🧪 테스트
+
+```bash
+# 모든 테스트 실행
+go test ./...
+
+# 특정 패키지 테스트
+go test ./internal/service/...
+
+# 통합 테스트
+go test ./test/integration/...
+
+# 커버리지 확인
+go test -cover ./...
 ```
-├── cmd/
-│   └── server/           # 메인 애플리케이션 엔트리포인트
-│       └── main.go
-├── internal/
-│   ├── config/          # 환경 설정
-│   ├── database/        # PostgreSQL 연결
-│   ├── valkey/          # Valkey(Redis) 클라이언트
-│   ├── models/          # 데이터 모델
-│   ├── repository/      # 데이터 접근 계층
-│   ├── service/         # 비즈니스 로직
-│   ├── graph/           # GraphQL 스키마 & 리졸버
-│   ├── handlers/        # HTTP 핸들러
-│   ├── routes/          # 라우팅 설정
-│   └── websocket/       # WebSocket 핸들러
-├── k8s/                 # Kubernetes 매니페스트
-└── scripts/             # 유틸리티 스크립트
+
+## 🏗️ 아키텍처
+
+### 레이어 구조
 ```
+┌─────────────────────────────────────┐
+│         GraphQL / WebSocket         │  API Layer
+├─────────────────────────────────────┤
+│     Resolvers / Handlers            │  Presentation
+├─────────────────────────────────────┤
+│     Service Layer (Interfaces)      │  Business Logic
+├─────────────────────────────────────┤
+│  Repository Layer (Interfaces)      │  Data Access
+├─────────────────────────────────────┤
+│  PostgreSQL          Valkey         │  Storage
+└─────────────────────────────────────┘
+```
+
+### 주요 디자인 패턴
+- **Interface-based Architecture**: 의존성 역전, 테스트 용이성
+- **Repository Pattern**: 데이터 액세스 추상화
+- **Service Layer**: 비즈니스 로직 캡슐화
+- **Middleware Chain**: 공통 관심사 처리 (로깅, 에러 핸들링, CORS)
+- **Graceful Shutdown**: 10초 타임아웃으로 안전한 종료
 
 ## 🎮 게임 타입
 - **wordchain** (끝말잇기): 한국어 단어 체인 게임
@@ -125,24 +192,78 @@ query {
 
 ### 빌드
 ```bash
+# 개발 빌드
 go build -o bin/server.exe ./cmd/server
+
+# 프로덕션 빌드 (최적화)
+go build -ldflags="-s -w" -o bin/server ./cmd/server
 ```
 
 ### GraphQL 스키마 재생성
 ```bash
-gqlgen generate
+# 스키마 파일 수정 후 (api/graphql/*.graphqls)
+go run github.com/99designs/gqlgen generate
 ```
 
-### 테스트
+### Docker 빌드
 ```bash
-go test ./...
+docker build -f build/docker/Dockerfile -t draw-and-guess-server:latest .
+```
+
+### 코드 품질
+```bash
+# 포맷팅
+go fmt ./...
+
+# Lint
+go vet ./...
+
+# 테스트 커버리지
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
 ```
 
 ## 📦 배포
 
-### Docker 이미지 빌드
+### Kubernetes 배포
 ```bash
-docker build -t draw-and-guess-server .
+cd deployments/k8s
+.\deploy-all.ps1
+
+# 상태 확인
+kubectl get pods -n data
+kubectl get svc -n data
+
+# 정리
+.\cleanup.ps1
+```
+
+자세한 배포 가이드는 [deployments/k8s/README.md](deployments/k8s/README.md)를 참조하세요.
+
+## 📚 추가 문서
+
+- [PRD.md](PRD.md) - 제품 요구사항 문서
+- [APOLLO_STUDIO_GUIDE.md](APOLLO_STUDIO_GUIDE.md) - Apollo Studio 사용 가이드
+- [api/graphql/README.md](api/graphql/README.md) - GraphQL API 가이드
+- [pkg/README.md](pkg/README.md) - 공용 패키지 가이드
+- [test/integration/README.md](test/integration/README.md) - 테스트 가이드
+
+## 🤝 기여 가이드
+
+### 코드 스타일
+- Standard Go Project Layout 준수
+- `gofmt`, `goimports`로 포맷팅
+- 인터페이스 기반 설계
+- 테스트 코드 작성 필수
+
+### 커밋 메시지
+```
+feat: 새로운 기능 추가
+fix: 버그 수정
+docs: 문서 업데이트
+refactor: 코드 리팩토링
+test: 테스트 추가/수정
+chore: 빌드, 설정 변경
 ```
 
 ### Kubernetes 배포

@@ -18,7 +18,7 @@ cd k8s
 
 이 스크립트는 다음을 수행합니다:
 - `data` namespace 생성
-- PostgreSQL StatefulSet 배포 (포트: 5432)
+- PostgreSQL StatefulSet 배포 (포트: 5432, NodePort: 30432)
 - Valkey StatefulSet 배포 (포트: 6379, NodePort: 30379)
 - Persistent Volumes 생성
 
@@ -57,22 +57,32 @@ cd k8s
 
 배포 후 다음 엔드포인트를 사용할 수 있습니다:
 
-| 서비스 | 내부 주소 | 외부 주소 |
+| 서비스 | 내부 주소 (Pod 간) | NodePort (로컬 접근) |
 |-------|----------|----------|
-| PostgreSQL | postgres.data.svc.cluster.local:5432 | localhost:5432 |
-| Valkey | valkey.data.svc.cluster.local:6379 | localhost:30379 |
+| PostgreSQL | postgres.data.svc.cluster.local:5432 | **localhost:30432** |
+| Valkey | valkey.data.svc.cluster.local:6379 | **localhost:30379** |
 
-## 🔧 Configuration
+> **💡 Tip**: NodePort를 사용하면 `kubectl port-forward` 없이 로컬에서 직접 접근 가능합니다.
 
-`.env` 파일에서 다음 설정을 확인하세요:
+## 🔧 Configuration (NodePort 사용):
 
 ```env
+# PostgreSQL (Kubernetes NodePort)
 POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
+POSTGRES_PORT=30432
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=password
 POSTGRES_DB=draw_and_guess_db
+
+# Valkey (Kubernetes NodePort)
+VALKEY_ADDR=localhost:30379
+
+# Server
 SERVER_PORT=8080
+GIN_MODE=debug
+```
+
+> **⚠️ 주의**: 프로덕션 환경에서는 NodePort 대신 Ingress나 LoadBalancer를 사용하세요.VER_PORT=8080
 VALKEY_ADDR=localhost:30379
 ```
 
@@ -87,8 +97,8 @@ VALKEY_ADDR=localhost:30379
 │  │ StatefulSet  │         │ StatefulSet  │     │
 │  │              │         │              │     │
 │  │ Port: 5432   │         │ Port: 6379   │     │
-│  │              │         │ NodePort:    │     │
-│  │              │         │ 30379        │     │
+│  │ NodePort:    │         │ NodePort:    │     │
+│  │ 30432        │         │ 30379        │     │
 │  └──────────────┘         └──────────────┘     │
 │         ▲                        ▲              │
 │         │                        │              │
@@ -98,12 +108,17 @@ VALKEY_ADDR=localhost:30379
 │  │  postgres     │        │   valkey-0    │    │
 │  └───────────────┘        └───────────────┘    │
 └─────────────────────────────────────────────────┘
-                     ▲
-                     │
-              ┌──────┴──────┐
+        │                          │
+        └──────────┬───────────────┘
+                   │ NodePort (로컬 접근)
+                   ▼
+              ┌─────────────┐
               │  Backend    │
               │  Server     │
               │ (Port 8080) │
+              │             │
+              │ localhost:  │
+              │ 30432, 30379│
               └─────────────┘
 ```
 

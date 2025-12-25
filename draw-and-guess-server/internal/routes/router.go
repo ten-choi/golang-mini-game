@@ -18,9 +18,10 @@ import (
 // SetupRouter initializes and configures all routes
 func SetupRouter(db *sql.DB) *gin.Engine {
 	r := gin.New()
-	
+
 	// Apply global middleware
 	r.Use(middleware.Recovery())
+	r.Use(middleware.TraceID()) // Add trace ID for request tracking
 	r.Use(middleware.RequestLogger())
 	r.Use(middleware.CORS())
 	r.Use(middleware.ErrorHandler())
@@ -52,15 +53,18 @@ func setupGraphQLRoutes(api *gin.RouterGroup, db *sql.DB) {
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	quizRepo := repository.NewQuizRepository(db)
+	playerStatsRepo := repository.NewPlayerStatsRepository(db)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
 	quizService := service.NewQuizService(quizRepo)
+	playerStatsService := service.NewPlayerStatsService(playerStatsRepo)
 
 	// Initialize resolver with services
 	resolver := &graph.Resolver{
-		UserService: userService,
-		QuizService: quizService,
+		UserService:        userService,
+		QuizService:        quizService,
+		PlayerStatsService: playerStatsService,
 	}
 
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))

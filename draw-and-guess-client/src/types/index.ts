@@ -59,8 +59,13 @@ export interface GameTopic {
 }
 
 // ============================================
-// Drawing Types
+// Drawing Types (aligned with backend)
 // ============================================
+
+export interface Point {
+  x: number;
+  y: number;
+}
 
 export interface Stroke {
   points: Point[];
@@ -68,17 +73,15 @@ export interface Stroke {
   width?: number;
 }
 
-export interface Point {
-  x: number;
-  y: number;
-}
-
 export interface DrawingData {
   room_id: string;
-  action: 'draw' | 'clear' | 'undo';
+  action: 'draw' | 'clear' | 'undo' | 'start' | 'end';
   points?: Point[];
   color?: string;
   width?: number;
+  stroke_id?: string;
+  player_id?: string;
+  line_width?: number;
 }
 
 // ============================================
@@ -100,11 +103,12 @@ export interface ChatMessageData {
 }
 
 // ============================================
-// WebSocket Types
+// WebSocket Types (aligned with backend)
 // ============================================
 
+// Base WebSocket Messages
 export interface WebSocketRequest {
-  type: 'subscribe' | 'unsubscribe' | 'message';
+  type: 'subscribe' | 'unsubscribe' | 'message' | 'chat' | 'drawing' | 'game_action';
   channel: string;
   data?: any;
 }
@@ -115,6 +119,43 @@ export interface WebSocketResponse {
   data: any;
 }
 
+// Server Message Format (ws_message.go)
+export interface WSSuccessMessage {
+  type: string;
+  payload: any;
+}
+
+export interface WSErrorMessage {
+  type: 'ERROR';
+  code: string;
+  message: string;
+}
+
+// Game Event Types
+export interface GameEventPayload {
+  eventType: 'player_joined' | 'player_left' | 'game_started' | 'round_started' | 'round_ended' | 'game_ended';
+  roomId: string;
+  data: any;
+}
+
+export interface ChatMessagePayload {
+  roomId: string;
+  playerId: string;
+  playerName: string;
+  message: string;
+}
+
+export interface DrawingEventPayload {
+  roomId: string;
+  playerId: string;
+  strokeId?: string;
+  points?: Point[];
+  color?: string;
+  lineWidth?: number;
+  action: 'start' | 'draw' | 'end' | 'clear' | 'undo';
+}
+
+// Legacy Game State Types (websocket_dto.go)
 export interface GameStateData {
   room_id: string;
   current_round: number;
@@ -136,6 +177,52 @@ export interface CorrectAnswerData {
   username: string;
   answer: string;
   score: number;
+}
+
+export interface RoundStartData {
+  room_id: string;
+  round: number;
+  drawer: string;
+  topic?: string;
+  topic_hint: string;
+  time_limit: number;
+}
+
+export interface RoundEndData {
+  room_id: string;
+  round: number;
+  topic: string;
+  winners: string[];
+  scoreboard: Player[];
+}
+
+export interface GameEndData {
+  room_id: string;
+  winner: Player;
+  final_score: Player[];
+}
+
+export interface PlayerJoinedData {
+  room_id: string;
+  user_id: string;
+  username: string;
+}
+
+export interface PlayerLeftData {
+  room_id: string;
+  user_id: string;
+  username: string;
+}
+
+export interface ErrorResponse {
+  type: 'error';
+  channel: string;
+  data: ErrorMessage;
+}
+
+export interface ErrorMessage {
+  code: string;
+  message: string;
 }
 
 // ============================================

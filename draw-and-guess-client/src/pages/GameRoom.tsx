@@ -3,7 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import DrawingCanvas from '../components/DrawingCanvas';
 import { wsService } from '../services/websocket';
 import { apiService } from '../services/api';
-import { GameRoom as GameRoomType, Player } from '../types';
+import { 
+  GameRoom as GameRoomType, 
+  Player, 
+  ChatMessagePayload,
+  GameEventPayload 
+} from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 
 const GameRoom: React.FC = () => {
@@ -42,13 +47,18 @@ const GameRoom: React.FC = () => {
     
     // Initialize WebSocket connection
     wsService.connect(
-      () => {}, // Connected
-      (error) => console.error('WebSocket connection error:', error)
+      () => {
+        console.log('[GameRoom] WebSocket connected');
+      }, 
+      (error) => console.error('[GameRoom] WebSocket connection error:', error)
     );
     
     loadRoom();
 
+    // Subscribe to game channel
     const gameSubscription = wsService.subscribe(`game/${roomId}`, (data) => {
+      console.log('[GameRoom] Received game message:', data);
+      
       if (data.type === 'update' || data.type === 'room_update') {
         // Update timer from WebSocket if available
         if (data.time_left !== undefined) {
@@ -71,6 +81,7 @@ const GameRoom: React.FC = () => {
       }
     });
 
+    // Subscribe to chat channel
     const chatSubscription = wsService.subscribe(`chat/${roomId}`, (data) => {
       setChatMessages((prev) => [...prev, {
         username: data.username || 'System',
@@ -79,12 +90,53 @@ const GameRoom: React.FC = () => {
       }]);
     });
 
+    // Handle GAME_EVENT messages (WSSuccessMessage format)
+    const gameEventHandler = (payload: GameEventPayload) => {
+      console.log('[GameRoom] Game event:', payload.eventType);
+      
+      switch (payload.eventType) {
+        case 'player_joined':
+        case 'player_left':
+        case 'game_started':
+        case 'round_started':
+        case 'round_ended':
+        case 'game_ended':
+          loadRoom();
+          break;
+      }
+    };
+
+    // Handle CHAT_MESSAGE messages (WSSuccessMessage format)
+    const chatMessageHandler = (payload: ChatMessagePayload) => {
+      setChatMessages((prev) => [...prev, {
+        username: payload.playerName || 'System',
+        text: payload.message,
+        type: 'chat'
+      }]);
+    };
+
+    // Handle ERROR messages
+    const errorHandler = (error: any) => {
+      console.error('[GameRoom] WebSocket error:', error);
+      setMessage(`Error: ${error.message || 'Unknown error'}`);
+    };
+
+    // Register message handlers
+    wsService.addMessageHandler('game_event', gameEventHandler);
+    wsService.addMessageHandler('chat_message', chatMessageHandler);
+    wsService.addMessageHandler('ERROR', errorHandler);
+
     return () => {
       if (gameSubscription) gameSubscription.unsubscribe();
       if (chatSubscription) chatSubscription.unsubscribe();
       if (timerRef.current) clearInterval(timerRef.current);
+      
+      // Remove message handlers
+      wsService.removeMessageHandler('game_event', gameEventHandler);
+      wsService.removeMessageHandler('chat_message', chatMessageHandler);
+      wsService.removeMessageHandler('ERROR', errorHandler);
     };
-  }, [roomId]);
+  }, [roomId, t.gameRoom.gameFinished]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -137,14 +189,8 @@ const GameRoom: React.FC = () => {
   const handleSendChat = async () => {
     if (!chatInput.trim() || !roomId) return;
 
-    const chatMessage = {
-      username: username,
-      message: chatInput,
-      type: 'chat'
-    };
-
-    // Send to WebSocket for real-time broadcasting (will show in both screens)
-    wsService.sendMessage(roomId, 'chat', chatMessage);
+    // Use new WebSocket chat message format
+    wsService.sendChatMessage(roomId, username, username, chatInput);
 
     // If player (not drawer) and game is playing, check if it's correct answer
     if (room?.drawer_user !== username && room?.game_status === 'playing') {
@@ -153,14 +199,16 @@ const GameRoom: React.FC = () => {
         
         if (response.result.is_correct) {
           setMessage(`${t.gameRoom.correctAnswer} 🎉`);
-          wsService.sendMessage(roomId, 'chat', {
-            username: t.gameRoom.system,
-            message: `${username}${t.gameRoom.answeredCorrectly} 🎉`,
-            type: 'system'
-          });
+          
+          // Send system message about correct answer
+          wsService.sendChatMessage(roomId, 'system', t.gameRoom.system, 
+            `${username}${t.gameRoom.answeredCorrectly} 🎉`);
+          
+          // Trigger game state update
           wsService.sendMessage(roomId, 'game', {
             type: 'update'
           });
+          
           setTimeout(() => {
             setMessage('');
             loadRoom();
@@ -257,6 +305,7 @@ const GameRoom: React.FC = () => {
           uuid={roomId}
           allowDrawing={isDrawer && room.game_status === 'playing'}
           selectedColor={selectedColor}
+          username={username}
           clearTrigger={clearCanvasTrigger}
         />          {/* Start Button (Drawer only) */}
           {isDrawer && room.game_status === 'waiting' && (

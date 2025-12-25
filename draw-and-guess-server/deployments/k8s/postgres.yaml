@@ -9,13 +9,14 @@ metadata:
   name: postgres
   namespace: data
 spec:
-  clusterIP: None
+  type: NodePort
   selector:
     app: postgres
   ports:
     - name: postgres
       port: 5432
       targetPort: 5432
+      nodePort: 30432
 ---
 apiVersion: apps/v1
 kind: StatefulSet

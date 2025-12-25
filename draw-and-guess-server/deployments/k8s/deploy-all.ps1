@@ -27,7 +27,13 @@ kubectl get pv
 
 Write-Host "`n📊 Services:" -ForegroundColor Green
 Write-Host "PostgreSQL: postgres.data.svc.cluster.local:5432"
+Write-Host "PostgreSQL NodePort: localhost:30432"
 Write-Host "Valkey: valkey.data.svc.cluster.local:6379"
 Write-Host "Valkey NodePort: localhost:30379"
+
+Write-Host "`n💡 Local Access (NodePort):" -ForegroundColor Cyan
+Write-Host "  POSTGRES_HOST=localhost"
+Write-Host "  POSTGRES_PORT=30432"
+Write-Host "  VALKEY_ADDR=localhost:30379"
 
 Write-Host "`n✨ Deployment completed!" -ForegroundColor Green

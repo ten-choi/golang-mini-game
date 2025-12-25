@@ -60,7 +60,7 @@ func InitSchema() error {
 	schema := `
 	-- Users table
 	CREATE TABLE IF NOT EXISTS users (
-		id SERIAL PRIMARY KEY,
+		id BIGINT PRIMARY KEY,
 		username VARCHAR(100) UNIQUE NOT NULL,
 		display_name VARCHAR(100),
 		email VARCHAR(255),
@@ -71,7 +71,7 @@ func InitSchema() error {
 
 	-- Korean words dictionary for wordchain game
 	CREATE TABLE IF NOT EXISTS korean_words (
-		id SERIAL PRIMARY KEY,
+		id BIGINT PRIMARY KEY,
 		word VARCHAR(50) UNIQUE NOT NULL,
 		first_char CHAR(1) NOT NULL,
 		last_char CHAR(1) NOT NULL,
@@ -82,7 +82,7 @@ func InitSchema() error {
 
 	-- OX Quiz table
 	CREATE TABLE IF NOT EXISTS ox_quizzes (
-		id SERIAL PRIMARY KEY,
+		id BIGINT PRIMARY KEY,
 		category VARCHAR(100),
 		difficulty VARCHAR(20) NOT NULL,
 		question TEXT NOT NULL,
@@ -96,7 +96,7 @@ func InitSchema() error {
 
 	-- General Quiz (QA) table
 	CREATE TABLE IF NOT EXISTS qa_quizzes (
-		id SERIAL PRIMARY KEY,
+		id BIGINT PRIMARY KEY,
 		category VARCHAR(100),
 		difficulty VARCHAR(20) NOT NULL,
 		question TEXT NOT NULL,
@@ -112,7 +112,7 @@ func InitSchema() error {
 
 	-- Player statistics table
 	CREATE TABLE IF NOT EXISTS player_stats (
-		id SERIAL PRIMARY KEY,
+		id BIGINT PRIMARY KEY,
 		username VARCHAR(100) NOT NULL,
 		total_games INT DEFAULT 0,
 		total_wins INT DEFAULT 0,

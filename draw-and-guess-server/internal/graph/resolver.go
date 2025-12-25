@@ -10,6 +10,7 @@ import (
 // here.
 
 type Resolver struct {
-	UserService service.UserService
-	QuizService service.QuizService
+	UserService        service.UserService
+	QuizService        service.QuizService
+	PlayerStatsService service.PlayerStatsService
 }

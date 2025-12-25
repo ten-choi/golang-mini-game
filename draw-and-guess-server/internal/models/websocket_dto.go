@@ -42,11 +42,11 @@ type ChatMessageData struct {
 // GameStateData represents game state update data
 // @Description 게임 상태 업데이트 데이터
 type GameStateData struct {
-	RoomID       string   `json:"room_id" example:"abc123"`
-	CurrentRound int      `json:"current_round" example:"2" description:"현재 라운드"`
-	Drawer       string   `json:"drawer" example:"user-001" description:"현재 그림 그리는 플레이어"`
-	TimeLeft     int      `json:"time_left" example:"45" description:"남은 시간 (초)"`
-	Players      []Player `json:"players" description:"플레이어 목록"`
+	RoomID       string         `json:"room_id" example:"abc123"`
+	CurrentRound int            `json:"current_round" example:"2" description:"현재 라운드"`
+	Drawer       string         `json:"drawer" example:"user-001" description:"현재 그림 그리는 플레이어"`
+	TimeLeft     int            `json:"time_left" example:"45" description:"남은 시간 (초)"`
+	Players      []LegacyPlayer `json:"players" description:"플레이어 목록"`
 }
 
 // DrawingData represents drawing action data
@@ -99,19 +99,19 @@ type RoundStartData struct {
 // RoundEndData represents round end notification
 // @Description 라운드 종료 알림 데이터
 type RoundEndData struct {
-	RoomID     string   `json:"room_id" example:"abc123"`
-	Round      int      `json:"round" example:"3"`
-	Topic      string   `json:"topic" example:"사과" description:"정답"`
-	Winners    []string `json:"winners" description:"정답 맞춘 플레이어 목록"`
-	Scoreboard []Player `json:"scoreboard" description:"현재 점수판"`
+	RoomID     string         `json:"room_id" example:"abc123"`
+	Round      int            `json:"round" example:"3"`
+	Topic      string         `json:"topic" example:"사과" description:"정답"`
+	Winners    []string       `json:"winners" description:"정답 맞춘 플레이어 목록"`
+	Scoreboard []LegacyPlayer `json:"scoreboard" description:"현재 점수판"`
 }
 
 // GameEndData represents game end notification
 // @Description 게임 종료 알림 데이터
 type GameEndData struct {
-	RoomID     string   `json:"room_id" example:"abc123"`
-	Winner     Player   `json:"winner" description:"우승자"`
-	FinalScore []Player `json:"final_score" description:"최종 점수판"`
+	RoomID     string         `json:"room_id" example:"abc123"`
+	Winner     LegacyPlayer   `json:"winner" description:"우승자"`
+	FinalScore []LegacyPlayer `json:"final_score" description:"최종 점수판"`
 }
 
 // PlayerJoinedData represents player join notification

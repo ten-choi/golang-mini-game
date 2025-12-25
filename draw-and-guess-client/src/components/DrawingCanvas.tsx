@@ -1,11 +1,12 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Stroke, Point } from '../types';
+import { Stroke, Point, DrawingEventPayload } from '../types';
 import { wsService } from '../services/websocket';
 
 interface DrawingCanvasProps {
   uuid: string;
   allowDrawing: boolean;
   selectedColor: string;
+  username?: string; // Add username for player identification
   onStrokesChange?: (strokes: Stroke[]) => void;
   onClearCanvas?: () => void;
   clearTrigger?: number;
@@ -15,6 +16,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   uuid,
   allowDrawing,
   selectedColor,
+  username = 'Guest',
   onStrokesChange,
   clearTrigger,
 }) => {
@@ -23,9 +25,14 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Point[]>([]);
   const [remoteStroke, setRemoteStroke] = useState<Stroke | null>(null);
+  const currentStrokeId = useRef<string>('');
 
   const canvasWidth = 350;
   const canvasHeight = 350;
+
+  const generateStrokeId = (): string => {
+    return `stroke-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  };
 
   const clearCanvas = useCallback(() => {
     setStrokes([]);
@@ -41,8 +48,46 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     }
   }, [clearTrigger, clearCanvas]);
 
-  // Subscribe to draw events
+  // Subscribe to draw events (aligned with DrawingEventPayload)
   useEffect(() => {
+    // Handle DRAW_EVENT messages in WSSuccessMessage format
+    const drawEventHandler = (payload: DrawingEventPayload) => {
+      try {
+        // Ignore our own drawing events
+        if (payload.playerId === username) return;
+
+        if (payload.action === 'start') {
+          setRemoteStroke({
+            points: payload.points || [],
+            color: payload.color || '#000000',
+          });
+        } else if (payload.action === 'draw' && payload.points) {
+          setRemoteStroke((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              points: [...prev.points, ...payload.points],
+            };
+          });
+        } else if (payload.action === 'end') {
+          setRemoteStroke((prev) => {
+            if (prev && prev.points.length > 0) {
+              setStrokes((prevStrokes) => [...prevStrokes, prev]);
+            }
+            return null;
+          });
+        } else if (payload.action === 'clear') {
+          clearCanvas();
+        }
+      } catch (error) {
+        console.error('Error handling draw event:', error);
+      }
+    };
+
+    // Register handler for DRAW_EVENT messages
+    wsService.addMessageHandler('draw_event', drawEventHandler);
+
+    // Also subscribe to legacy draw channel for backward compatibility
     const subscription = wsService.subscribe(`draw/${uuid}`, (data) => {
       try {
         const { type, color, point } = data;
@@ -74,11 +119,12 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     });
 
     return () => {
+      wsService.removeMessageHandler('draw_event', drawEventHandler);
       if (subscription) {
         subscription.unsubscribe();
       }
     };
-  }, [uuid]);
+  }, [uuid, username, clearCanvas]);
 
   // Render canvas
   useEffect(() => {
@@ -143,7 +189,17 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     const point = getCanvasPoint(e);
     setIsDrawing(true);
     setCurrentStroke([point]);
+    currentStrokeId.current = generateStrokeId();
 
+    // Send drawing event using new format
+    wsService.sendDrawingEvent(uuid, username, 'start', {
+      strokeId: currentStrokeId.current,
+      points: [point],
+      color: selectedColor,
+      lineWidth: 4
+    });
+
+    // Legacy format for backward compatibility
     wsService.sendMessage(uuid, 'draw', {
       type: 'start',
       color: selectedColor,
@@ -157,6 +213,15 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     const point = getCanvasPoint(e);
     setCurrentStroke((prev) => [...prev, point]);
 
+    // Send drawing event using new format
+    wsService.sendDrawingEvent(uuid, username, 'draw', {
+      strokeId: currentStrokeId.current,
+      points: [point],
+      color: selectedColor,
+      lineWidth: 4
+    });
+
+    // Legacy format for backward compatibility
     wsService.sendMessage(uuid, 'draw', {
       type: 'draw',
       point: { x: point.x, y: point.y },
@@ -167,6 +232,13 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     if (!allowDrawing || !isDrawing) return;
 
     setIsDrawing(false);
+    
+    // Send drawing event using new format
+    wsService.sendDrawingEvent(uuid, username, 'end', {
+      strokeId: currentStrokeId.current
+    });
+
+    // Legacy format for backward compatibility
     wsService.sendMessage(uuid, 'draw', {
       type: 'end',
     });
@@ -184,6 +256,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       });
       setCurrentStroke([]);
     }
+    currentStrokeId.current = '';
   };
 
   const handleMouseLeave = () => {

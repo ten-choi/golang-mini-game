@@ -6,6 +6,7 @@ import (
 
 	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/models"
+	"draw-and-guess-server/pkg/utils"
 )
 
 // UserRepository defines the interface for user data access
@@ -78,15 +79,18 @@ func (r *userRepository) GetAll(ctx context.Context) ([]*models.User, error) {
 }
 
 func (r *userRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
+	// Generate Snowflake ID
+	user.ID = utils.GenerateID()
+	
 	query := `
-		INSERT INTO users (username, display_name, email, avatar_url)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at, updated_at
+		INSERT INTO users (id, username, display_name, email, avatar_url)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING created_at, updated_at
 	`
 
 	err := r.db.QueryRowContext(ctx, query,
-		user.Username, user.DisplayName, user.Email, user.AvatarURL,
-	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+		user.ID, user.Username, user.DisplayName, user.Email, user.AvatarURL,
+	).Scan(&user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		return nil, common.NewInternalError("failed to create user", err)

@@ -9,6 +9,9 @@ import (
 	"context"
 	"draw-and-guess-server/internal/graph/model"
 	"fmt"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // CreateUser is the resolver for the createUser field.
@@ -58,27 +61,149 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, username string, inpu
 
 // CreateGameRoom is the resolver for the createGameRoom field.
 func (r *mutationResolver) CreateGameRoom(ctx context.Context, input model.CreateGameRoomInput) (*model.GameRoom, error) {
-	panic(fmt.Errorf("not implemented: CreateGameRoom - createGameRoom"))
+	roomID := uuid.New().String()
+	now := time.Now()
+
+	room := &model.GameRoom{
+		ID:           roomID,
+		Name:         input.Name,
+		GameType:     input.GameType,
+		Status:       model.GameStatusWaiting,
+		CurrentRound: 0,
+		TotalRounds:  int32(input.TotalRounds),
+		Players:      []*model.Player{},
+		MaxPlayers:   int32(input.MaxPlayers),
+		HostUsername: input.HostUsername,
+		CreatedAt:    now,
+	}
+
+	// Add host as first player
+	room.Players = append(room.Players, &model.Player{
+		Username:    input.HostUsername,
+		DisplayName: input.HostUsername,
+		Score:       0,
+		IsReady:     true,
+	})
+
+	roomMutex.Lock()
+	gameRooms[roomID] = room
+	roomMutex.Unlock()
+
+	// Publish lobby update
+	go publishLobbyUpdate()
+
+	return room, nil
 }
 
 // JoinGameRoom is the resolver for the joinGameRoom field.
 func (r *mutationResolver) JoinGameRoom(ctx context.Context, roomID string, username string) (*model.GameRoom, error) {
-	panic(fmt.Errorf("not implemented: JoinGameRoom - joinGameRoom"))
+	roomMutex.Lock()
+	defer roomMutex.Unlock()
+
+	room, exists := gameRooms[roomID]
+	if !exists {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	// Check if player already in room
+	for _, p := range room.Players {
+		if p.Username == username {
+			return room, nil // Already in room
+		}
+	}
+
+	// Add player
+	newPlayer := &model.Player{
+		Username:    username,
+		DisplayName: username,
+		Score:       0,
+		IsReady:     false,
+	}
+	room.Players = append(room.Players, newPlayer)
+
+	// Publish events
+	go func() {
+		GetPubSub().PublishRoomUpdate(room)
+		GetPubSub().PublishPlayerJoined(roomID, newPlayer)
+		publishLobbyUpdate()
+	}()
+
+	return room, nil
 }
 
 // LeaveGameRoom is the resolver for the leaveGameRoom field.
 func (r *mutationResolver) LeaveGameRoom(ctx context.Context, roomID string, username string) (*model.GameRoom, error) {
-	panic(fmt.Errorf("not implemented: LeaveGameRoom - leaveGameRoom"))
+	roomMutex.Lock()
+	defer roomMutex.Unlock()
+
+	room, exists := gameRooms[roomID]
+	if !exists {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	// Remove player and capture the leaving player
+	var leavingPlayer *model.Player
+	newPlayers := []*model.Player{}
+	for _, p := range room.Players {
+		if p.Username != username {
+			newPlayers = append(newPlayers, p)
+		} else {
+			leavingPlayer = p
+		}
+	}
+	room.Players = newPlayers
+
+	// Delete room if empty
+	if len(room.Players) == 0 {
+		delete(gameRooms, roomID)
+		go publishLobbyUpdate()
+		return room, nil
+	}
+
+	// Publish events
+	if leavingPlayer != nil {
+		go func() {
+			GetPubSub().PublishRoomUpdate(room)
+			GetPubSub().PublishPlayerLeft(roomID, leavingPlayer)
+			publishLobbyUpdate()
+		}()
+	}
+
+	return room, nil
 }
 
 // StartGame is the resolver for the startGame field.
 func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model.GameRoom, error) {
-	panic(fmt.Errorf("not implemented: StartGame - startGame"))
+	roomMutex.Lock()
+	defer roomMutex.Unlock()
+
+	room, exists := gameRooms[roomID]
+	if !exists {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	room.Status = model.GameStatusPlaying
+	room.CurrentRound = 1
+
+	// Publish events
+	go func() {
+		GetPubSub().PublishRoomUpdate(room)
+		GetPubSub().PublishGameStarted(room)
+		publishLobbyUpdate()
+	}()
+
+	return room, nil
 }
 
 // DeleteGameRoom is the resolver for the deleteGameRoom field.
 func (r *mutationResolver) DeleteGameRoom(ctx context.Context, roomID string) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteGameRoom - deleteGameRoom"))
+	roomMutex.Lock()
+	defer roomMutex.Unlock()
+
+	delete(gameRooms, roomID)
+	go publishLobbyUpdate()
+
+	return true, nil
 }
 
 // User is the resolver for the user field.
@@ -123,12 +248,30 @@ func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
 
 // GameRoom is the resolver for the gameRoom field.
 func (r *queryResolver) GameRoom(ctx context.Context, id string) (*model.GameRoom, error) {
-	panic(fmt.Errorf("not implemented: GameRoom - gameRoom"))
+	roomMutex.RLock()
+	defer roomMutex.RUnlock()
+
+	room, exists := gameRooms[id]
+	if !exists {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	return room, nil
 }
 
 // GameRooms is the resolver for the gameRooms field.
 func (r *queryResolver) GameRooms(ctx context.Context, gameType *model.GameType) ([]*model.GameRoom, error) {
-	panic(fmt.Errorf("not implemented: GameRooms - gameRooms"))
+	roomMutex.RLock()
+	defer roomMutex.RUnlock()
+
+	result := []*model.GameRoom{}
+	for _, room := range gameRooms {
+		if gameType == nil || room.GameType == *gameType {
+			result = append(result, room)
+		}
+	}
+
+	return result, nil
 }
 
 // RandomOXQuiz is the resolver for the randomOXQuiz field.
@@ -177,12 +320,148 @@ func (r *queryResolver) RandomQAQuiz(ctx context.Context) (*model.GeneralQuiz, e
 
 // PlayerStats is the resolver for the playerStats field.
 func (r *queryResolver) PlayerStats(ctx context.Context, username string, gameType *string) ([]*model.PlayerStats, error) {
-	panic(fmt.Errorf("not implemented: PlayerStats - playerStats"))
+	stats, err := r.PlayerStatsService.GetPlayerStats(ctx, username, gameType)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no stats found, return empty stats for all game types
+	if len(stats) == 0 {
+		now := time.Now()
+		gameTypes := []string{"WORDCHAIN", "OX", "QA"}
+		if gameType != nil {
+			gameTypes = []string{*gameType}
+		}
+
+		result := []*model.PlayerStats{}
+		for _, gt := range gameTypes {
+			result = append(result, &model.PlayerStats{
+				Username:   username,
+				GameType:   gt,
+				TotalGames: 0,
+				TotalWins:  0,
+				TotalScore: 0,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			})
+		}
+		return result, nil
+	}
+
+	// Convert internal model to GraphQL model
+	result := make([]*model.PlayerStats, len(stats))
+	for i, s := range stats {
+		result[i] = &model.PlayerStats{
+			Username:   s.Username,
+			GameType:   s.GameType,
+			TotalGames: int32(s.TotalGames),
+			TotalWins:  int32(s.TotalWins),
+			TotalScore: int32(s.TotalScore),
+			CreatedAt:  s.CreatedAt,
+			UpdatedAt:  s.UpdatedAt,
+		}
+	}
+
+	return result, nil
 }
 
 // Leaderboard is the resolver for the leaderboard field.
 func (r *queryResolver) Leaderboard(ctx context.Context, gameType string, limit *int32) ([]*model.PlayerStats, error) {
-	panic(fmt.Errorf("not implemented: Leaderboard - leaderboard"))
+	lim := 10
+	if limit != nil {
+		lim = int(*limit)
+	}
+
+	stats, err := r.PlayerStatsService.GetLeaderboard(ctx, gameType, lim)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert internal model to GraphQL model
+	result := make([]*model.PlayerStats, len(stats))
+	for i, s := range stats {
+		result[i] = &model.PlayerStats{
+			Username:   s.Username,
+			GameType:   s.GameType,
+			TotalGames: int32(s.TotalGames),
+			TotalWins:  int32(s.TotalWins),
+			TotalScore: int32(s.TotalScore),
+			CreatedAt:  s.CreatedAt,
+			UpdatedAt:  s.UpdatedAt,
+		}
+	}
+
+	return result, nil
+}
+
+// GameRoomUpdated is the resolver for the gameRoomUpdated field.
+func (r *subscriptionResolver) GameRoomUpdated(ctx context.Context, roomID string) (<-chan *model.GameRoom, error) {
+	subscriberID := uuid.New().String()
+	ch := GetPubSub().SubscribeToRoom(roomID, subscriberID)
+
+	// Unsubscribe when context is done
+	go func() {
+		<-ctx.Done()
+		GetPubSub().UnsubscribeFromRoom(roomID, subscriberID)
+	}()
+
+	return ch, nil
+}
+
+// LobbyUpdated is the resolver for the lobbyUpdated field.
+func (r *subscriptionResolver) LobbyUpdated(ctx context.Context) (<-chan []*model.GameRoom, error) {
+	subscriberID := uuid.New().String()
+	ch := GetPubSub().SubscribeToLobby(subscriberID)
+
+	// Unsubscribe when context is done
+	go func() {
+		<-ctx.Done()
+		GetPubSub().UnsubscribeFromLobby(subscriberID)
+	}()
+
+	return ch, nil
+}
+
+// PlayerJoined is the resolver for the playerJoined field.
+func (r *subscriptionResolver) PlayerJoined(ctx context.Context, roomID string) (<-chan *model.Player, error) {
+	subscriberID := uuid.New().String()
+	ch := GetPubSub().SubscribeToPlayerJoined(roomID, subscriberID)
+
+	// Unsubscribe when context is done
+	go func() {
+		<-ctx.Done()
+		GetPubSub().UnsubscribeFromPlayerJoined(roomID, subscriberID)
+	}()
+
+	return ch, nil
+}
+
+// PlayerLeft is the resolver for the playerLeft field.
+func (r *subscriptionResolver) PlayerLeft(ctx context.Context, roomID string) (<-chan *model.Player, error) {
+	subscriberID := uuid.New().String()
+	ch := GetPubSub().SubscribeToPlayerLeft(roomID, subscriberID)
+
+	// Unsubscribe when context is done
+	go func() {
+		<-ctx.Done()
+		GetPubSub().UnsubscribeFromPlayerLeft(roomID, subscriberID)
+	}()
+
+	return ch, nil
+}
+
+// GameStarted is the resolver for the gameStarted field.
+func (r *subscriptionResolver) GameStarted(ctx context.Context, roomID string) (<-chan *model.GameRoom, error) {
+	subscriberID := uuid.New().String()
+	ch := GetPubSub().SubscribeToGameStarted(roomID, subscriberID)
+
+	// Unsubscribe when context is done
+	go func() {
+		<-ctx.Done()
+		GetPubSub().UnsubscribeFromGameStarted(roomID, subscriberID)
+	}()
+
+	return ch, nil
 }
 
 // Mutation returns MutationResolver implementation.
@@ -191,5 +470,9 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

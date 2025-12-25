@@ -3,9 +3,18 @@
  * 
  * Manages WebSocket connections with automatic reconnection,
  * subscription management, and typed message handling.
+ * Aligned with backend WebSocket message formats (ws_message.go)
  */
 
-import type { WebSocketRequest, WebSocketResponse } from '../types';
+import type { 
+  WebSocketRequest, 
+  WebSocketResponse, 
+  WSSuccessMessage,
+  WSErrorMessage,
+  GameEventPayload,
+  ChatMessagePayload,
+  DrawingEventPayload
+} from '../types';
 
 // ============================================
 // Types
@@ -75,7 +84,8 @@ export class WebSocketService {
 
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/app/ws';
+        // Use lobby WebSocket by default
+        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/api/v1/ws/lobby';
         
         console.log(`[WebSocket] Connecting to ${wsUrl}...`);
         this.ws = new WebSocket(wsUrl);
@@ -190,6 +200,12 @@ export class WebSocketService {
       return;
     }
 
+    // Validate input
+    if (!roomId || !type || !data) {
+      console.error('[WebSocket] Invalid message parameters');
+      return;
+    }
+
     const channel = `${type}/${roomId}`;
     const request: WebSocketRequest = {
       type: 'message',
@@ -197,7 +213,79 @@ export class WebSocketService {
       data: data,
     };
     
-    this.ws.send(JSON.stringify(request));
+    try {
+      this.ws.send(JSON.stringify(request));
+      console.log(`[WebSocket] Sent message to ${channel}:`, data);
+    } catch (error) {
+      console.error('[WebSocket] Failed to send message:', error);
+    }
+  }
+
+  /**
+   * Send a chat message (aligned with server format)
+   * @param roomId - Room UUID
+   * @param playerId - Player ID
+   * @param playerName - Player name
+   * @param message - Message content
+   */
+  sendChatMessage(roomId: string, playerId: string, playerName: string, message: string): void {
+    const chatData: ChatMessagePayload = {
+      roomId,
+      playerId,
+      playerName,
+      message
+    };
+
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('[WebSocket] Cannot send chat message: not connected');
+      return;
+    }
+
+    const request: WebSocketRequest = {
+      type: 'chat',
+      channel: `game/${roomId}`,
+      data: chatData
+    };
+
+    try {
+      this.ws.send(JSON.stringify(request));
+      console.log(`[WebSocket] Sent chat message from ${playerName}`);
+    } catch (error) {
+      console.error('[WebSocket] Failed to send chat message:', error);
+    }
+  }
+
+  /**
+   * Send a drawing event (aligned with server format)
+   * @param roomId - Room UUID
+   * @param playerId - Player ID
+   * @param action - Drawing action
+   * @param data - Drawing data (points, color, etc.)
+   */
+  sendDrawingEvent(roomId: string, playerId: string, action: 'start' | 'draw' | 'end' | 'clear', data?: any): void {
+    const drawingData: DrawingEventPayload = {
+      roomId,
+      playerId,
+      action,
+      ...data
+    };
+
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('[WebSocket] Cannot send drawing event: not connected');
+      return;
+    }
+
+    const request: WebSocketRequest = {
+      type: 'drawing',
+      channel: `game/${roomId}`,
+      data: drawingData
+    };
+
+    try {
+      this.ws.send(JSON.stringify(request));
+    } catch (error) {
+      console.error('[WebSocket] Failed to send drawing event:', error);
+    }
   }
 
   /**
@@ -231,6 +319,7 @@ export class WebSocketService {
     try {
       const message: WebSocketResponse = JSON.parse(event.data);
       
+      // Handle standard channel messages
       if (message.type === 'message' && message.channel) {
         // Call channel-specific callback
         const callback = this.subscriptions.get(message.channel);
@@ -238,16 +327,90 @@ export class WebSocketService {
           callback(message.data);
         }
 
-        // Call message type handlers
-        if (message.data && typeof message.data === 'object' && 'type' in message.data) {
-          const handlers = this.messageHandlers.get(message.data.type);
-          if (handlers) {
-            handlers.forEach(handler => handler(message.data));
-          }
+        // Handle typed message data
+        if (message.data && typeof message.data === 'object') {
+          this.handleTypedMessage(message.data);
         }
+      }
+      // Handle server success messages (WSSuccessMessage format)
+      else if (message.type && message.type !== 'message') {
+        this.handleServerMessage(message as any);
       }
     } catch (error) {
       console.error('[WebSocket] Error parsing message:', error);
+    }
+  }
+
+  /**
+   * Handle typed messages from server
+   */
+  private handleTypedMessage(data: any): void {
+    if ('type' in data) {
+      const handlers = this.messageHandlers.get(data.type);
+      if (handlers) {
+        handlers.forEach(handler => handler(data));
+      }
+    }
+  }
+
+  /**
+   * Handle server messages in WSSuccessMessage/WSErrorMessage format
+   */
+  private handleServerMessage(message: WSSuccessMessage | WSErrorMessage): void {
+    if (message.type === 'ERROR') {
+      const errorMsg = message as WSErrorMessage;
+      console.error(`[WebSocket] Server error: ${errorMsg.code} - ${errorMsg.message}`);
+      
+      // Trigger error handlers
+      const errorHandlers = this.messageHandlers.get('ERROR');
+      if (errorHandlers) {
+        errorHandlers.forEach(handler => handler(errorMsg));
+      }
+      return;
+    }
+
+    // Handle success messages by type
+    const successMsg = message as WSSuccessMessage;
+    const handlers = this.messageHandlers.get(successMsg.type);
+    if (handlers) {
+      handlers.forEach(handler => handler(successMsg.payload));
+    }
+
+    // Special handling for specific message types
+    switch (successMsg.type) {
+      case 'GAME_EVENT':
+        this.handleGameEvent(successMsg.payload as GameEventPayload);
+        break;
+      case 'CHAT_MESSAGE':
+        this.handleChatMessage(successMsg.payload as ChatMessagePayload);
+        break;
+      case 'DRAW_EVENT':
+        this.handleDrawEvent(successMsg.payload as DrawingEventPayload);
+        break;
+    }
+  }
+
+  private handleGameEvent(payload: GameEventPayload): void {
+    console.log(`[WebSocket] Game event: ${payload.eventType} in room ${payload.roomId}`);
+    const handlers = this.messageHandlers.get('game_event');
+    if (handlers) {
+      handlers.forEach(handler => handler(payload));
+    }
+  }
+
+  private handleChatMessage(payload: ChatMessagePayload): void {
+    console.log(`[WebSocket] Chat from ${payload.playerName}: ${payload.message}`);
+    const handlers = this.messageHandlers.get('chat_message');
+    if (handlers) {
+      handlers.forEach(handler => handler(payload));
+    }
+  }
+
+  private handleDrawEvent(payload: DrawingEventPayload): void {
+    console.log(`[WebSocket] Draw event: ${payload.action} by ${payload.playerId}`);
+    const handlers = this.messageHandlers.get('draw_event');
+    if (handlers) {
+      handlers.forEach(handler => handler(payload));
     }
   }
 

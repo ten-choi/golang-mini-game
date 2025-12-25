@@ -14,7 +14,7 @@ func ErrorHandler() gin.HandlerFunc {
 		// Check if there are any errors
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last().Err
-			common.ErrorResponse(c, err)
+			common.ErrorResponseJSON(c, err)
 		}
 	}
 }
@@ -22,12 +22,12 @@ func ErrorHandler() gin.HandlerFunc {
 // Recovery recovers from panics and returns a 500 error
 func Recovery() gin.HandlerFunc {
 	logger := common.GetLogger()
-	
+
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
 				logger.Error("Panic recovered: %v", err)
-				common.ErrorResponse(c, common.NewInternalError("Internal server error", nil))
+				common.ErrorResponseJSON(c, common.NewInternalError("Internal server error", nil))
 				c.Abort()
 			}
 		}()

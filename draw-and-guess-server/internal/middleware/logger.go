@@ -11,7 +11,7 @@ import (
 // RequestLogger logs all incoming HTTP requests
 func RequestLogger() gin.HandlerFunc {
 	logger := common.GetLogger()
-	
+
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path

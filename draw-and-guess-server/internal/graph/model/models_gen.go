@@ -89,6 +89,9 @@ type PlayerStats struct {
 type Query struct {
 }
 
+type Subscription struct {
+}
+
 type UpdateUserInput struct {
 	DisplayName *string `json:"displayName,omitempty"`
 	Email       *string `json:"email,omitempty"`

@@ -13,6 +13,7 @@ import (
 	"draw-and-guess-server/internal/database"
 	"draw-and-guess-server/internal/routes"
 	"draw-and-guess-server/internal/valkey"
+	"draw-and-guess-server/pkg/utils"
 )
 
 func main() {
@@ -21,6 +22,13 @@ func main() {
 
 	// Initialize config
 	config.Init()
+
+	// Initialize Snowflake ID generator (node ID 1, can be configured per instance)
+	if err := utils.InitSnowflake(1); err != nil {
+		logger.Error("Failed to initialize Snowflake ID generator: %v", err)
+		os.Exit(1)
+	}
+	logger.Info("✓ Snowflake ID generator initialized")
 
 	// Connect to Valkey (optional)
 	if err := valkey.Connect(); err != nil {

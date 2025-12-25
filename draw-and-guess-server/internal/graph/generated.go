@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"draw-and-guess-server/internal/graph/model"
-	"embed"
 	"errors"
 	"fmt"
 	"strconv"
@@ -42,6 +41,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Subscription() SubscriptionResolver
 }
 
 type DirectiveRoot struct {
@@ -127,6 +127,14 @@ type ComplexityRoot struct {
 		Users        func(childComplexity int) int
 	}
 
+	Subscription struct {
+		GameRoomUpdated func(childComplexity int, roomID string) int
+		GameStarted     func(childComplexity int, roomID string) int
+		LobbyUpdated    func(childComplexity int) int
+		PlayerJoined    func(childComplexity int, roomID string) int
+		PlayerLeft      func(childComplexity int, roomID string) int
+	}
+
 	User struct {
 		AvatarURL   func(childComplexity int) int
 		CreatedAt   func(childComplexity int) int
@@ -156,6 +164,13 @@ type QueryResolver interface {
 	RandomQAQuiz(ctx context.Context) (*model.GeneralQuiz, error)
 	PlayerStats(ctx context.Context, username string, gameType *string) ([]*model.PlayerStats, error)
 	Leaderboard(ctx context.Context, gameType string, limit *int32) ([]*model.PlayerStats, error)
+}
+type SubscriptionResolver interface {
+	GameRoomUpdated(ctx context.Context, roomID string) (<-chan *model.GameRoom, error)
+	LobbyUpdated(ctx context.Context) (<-chan []*model.GameRoom, error)
+	PlayerJoined(ctx context.Context, roomID string) (<-chan *model.Player, error)
+	PlayerLeft(ctx context.Context, roomID string) (<-chan *model.Player, error)
+	GameStarted(ctx context.Context, roomID string) (<-chan *model.GameRoom, error)
 }
 
 type executableSchema struct {
@@ -592,6 +607,57 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Query.Users(childComplexity), true
 
+	case "Subscription.gameRoomUpdated":
+		if e.complexity.Subscription.GameRoomUpdated == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_gameRoomUpdated_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.GameRoomUpdated(childComplexity, args["roomId"].(string)), true
+	case "Subscription.gameStarted":
+		if e.complexity.Subscription.GameStarted == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_gameStarted_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.GameStarted(childComplexity, args["roomId"].(string)), true
+	case "Subscription.lobbyUpdated":
+		if e.complexity.Subscription.LobbyUpdated == nil {
+			break
+		}
+
+		return e.complexity.Subscription.LobbyUpdated(childComplexity), true
+	case "Subscription.playerJoined":
+		if e.complexity.Subscription.PlayerJoined == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_playerJoined_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.PlayerJoined(childComplexity, args["roomId"].(string)), true
+	case "Subscription.playerLeft":
+		if e.complexity.Subscription.PlayerLeft == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_playerLeft_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.PlayerLeft(childComplexity, args["roomId"].(string)), true
+
 	case "User.avatarUrl":
 		if e.complexity.User.AvatarURL == nil {
 			break
@@ -695,6 +761,23 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				Data: buf.Bytes(),
 			}
 		}
+	case ast.Subscription:
+		next := ec._Subscription(ctx, opCtx.Operation.SelectionSet)
+
+		var buf bytes.Buffer
+		return func(ctx context.Context) *graphql.Response {
+			buf.Reset()
+			data := next(ctx)
+
+			if data == nil {
+				return nil
+			}
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
 
 	default:
 		return graphql.OneShot(graphql.ErrorResponse(ctx, "unsupported GraphQL operation"))
@@ -742,19 +825,181 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 	return introspection.WrapTypeFromDef(ec.Schema(), ec.Schema().Types[name]), nil
 }
 
-//go:embed "schema.graphqls"
-var sourcesFS embed.FS
+var sources = []*ast.Source{
+	{Name: "../../api/graphql/schema.graphqls", Input: `# Draw and Guess Game - GraphQL Schema
 
-func sourceData(filename string) string {
-	data, err := sourcesFS.ReadFile(filename)
-	if err != nil {
-		panic(fmt.Sprintf("codegen problem: %s not available", filename))
-	}
-	return string(data)
+scalar Time
+
+# ============================================
+# User Types
+# ============================================
+type User {
+  id: ID!
+  username: String!
+  displayName: String!
+  email: String
+  avatarUrl: String
+  createdAt: Time!
+  updatedAt: Time!
 }
 
-var sources = []*ast.Source{
-	{Name: "schema.graphqls", Input: sourceData("schema.graphqls"), BuiltIn: false},
+input CreateUserInput {
+  username: String!
+  displayName: String!
+  email: String
+  avatarUrl: String
+}
+
+input UpdateUserInput {
+  displayName: String
+  email: String
+  avatarUrl: String
+}
+
+# ============================================
+# Game Room Types
+# ============================================
+enum GameType {
+  OX
+  QA
+  WORDCHAIN
+}
+
+enum GameStatus {
+  WAITING
+  PLAYING
+  FINISHED
+}
+
+type Player {
+  username: String!
+  displayName: String!
+  score: Int!
+  isReady: Boolean!
+}
+
+type GameRoom {
+  id: ID!
+  name: String!
+  gameType: GameType!
+  status: GameStatus!
+  currentRound: Int!
+  totalRounds: Int!
+  players: [Player!]!
+  maxPlayers: Int!
+  hostUsername: String!
+  createdAt: Time!
+}
+
+input CreateGameRoomInput {
+  name: String!
+  gameType: GameType!
+  maxPlayers: Int!
+  totalRounds: Int!
+  hostUsername: String!
+}
+
+# ============================================
+# Quiz Types
+# ============================================
+type OXQuiz {
+  id: ID!
+  category: String!
+  difficulty: String!
+  question: String!
+  answer: Boolean!
+  explanation: String
+  usageCount: Int!
+  isActive: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type GeneralQuiz {
+  id: ID!
+  category: String!
+  difficulty: String!
+  question: String!
+  options: [String!]!
+  answer: Int!
+  explanation: String
+  imageUrl: String
+  usageCount: Int!
+  isActive: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# ============================================
+# Player Stats Types
+# ============================================
+type PlayerStats {
+  username: String!
+  gameType: String!
+  totalGames: Int!
+  totalWins: Int!
+  totalScore: Int!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# ============================================
+# Queries
+# ============================================
+type Query {
+  # User queries
+  user(username: String!): User
+  users: [User!]!
+
+  # Game room queries
+  gameRoom(id: ID!): GameRoom
+  gameRooms(gameType: GameType): [GameRoom!]!
+
+  # Quiz queries
+  randomOXQuiz: OXQuiz
+  randomQAQuiz: GeneralQuiz
+
+  # Stats queries
+  playerStats(username: String!, gameType: String): [PlayerStats!]!
+  leaderboard(gameType: String!, limit: Int): [PlayerStats!]!
+}
+
+# ============================================
+# Mutations
+# ============================================
+type Mutation {
+  # User mutations
+  createUser(input: CreateUserInput!): User!
+  updateUser(username: String!, input: UpdateUserInput!): User!
+
+  # Game room mutations
+  createGameRoom(input: CreateGameRoomInput!): GameRoom!
+  joinGameRoom(roomId: ID!, username: String!): GameRoom!
+  leaveGameRoom(roomId: ID!, username: String!): GameRoom!
+  startGame(roomId: ID!): GameRoom!
+  deleteGameRoom(roomId: ID!): Boolean!
+}
+
+# ============================================
+# Subscriptions
+# ============================================
+type Subscription {
+  # Game room subscriptions for real-time updates
+  gameRoomUpdated(roomId: ID!): GameRoom!
+  
+  # Lobby subscription for all room changes
+  lobbyUpdated: [GameRoom!]!
+  
+  # Player joined notification
+  playerJoined(roomId: ID!): Player!
+  
+  # Player left notification
+  playerLeft(roomId: ID!): Player!
+  
+  # Game started notification
+  gameStarted(roomId: ID!): GameRoom!
+}
+`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -927,6 +1172,50 @@ func (ec *executionContext) field_Query_user_args(ctx context.Context, rawArgs m
 		return nil, err
 	}
 	args["username"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_gameRoomUpdated_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["roomId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_gameStarted_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["roomId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_playerJoined_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["roomId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_playerLeft_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["roomId"] = arg0
 	return args, nil
 }
 
@@ -3198,6 +3487,285 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_gameRoomUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_gameRoomUpdated,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().GameRoomUpdated(ctx, fc.Args["roomId"].(string))
+		},
+		nil,
+		ec.marshalNGameRoom2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoom,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_gameRoomUpdated(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_GameRoom_id(ctx, field)
+			case "name":
+				return ec.fieldContext_GameRoom_name(ctx, field)
+			case "gameType":
+				return ec.fieldContext_GameRoom_gameType(ctx, field)
+			case "status":
+				return ec.fieldContext_GameRoom_status(ctx, field)
+			case "currentRound":
+				return ec.fieldContext_GameRoom_currentRound(ctx, field)
+			case "totalRounds":
+				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "players":
+				return ec.fieldContext_GameRoom_players(ctx, field)
+			case "maxPlayers":
+				return ec.fieldContext_GameRoom_maxPlayers(ctx, field)
+			case "hostUsername":
+				return ec.fieldContext_GameRoom_hostUsername(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_gameRoomUpdated_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_lobbyUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_lobbyUpdated,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Subscription().LobbyUpdated(ctx)
+		},
+		nil,
+		ec.marshalNGameRoom2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoomᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_lobbyUpdated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_GameRoom_id(ctx, field)
+			case "name":
+				return ec.fieldContext_GameRoom_name(ctx, field)
+			case "gameType":
+				return ec.fieldContext_GameRoom_gameType(ctx, field)
+			case "status":
+				return ec.fieldContext_GameRoom_status(ctx, field)
+			case "currentRound":
+				return ec.fieldContext_GameRoom_currentRound(ctx, field)
+			case "totalRounds":
+				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "players":
+				return ec.fieldContext_GameRoom_players(ctx, field)
+			case "maxPlayers":
+				return ec.fieldContext_GameRoom_maxPlayers(ctx, field)
+			case "hostUsername":
+				return ec.fieldContext_GameRoom_hostUsername(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_playerJoined(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_playerJoined,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().PlayerJoined(ctx, fc.Args["roomId"].(string))
+		},
+		nil,
+		ec.marshalNPlayer2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐPlayer,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_playerJoined(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "username":
+				return ec.fieldContext_Player_username(ctx, field)
+			case "displayName":
+				return ec.fieldContext_Player_displayName(ctx, field)
+			case "score":
+				return ec.fieldContext_Player_score(ctx, field)
+			case "isReady":
+				return ec.fieldContext_Player_isReady(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Player", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_playerJoined_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_playerLeft(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_playerLeft,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().PlayerLeft(ctx, fc.Args["roomId"].(string))
+		},
+		nil,
+		ec.marshalNPlayer2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐPlayer,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_playerLeft(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "username":
+				return ec.fieldContext_Player_username(ctx, field)
+			case "displayName":
+				return ec.fieldContext_Player_displayName(ctx, field)
+			case "score":
+				return ec.fieldContext_Player_score(ctx, field)
+			case "isReady":
+				return ec.fieldContext_Player_isReady(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Player", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_playerLeft_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_gameStarted(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_gameStarted,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().GameStarted(ctx, fc.Args["roomId"].(string))
+		},
+		nil,
+		ec.marshalNGameRoom2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoom,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_gameStarted(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_GameRoom_id(ctx, field)
+			case "name":
+				return ec.fieldContext_GameRoom_name(ctx, field)
+			case "gameType":
+				return ec.fieldContext_GameRoom_gameType(ctx, field)
+			case "status":
+				return ec.fieldContext_GameRoom_status(ctx, field)
+			case "currentRound":
+				return ec.fieldContext_GameRoom_currentRound(ctx, field)
+			case "totalRounds":
+				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "players":
+				return ec.fieldContext_GameRoom_players(ctx, field)
+			case "maxPlayers":
+				return ec.fieldContext_GameRoom_maxPlayers(ctx, field)
+			case "hostUsername":
+				return ec.fieldContext_GameRoom_hostUsername(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_gameStarted_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -5684,6 +6252,34 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var subscriptionImplementors = []string{"Subscription"}
+
+func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Subscription",
+	})
+	if len(fields) != 1 {
+		graphql.AddErrorf(ctx, "must subscribe to exactly one stream")
+		return nil
+	}
+
+	switch fields[0].Name {
+	case "gameRoomUpdated":
+		return ec._Subscription_gameRoomUpdated(ctx, fields[0])
+	case "lobbyUpdated":
+		return ec._Subscription_lobbyUpdated(ctx, fields[0])
+	case "playerJoined":
+		return ec._Subscription_playerJoined(ctx, fields[0])
+	case "playerLeft":
+		return ec._Subscription_playerLeft(ctx, fields[0])
+	case "gameStarted":
+		return ec._Subscription_gameStarted(ctx, fields[0])
+	default:
+		panic("unknown field " + strconv.Quote(fields[0].Name))
+	}
+}
+
 var userImplementors = []string{"User"}
 
 func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *model.User) graphql.Marshaler {
@@ -6216,6 +6812,10 @@ func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNPlayer2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐPlayer(ctx context.Context, sel ast.SelectionSet, v model.Player) graphql.Marshaler {
+	return ec._Player(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNPlayer2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐPlayerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Player) graphql.Marshaler {

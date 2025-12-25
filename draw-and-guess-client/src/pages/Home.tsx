@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiService } from '../services/api';
 import { useLanguage } from '../i18n/LanguageContext';
 
 const Home: React.FC = () => {
   const [username, setUsername] = useState('');
   const { language, setLanguage, t } = useLanguage();
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const languageOptions = [
@@ -14,34 +12,6 @@ const Home: React.FC = () => {
     { code: 'en', label: 'English' },
     { code: 'ja', label: '日本語' },
   ];
-
-  const handleCreateRoom = async () => {
-    if (!username.trim()) {
-      alert(t.home.enterUsername);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await apiService.createGameRoom(username);
-      sessionStorage.setItem('username', username.trim());
-      navigate(`/game/${result.room_id}`);
-    } catch (error) {
-      console.error('Failed to create room:', error);
-      alert('Failed to create room');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleJoinRoom = () => {
-    if (!username.trim()) {
-      alert(t.home.enterUsername);
-      return;
-    }
-    sessionStorage.setItem('username', username.trim());
-    navigate('/rooms');
-  };
 
   return (
     <div style={styles.container}>
@@ -101,13 +71,6 @@ const Home: React.FC = () => {
             style={styles.button}
           >
             🎯 게임 시작
-          </button>
-
-          <button
-            onClick={handleJoinRoom}
-            style={{ ...styles.button, ...styles.secondaryButton }}
-          >
-            📋 {t.home.viewRooms}
           </button>
         </div>
       </div>

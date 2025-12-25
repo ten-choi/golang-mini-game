@@ -17,6 +17,7 @@ func CORS() gin.HandlerFunc {
 			"http://localhost:8080",
 			"http://localhost:3000",
 			"http://localhost:5174",
+			"http://localhost:5175",
 		},
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PATCH", "PUT", "DELETE"},
 		AllowHeaders: []string{
