@@ -9,10 +9,29 @@ import (
 	"context"
 	"draw-and-guess-server/internal/graph/model"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// In-memory storage for game rooms
+var (
+	gameRooms = make(map[string]*model.GameRoom)
+	roomMutex sync.RWMutex
+)
+
+// Helper function to publish lobby updates
+func publishLobbyUpdate() {
+	roomMutex.RLock()
+	rooms := make([]*model.GameRoom, 0, len(gameRooms))
+	for _, room := range gameRooms {
+		rooms = append(rooms, room)
+	}
+	roomMutex.RUnlock()
+
+	GetPubSub().PublishLobbyUpdate(rooms)
+}
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error) {

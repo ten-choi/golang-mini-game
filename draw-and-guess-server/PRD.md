@@ -168,23 +168,90 @@ Repository Layer (Data Access)
 Database (PostgreSQL) + Cache (Valkey)
 ```
 
-#### 3.1.2 디렉토리 구조 (Standard Go Layout)
+#### 3.1.2 디렉토리 구조 (Clean Architecture + Standard Go Layout)
 ```
-cmd/server/           # 애플리케이션 엔트리포인트
+cmd/
+  └── server/              # 🚀 애플리케이션 엔트리포인트 (thin)
+      └── main.go
+
 internal/
-  ├── common/        # 공통 유틸리티 (에러, 로깅, 응답)
-  ├── config/        # 환경 설정
-  ├── database/      # DB 연결 관리
-  ├── valkey/        # 캐시 클라이언트
-  ├── models/        # 데이터 모델
-  ├── repository/    # 데이터 접근 인터페이스
-  ├── service/       # 비즈니스 로직 인터페이스
-  ├── graph/         # GraphQL 스키마 & 리졸버
-  ├── middleware/    # HTTP 미들웨어
-  ├── handlers/      # HTTP 핸들러
-  ├── routes/        # 라우팅
-  └── websocket/     # 실시간 통신
+  ├── app/                 # 🔧 DI/Wiring, 서버 초기화
+  │   └── server.go        # Gin 엔진 빌드, 의존성 주입
+  │
+  ├── config/              # ⚙️ 환경 설정
+  │   └── config.go
+  │
+  ├── platform/            # ⚙️ 횡단 관심사 인프라스트럭처
+  │   ├── logger/          # 구조화된 로깅
+  │   │   └── logger.go
+  │   ├── apperr/          # 표준화된 에러 처리
+  │   │   └── errors.go
+  │   ├── db/              # 데이터베이스 연결 관리
+  │   │   └── postgres.go
+  │   ├── cache/           # 캐시 클라이언트
+  │   │   └── valkey.go
+  │   ├── trace/           # 분산 추적
+  │   │   └── trace.go
+  │   └── id/              # ID 생성 (Snowflake)
+  │       └── snowflake.go
+  │
+  ├── domain/              # 🧠 순수 비즈니스 모델 (프레임워크 독립)
+  │   ├── user.go
+  │   ├── quiz.go
+  │   ├── player_stats.go
+  │   └── game_room.go
+  │
+  ├── repository/          # 💾 데이터 접근 인터페이스
+  │   ├── user_repository.go
+  │   ├── quiz_repository.go
+  │   └── player_stats_repository.go
+  │
+  ├── service/             # ✅ 비즈니스 로직 / Use Cases
+  │   ├── user_service.go
+  │   ├── quiz_service.go
+  │   ├── player_stats_service.go
+  │   └── game_room_store.go    # 인메모리 게임방 스토어
+  │
+  └── transport/           # 🌐 API 레이어 (프레젠테이션)
+      ├── http/
+      │   ├── router.go    # Gin 라우트 마운트 (REST/GraphQL/WS)
+      │   └── middleware/
+      │       ├── cors.go
+      │       ├── error.go
+      │       ├── logger.go
+      │       └── trace.go
+      │
+      ├── rest/            # REST API 핸들러
+      │   ├── health_handler.go
+      │   ├── response.go
+      │   └── RESPONSE_GUIDE.md
+      │
+      ├── graphql/         # GraphQL API
+      │   ├── schema.graphqls
+      │   ├── resolver.go
+      │   ├── schema.resolvers.go
+      │   ├── generated.go
+      │   ├── pubsub.go
+      │   └── model/
+      │       └── models_gen.go
+      │
+      └── ws/              # WebSocket 실시간 통신
+          ├── websocket.go
+          ├── ws_message.go
+          └── dto/
+              └── websocket_dto.go
+
+pkg/                       # 외부에 공개 가능한 라이브러리
+  └── utils/
+      ├── snowflake.go     # (deprecated, use platform/id/)
+      └── strings.go
 ```
+
+**아키텍처 설계 원칙**:
+- **관심사의 분리**: 도메인 로직과 인프라 구현 분리
+- **의존성 규칙**: 내부 레이어(domain, service)는 외부 레이어(transport)를 의존하지 않음
+- **테스트 용이성**: 인터페이스 기반 설계로 모킹 가능
+- **확장성**: 새로운 전송 프로토콜(gRPC 등) 추가 용이
 
 ### 3.2 기술 스택
 
