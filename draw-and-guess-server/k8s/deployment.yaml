@@ -17,9 +17,15 @@ spec:
       - name: go-server-container
         image: ghcr.io/yoru-choi/go-server-app:v1.0
         env:
-        - name: MONGO_URI
-          value: "mongodb://mongo:27017"
-        - name: DATABASE_NAME
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "password"
+        - name: POSTGRES_DB
           value: "draw_and_guess_db"
         - name: SERVER_PORT
           value: "8080"

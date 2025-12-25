@@ -1,107 +1,158 @@
+# Draw and Guess Game - Backend Server
 
-Draw and Guess Game - Backend Server
+## 🎯 개요
+GraphQL + WebSocket 기반의 멀티플레이어 그림 맞추기 게임 서버
 
-## 필요한 환경
+## 📦 기술 스택
+- **Language**: Go 1.24+
+- **GraphQL**: gqlgen (schema-first)
+- **Database**: PostgreSQL 16
+- **Cache**: Valkey (Redis 호환)
+- **WebSocket**: gorilla/websocket
+- **Web Framework**: Gin
 
-- Go 1.24 이상
-- Valkey (Redis 호환)
-
-## 주요 기능
-
-- 멀티플레이어 그림 그리기 게임
-- WebSocket 기반 실시간 통신
-- Valkey를 사용한 게임 상태 관리
-- Swagger API 문서 제공
-
-## 세팅
+## 🚀 빠른 시작
 
 ### 1. 의존성 설치
-
-```powershell
+```bash
 go mod download
 ```
 
-### 2. Valkey 실행
+### 2. 데이터베이스 준비 (Kubernetes)
+```bash
+# PostgreSQL & Valkey 배포
+cd k8s
+.\deploy-all.ps1
 
-Docker를 사용하여 Valkey를 실행하거나 로컬에 설치:
-
-```powershell
-docker run -d --name valkey -p 6379:6379 valkey/valkey:7.2-alpine
+# 데이터베이스 생성
+kubectl exec -n data postgres-0 -- psql -U postgres -c "CREATE DATABASE draw_guess_game;"
 ```
 
 ### 3. 환경 변수 설정 (.env)
-
 ```env
-MONGO_URI=mongodb://localhost:27017
-DATABASE_NAME=draw_and_guess_db
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=draw_guess_game
 VALKEY_ADDR=localhost:6379
 SERVER_PORT=8080
 ```
 
-### 4. 서버 시작
+### 4. 서버 실행
+```bash
+# 빌드 & 실행
+go build -o bin/server.exe ./cmd/server
+.\bin\server.exe
 
-```powershell
-go run main.go
+# 또는 직접 실행
+go run ./cmd/server/main.go
 ```
 
-서버는 `http://localhost:8080`에서 실행됩니다.
+서버가 `http://localhost:8080`에서 실행됩니다.
 
-### 5. Swagger UI 접속
+## 📚 API 문서
 
-API 문서: `http://localhost:8080/swagger/index.html`
+### GraphQL Playground
+- 개발용: `http://localhost:8080/api/v1/graphql`
+- 프로덕션: [Apollo Studio](https://studio.apollographql.com) 사용 권장
 
-## API 엔드포인트
+### 주요 엔드포인트
+- `GET  /health` - 헬스 체크
+- `POST /api/v1/graphql` - GraphQL 쿼리/뮤테이션
+- `GET  /api/v1/graphql` - GraphQL Playground (개발용)
+- `WS   /api/v1/ws/lobby` - 로비 WebSocket
+- `WS   /api/v1/ws/rooms/:id` - 게임방 WebSocket
 
-### Game Rooms
-- `GET /app/game/rooms` - 방 목록 조회
-  - Query: `id` (optional) - 특정 방 조회
-- `POST /app/game/room` - 방 생성
-  - Form: `ldap_user` (required)
-- `POST /app/game/room/:id/join` - 방 참가
-  - Form: `ldap_user` (required)
-- `POST /app/game/room/:id/leave` - 방 나가기
-  - Form: `ldap_user` (required)
-- `POST /app/game/room/:id/start` - 게임 시작
-- `POST /app/game/room/:id/answer` - 정답 제출
-  - Form: `ldap_user`, `answer` (required)
-- `POST /app/game/room/:id/chat` - 채팅 메시지 전송
-  - Form: `ldap_user`, `message` (required)
-- `PATCH /app/game/room/:id` - 그림 데이터 업데이트
-  - Body: drawing data (JSON)
-- `DELETE /app/game/room/:id` - 방 삭제
+## 🏗️ 프로젝트 구조
+```
+├── cmd/
+│   └── server/           # 메인 애플리케이션 엔트리포인트
+│       └── main.go
+├── internal/
+│   ├── config/          # 환경 설정
+│   ├── database/        # PostgreSQL 연결
+│   ├── valkey/          # Valkey(Redis) 클라이언트
+│   ├── models/          # 데이터 모델
+│   ├── repository/      # 데이터 접근 계층
+│   ├── service/         # 비즈니스 로직
+│   ├── graph/           # GraphQL 스키마 & 리졸버
+│   ├── handlers/        # HTTP 핸들러
+│   ├── routes/          # 라우팅 설정
+│   └── websocket/       # WebSocket 핸들러
+├── k8s/                 # Kubernetes 매니페스트
+└── scripts/             # 유틸리티 스크립트
+```
 
-### WebSocket
-- `GET /app/ws` - WebSocket 연결 (실시간 통신)
+## 🎮 게임 타입
+- **wordchain** (끝말잇기): 한국어 단어 체인 게임
+- **ox** (OX 퀴즈): O/X 정답 맞추기
+- **qa** (일반 퀴즈): 4지선다 퀴즈
 
-## 데이터 구조
+## 📖 GraphQL API 예제
 
-### GameRoom (Valkey에 저장)
-
-```json
-{
-  "uuid": "string",
-  "is_active": true,
-  "drawer_user": "string",
-  "players": [
-    {
-      "username": "string",
-      "score": 0,
-      "attempts": 0
-    }
-  ],
-  "current_word": "string",
-  "round_number": 1,
-  "time_left": 60,
-  "game_status": "waiting|playing|finished",
-  "used_words": ["string"],
-  "max_rounds": 3,
-  "winning_score": 3,
-  "created_at": "timestamp",
-  "updated_at": "timestamp"
+### 사용자 생성
+```graphql
+mutation {
+  createUser(input: {
+    username: "player1"
+    displayName: "플레이어1"
+    email: "player1@example.com"
+  }) {
+    id
+    username
+    displayName
+    createdAt
+  }
 }
 ```
 
-## WebSocket
+### 퀴즈 조회
+```graphql
+query {
+  randomOXQuiz {
+    id
+    question
+    answer
+    explanation
+  }
+}
+```
+
+더 자세한 내용은 [APOLLO_STUDIO_GUIDE.md](APOLLO_STUDIO_GUIDE.md)를 참고하세요.
+
+## 🔧 개발
+
+### 빌드
+```bash
+go build -o bin/server.exe ./cmd/server
+```
+
+### GraphQL 스키마 재생성
+```bash
+gqlgen generate
+```
+
+### 테스트
+```bash
+go test ./...
+```
+
+## 📦 배포
+
+### Docker 이미지 빌드
+```bash
+docker build -t draw-and-guess-server .
+```
+
+### Kubernetes 배포
+```bash
+cd k8s
+kubectl apply -f .
+```
+
+## 📝 라이센스
+MIT
 
 - 엔드포인트: `ws://localhost:8080/app/ws`
 - 메시지 형식: `{ "type": "subscribe|unsubscribe|message", "channel": "chat/<roomId>", "data": {...} }`

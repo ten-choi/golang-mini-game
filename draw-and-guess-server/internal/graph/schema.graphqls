@@ -1,0 +1,153 @@
+# Draw and Guess Game - GraphQL Schema
+
+scalar Time
+
+# ============================================
+# User Types
+# ============================================
+type User {
+  id: ID!
+  username: String!
+  displayName: String!
+  email: String
+  avatarUrl: String
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+input CreateUserInput {
+  username: String!
+  displayName: String!
+  email: String
+  avatarUrl: String
+}
+
+input UpdateUserInput {
+  displayName: String
+  email: String
+  avatarUrl: String
+}
+
+# ============================================
+# Game Room Types
+# ============================================
+enum GameType {
+  OX
+  QA
+  WORDCHAIN
+}
+
+enum GameStatus {
+  WAITING
+  PLAYING
+  FINISHED
+}
+
+type Player {
+  username: String!
+  displayName: String!
+  score: Int!
+  isReady: Boolean!
+}
+
+type GameRoom {
+  id: ID!
+  name: String!
+  gameType: GameType!
+  status: GameStatus!
+  currentRound: Int!
+  totalRounds: Int!
+  players: [Player!]!
+  maxPlayers: Int!
+  hostUsername: String!
+  createdAt: Time!
+}
+
+input CreateGameRoomInput {
+  name: String!
+  gameType: GameType!
+  maxPlayers: Int!
+  totalRounds: Int!
+  hostUsername: String!
+}
+
+# ============================================
+# Quiz Types
+# ============================================
+type OXQuiz {
+  id: ID!
+  category: String!
+  difficulty: String!
+  question: String!
+  answer: Boolean!
+  explanation: String
+  usageCount: Int!
+  isActive: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type GeneralQuiz {
+  id: ID!
+  category: String!
+  difficulty: String!
+  question: String!
+  options: [String!]!
+  answer: Int!
+  explanation: String
+  imageUrl: String
+  usageCount: Int!
+  isActive: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# ============================================
+# Player Stats Types
+# ============================================
+type PlayerStats {
+  username: String!
+  gameType: String!
+  totalGames: Int!
+  totalWins: Int!
+  totalScore: Int!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+# ============================================
+# Queries
+# ============================================
+type Query {
+  # User queries
+  user(username: String!): User
+  users: [User!]!
+
+  # Game room queries
+  gameRoom(id: ID!): GameRoom
+  gameRooms(gameType: GameType): [GameRoom!]!
+
+  # Quiz queries
+  randomOXQuiz: OXQuiz
+  randomQAQuiz: GeneralQuiz
+
+  # Stats queries
+  playerStats(username: String!, gameType: String): [PlayerStats!]!
+  leaderboard(gameType: String!, limit: Int): [PlayerStats!]!
+}
+
+# ============================================
+# Mutations
+# ============================================
+type Mutation {
+  # User mutations
+  createUser(input: CreateUserInput!): User!
+  updateUser(username: String!, input: UpdateUserInput!): User!
+
+  # Game room mutations
+  createGameRoom(input: CreateGameRoomInput!): GameRoom!
+  joinGameRoom(roomId: ID!, username: String!): GameRoom!
+  leaveGameRoom(roomId: ID!, username: String!): GameRoom!
+  startGame(roomId: ID!): GameRoom!
+  deleteGameRoom(roomId: ID!): Boolean!
+}

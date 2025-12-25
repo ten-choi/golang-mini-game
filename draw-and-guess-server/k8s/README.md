@@ -1,6 +1,6 @@
 # Kubernetes Deployment Guide
 
-이 프로젝트는 MongoDB와 Valkey를 Kubernetes에서 실행합니다.
+이 프로젝트는 PostgreSQL과 Valkey를 Kubernetes에서 실행합니다.
 
 ## 📋 Prerequisites
 
@@ -9,7 +9,7 @@
 
 ## 🚀 Quick Start
 
-### 1. MongoDB와 Valkey 배포
+### 1. PostgreSQL과 Valkey 배포
 
 ```powershell
 cd k8s
@@ -18,7 +18,7 @@ cd k8s
 
 이 스크립트는 다음을 수행합니다:
 - `data` namespace 생성
-- MongoDB StatefulSet 배포 (포트: 27017)
+- PostgreSQL StatefulSet 배포 (포트: 5432)
 - Valkey StatefulSet 배포 (포트: 6379, NodePort: 30379)
 - Persistent Volumes 생성
 
@@ -59,7 +59,7 @@ cd k8s
 
 | 서비스 | 내부 주소 | 외부 주소 |
 |-------|----------|----------|
-| MongoDB | mongo.data.svc.cluster.local:27017 | localhost:27017 |
+| PostgreSQL | postgres.data.svc.cluster.local:5432 | localhost:5432 |
 | Valkey | valkey.data.svc.cluster.local:6379 | localhost:30379 |
 
 ## 🔧 Configuration
@@ -67,8 +67,11 @@ cd k8s
 `.env` 파일에서 다음 설정을 확인하세요:
 
 ```env
-MONGO_URI=mongodb://localhost:27017
-DATABASE_NAME=draw_and_guess_db
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=password
+POSTGRES_DB=draw_and_guess_db
 SERVER_PORT=8080
 VALKEY_ADDR=localhost:30379
 ```
@@ -80,10 +83,10 @@ VALKEY_ADDR=localhost:30379
 │           Kubernetes Cluster (data ns)          │
 │                                                  │
 │  ┌──────────────┐         ┌──────────────┐     │
-│  │   MongoDB    │         │   Valkey     │     │
+│  │ PostgreSQL   │         │   Valkey     │     │
 │  │ StatefulSet  │         │ StatefulSet  │     │
 │  │              │         │              │     │
-│  │ Port: 27017  │         │ Port: 6379   │     │
+│  │ Port: 5432   │         │ Port: 6379   │     │
 │  │              │         │ NodePort:    │     │
 │  │              │         │ 30379        │     │
 │  └──────────────┘         └──────────────┘     │
@@ -92,7 +95,7 @@ VALKEY_ADDR=localhost:30379
 │  ┌──────┴────────┐        ┌──────┴────────┐    │
 │  │ PV (hostPath) │        │ PV (hostPath) │    │
 │  │  /tmp/data/   │        │  /tmp/data/   │    │
-│  │   mongo-0     │        │   valkey-0    │    │
+│  │  postgres     │        │   valkey-0    │    │
 │  └───────────────┘        └───────────────┘    │
 └─────────────────────────────────────────────────┘
                      ▲
@@ -119,17 +122,17 @@ kubectl get pv
 kubectl get pvc -n data
 ```
 
-### 백엔드가 Valkey/MongoDB에 연결할 수 없는 경우
+### 백엔드가 Valkey/PostgreSQL에 연결할 수 없는 경우
 
 1. Pod가 Running 상태인지 확인
-2. 포트 포워딩 확인 (NodePort 30379)
+2. 포트 포워딩 확인
 3. `.env` 파일의 설정 확인
 
 ### 로그 확인
 
 ```bash
-# MongoDB 로그
-kubectl logs mongo-0 -n data
+# PostgreSQL 로그
+kubectl logs postgres-0 -n data
 
 # Valkey 로그
 kubectl logs valkey-0 -n data
@@ -137,7 +140,7 @@ kubectl logs valkey-0 -n data
 
 ## 📦 Storage
 
-- MongoDB: 10Gi (hostPath: /tmp/data/mongo-0)
+- PostgreSQL: 10Gi (hostPath: /tmp/data/postgres-0)
 - Valkey: 5Gi (hostPath: /tmp/data/valkey-0)
 
 데이터는 컨테이너가 재시작되어도 유지됩니다.

@@ -40,6 +40,26 @@
 - **컨테이너화**: Docker & Docker Compose
 - **오케스트레이션**: Kubernetes (k8s 매니페스트 포함)
 
+## � API 문서화
+
+이 프로젝트는 **Apollo Studio Schema Registry**를 사용하여 모든 API를 문서화합니다:
+
+- ✅ **GraphQL Operations** - Query, Mutation, Subscription
+- ✅ **REST API Endpoints** - 19개 엔드포인트 전체
+- ✅ **WebSocket Protocol** - 실시간 통신 프로토콜
+
+### 문서 확인 방법
+
+1. **Apollo Studio** (권장): [상세 가이드](draw-and-guess-server/APOLLO_STUDIO_GUIDE.md)
+   ```powershell
+   # 스키마 업로드 후 Apollo Studio에서 확인
+   cd draw-and-guess-server
+   .\scripts\publish-schema.ps1
+   ```
+
+2. **GraphQL Playground**: http://localhost:8080/graphql/playground
+3. **Apollo Sandbox**: http://localhost:8080/graphql/sandbox
+
 ## 🚀 빠른 시작
 
 ### 사전 요구사항
@@ -47,6 +67,7 @@
 - Docker & Docker Compose
 - Go 1.21+ (로컬 개발 시)
 - Node.js 18+ (로컬 개발 시)
+- Rover CLI (Apollo 스키마 업로드 시)
 
 ### 1. 저장소 클론
 

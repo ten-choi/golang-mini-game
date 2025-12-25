@@ -1,14 +1,14 @@
-# Deploy MongoDB and Valkey to Kubernetes
+# Deploy PostgreSQL and Valkey to Kubernetes
 
-Write-Host "🚀 Deploying MongoDB and Valkey to Kubernetes..." -ForegroundColor Cyan
+Write-Host "🚀 Deploying PostgreSQL and Valkey to Kubernetes..." -ForegroundColor Cyan
 
 # Create data namespace
 Write-Host "`n📁 Creating namespace..." -ForegroundColor Yellow
-kubectl apply -f mongo.yaml
+kubectl apply -f postgres.yaml
 
 # Create Persistent Volumes
 Write-Host "`n💾 Creating Persistent Volumes..." -ForegroundColor Yellow
-kubectl apply -f pv-mongo.yaml
+kubectl apply -f pv-postgres.yaml
 kubectl apply -f pv-valkey.yaml
 
 # Deploy Valkey
@@ -26,7 +26,7 @@ kubectl get svc -n data
 kubectl get pv
 
 Write-Host "`n📊 Services:" -ForegroundColor Green
-Write-Host "MongoDB: mongo.data.svc.cluster.local:27017"
+Write-Host "PostgreSQL: postgres.data.svc.cluster.local:5432"
 Write-Host "Valkey: valkey.data.svc.cluster.local:6379"
 Write-Host "Valkey NodePort: localhost:30379"
 
