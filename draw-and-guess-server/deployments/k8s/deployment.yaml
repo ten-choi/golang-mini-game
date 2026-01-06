@@ -16,6 +16,7 @@ spec:
       containers:
       - name: go-server-container
         image: ghcr.io/yoru-choi/go-server-app:v1.0
+        imagePullPolicy: Always
         env:
         - name: POSTGRES_HOST
           value: "postgres"
