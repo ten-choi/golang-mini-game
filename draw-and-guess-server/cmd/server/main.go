@@ -77,7 +77,7 @@ func main() {
 	// Start server in goroutine
 	go func() {
 		logger.Info("🚀 Server started on %s", srv.Addr)
-		logger.Info("GraphQL Playground: http://localhost:%s/api/v1/graphql", config.ServerPort)
+		logger.Info("GraphQL Playground: http://localhost:%s/graphql", config.ServerPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Server failed to start: %v", err)
 			os.Exit(1)

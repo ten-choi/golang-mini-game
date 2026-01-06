@@ -73,5 +73,5 @@ func setupGraphQLRoutes(api *gin.RouterGroup, db *sql.DB) {
 	api.POST("/graphql", gin.WrapH(srv))
 
 	// Apollo Sandbox (GET) - Development environment
-	api.GET("/graphql", gin.WrapH(playground.ApolloSandboxHandler("Apollo Sandbox", "/api/v1/graphql")))
+	api.GET("/graphql", gin.WrapH(playground.ApolloSandboxHandler("Apollo Sandbox", "/graphql")))
 }

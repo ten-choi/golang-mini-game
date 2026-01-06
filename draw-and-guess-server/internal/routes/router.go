@@ -29,8 +29,8 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	// Health check (non-versioned)
 	r.GET("/health", handlers.HealthCheck)
 
-	// API v1 routes
-	api := r.Group("/api/v1")
+	// API routes
+	api := r.Group("")
 	{
 		setupWebSocketRoutes(api)
 		setupGraphQLRoutes(api, db)
@@ -73,5 +73,5 @@ func setupGraphQLRoutes(api *gin.RouterGroup, db *sql.DB) {
 	api.POST("/graphql", gin.WrapH(srv))
 
 	// Apollo Sandbox (GET) - Development environment
-	api.GET("/graphql", gin.WrapH(playground.ApolloSandboxHandler("Apollo Sandbox", "/api/v1/graphql")))
+	api.GET("/graphql", gin.WrapH(playground.ApolloSandboxHandler("Apollo Sandbox", "/graphql")))
 }
