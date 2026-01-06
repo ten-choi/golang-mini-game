@@ -1,60 +1,31 @@
 # Draw and Guess Game - GraphQL Schema
 
-"""
-RFC3339 형식의 날짜/시간 스칼라 타입
-예: "2025-12-25T09:00:00Z"
-"""
 scalar Time
 
 # ============================================
 # User Types
 # ============================================
 
-"""
-사용자 정보를 나타내는 타입
-게임 참여자의 기본 프로필 정보를 포함합니다.
-"""
 type User {
-  "사용자 고유 식별자"
   id: ID!
-  "로그인에 사용되는 고유 사용자명"
   username: String!
-  "게임 내에서 표시되는 닉네임"
   displayName: String!
-  "이메일 주소 (선택사항)"
   email: String
-  "프로필 이미지 URL (선택사항)"
   avatarUrl: String
-  "계정 생성 일시"
   createdAt: Time!
-  "마지막 정보 수정 일시"
   updatedAt: Time!
 }
 
-"""
-새 사용자 생성을 위한 입력 타입
-"""
 input CreateUserInput {
-  "고유 사용자명 (영문, 숫자, 언더스코어만 허용)"
   username: String!
-  "게임 내 표시 닉네임"
   displayName: String!
-  "이메일 주소 (선택사항)"
   email: String
-  "프로필 이미지 URL (선택사항)"
   avatarUrl: String
 }
 
-"""
-사용자 정보 수정을 위한 입력 타입
-null인 필드는 수정되지 않습니다.
-"""
 input UpdateUserInput {
-  "변경할 닉네임"
   displayName: String
-  "변경할 이메일"
   email: String
-  "변경할 프로필 이미지 URL"
   avatarUrl: String
 }
 
@@ -62,354 +33,278 @@ input UpdateUserInput {
 # Game Room Types
 # ============================================
 
-"""
-게임 종류를 나타내는 열거형
-"""
 enum GameType {
-  "O/X 퀴즈 게임"
   OX
-  "4지선다 일반상식 퀴즈 게임"
   QA
-  "끝말잇기 게임"
   WORDCHAIN
 }
 
-"""
-게임 방 상태를 나타내는 열거형
-"""
 enum GameStatus {
-  "대기 중 - 플레이어 입장 가능"
   WAITING
-  "게임 진행 중"
   PLAYING
-  "게임 종료됨"
   FINISHED
 }
 
-"""
-게임 방 내 플레이어 정보
-"""
 type Player {
-  "플레이어 사용자명"
   username: String!
-  "플레이어 표시 닉네임"
   displayName: String!
-  "현재 게임에서의 점수"
   score: Int!
-  "게임 시작 준비 완료 여부"
   isReady: Boolean!
 }
 
-"""
-게임 방 정보
-실시간 멀티플레이어 게임을 위한 방 상태를 관리합니다.
-"""
 type GameRoom {
-  "게임 방 고유 식별자 (UUID)"
   id: ID!
-  "게임 방 이름"
   name: String!
-  "게임 종류 (OX, QA, WORDCHAIN)"
   gameType: GameType!
-  "게임 방 상태"
   status: GameStatus!
-  "현재 라운드 번호 (1부터 시작)"
   currentRound: Int!
-  "총 라운드 수"
   totalRounds: Int!
-  "방에 있는 플레이어 목록"
   players: [Player!]!
-  "최대 입장 가능 인원"
   maxPlayers: Int!
-  "방장 사용자명"
   hostUsername: String!
-  "방 생성 일시"
+  usedQuizIds: [String!]!
+  isPrivate: Boolean!
+  password: String
   createdAt: Time!
 }
 
-"""
-게임 방 생성을 위한 입력 타입
-"""
 input CreateGameRoomInput {
-  "게임 방 이름"
   name: String!
-  "게임 종류"
   gameType: GameType!
-  "최대 인원 (2-8명 권장)"
   maxPlayers: Int!
-  "총 라운드 수 (1-10)"
   totalRounds: Int!
-  "방장 사용자명"
   hostUsername: String!
+  isPrivate: Boolean
+  password: String
+}
+
+input UpdateGameRoomInput {
+  name: String
+  maxPlayers: Int
+  totalRounds: Int
+  isPrivate: Boolean
+  password: String
+}
+
+# ============================================
+# Invitation Types
+# ============================================
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+type Invitation {
+  id: ID!
+  roomId: ID!
+  room: GameRoom!
+  inviterId: ID!
+  inviter: User!
+  inviteeId: ID!
+  invitee: User!
+  status: InviteStatus!
+  createdAt: Time!
+  expiresAt: Time!
 }
 
 # ============================================
 # Quiz Types
 # ============================================
 
-"""
-O/X 퀴즈 문제 타입
-참/거짓으로 답하는 퀴즈입니다.
-"""
 type OXQuiz {
-  "퀴즈 고유 식별자"
   id: ID!
-  "퀴즈 카테고리 (역사, 과학, 상식 등)"
   category: String!
-  "난이도 (easy, medium, hard)"
   difficulty: String!
-  "퀴즈 문제"
   question: String!
-  "정답 (true=O, false=X)"
   answer: Boolean!
-  "정답 해설 (선택사항)"
   explanation: String
-  "출제 횟수"
   usageCount: Int!
-  "활성화 여부"
   isActive: Boolean!
-  "생성 일시"
   createdAt: Time!
-  "수정 일시"
   updatedAt: Time!
 }
 
-"""
-일반상식 퀴즈 (4지선다) 타입
-"""
 type GeneralQuiz {
-  "퀴즈 고유 식별자"
   id: ID!
-  "퀴즈 카테고리"
   category: String!
-  "난이도 (easy, medium, hard)"
   difficulty: String!
-  "퀴즈 문제"
   question: String!
-  "선택지 목록 (4개)"
   options: [String!]!
-  "정답 인덱스 (0-3)"
   answer: Int!
-  "정답 해설 (선택사항)"
   explanation: String
-  "문제 이미지 URL (선택사항)"
   imageUrl: String
-  "출제 횟수"
   usageCount: Int!
-  "활성화 여부"
   isActive: Boolean!
-  "생성 일시"
   createdAt: Time!
-  "수정 일시"
   updatedAt: Time!
+}
+
+enum OXChoice {
+  O
+  X
+}
+
+# ============================================
+# Game Config & Data Types
+# ============================================
+
+type GameConfig {
+  maxPlayers: Int!
+  roundDuration: Int!
+  drawingTime: Int!
+  guessingTime: Int!
+  roundsPerGame: Int!
+}
+
+type WordchainPrompt {
+  word: String!
+  hint: String
 }
 
 # ============================================
 # Player Stats Types
 # ============================================
 
-"""
-플레이어 통계 정보
-게임 종류별로 플레이어의 전적을 추적합니다.
-"""
 type PlayerStats {
-  "플레이어 사용자명"
   username: String!
-  "게임 종류 (OX, QA, WORDCHAIN)"
   gameType: String!
-  "총 게임 참여 횟수"
   totalGames: Int!
-  "총 승리 횟수"
   totalWins: Int!
-  "누적 점수"
   totalScore: Int!
-  "첫 기록 일시"
   createdAt: Time!
-  "마지막 업데이트 일시"
   updatedAt: Time!
+}
+
+# ============================================
+# Chat & Events Types
+# ============================================
+
+type ChatMessage {
+  id: ID!
+  roomId: ID!
+  username: String!
+  displayName: String!
+  message: String!
+  timestamp: Time!
+}
+
+enum GameEventType {
+  PLAYER_JOINED
+  PLAYER_LEFT
+  PLAYER_READY
+  HOST_CHANGED
+  ROUND_STARTED
+  ROUND_ENDED
+  ANSWER_SUBMITTED
+  CORRECT_ANSWER
+  WRONG_ANSWER
+  GAME_ENDED
+}
+
+type GameEvent {
+  type: GameEventType!
+  roomId: ID!
+  username: String
+  displayName: String
+  data: String
+  timestamp: Time!
+}
+
+type ErrorEvent {
+  code: String!
+  message: String!
+  timestamp: Time!
 }
 
 # ============================================
 # Queries
 # ============================================
 
-"""
-데이터 조회를 위한 쿼리 타입
-"""
 type Query {
-  """
-  특정 사용자 정보 조회
-  존재하지 않으면 null 반환
-  """
-  user(
-    "조회할 사용자명"
-    username: String!
-  ): User
-
-  "전체 사용자 목록 조회"
+  # User queries
+  user(username: String!): User
   users: [User!]!
-
-  """
-  특정 게임 방 정보 조회
-  존재하지 않으면 null 반환
-  """
-  gameRoom(
-    "게임 방 ID"
-    id: ID!
-  ): GameRoom
-
-  """
-  게임 방 목록 조회
-  gameType이 지정되면 해당 타입만 필터링
-  """
-  gameRooms(
-    "필터링할 게임 종류 (선택사항)"
-    gameType: GameType
-  ): [GameRoom!]!
-
-  "랜덤 O/X 퀴즈 1개 조회"
-  randomOXQuiz: OXQuiz
-
-  "랜덤 일반상식 퀴즈 1개 조회"
-  randomQAQuiz: GeneralQuiz
-
-  """
-  플레이어 통계 조회
-  gameType이 지정되면 해당 게임만, 없으면 전체 게임 통계
-  """
-  playerStats(
-    "플레이어 사용자명"
-    username: String!
-    "게임 종류 필터 (선택사항)"
-    gameType: String
-  ): [PlayerStats!]!
-
-  """
-  게임별 리더보드 조회
-  점수 순으로 정렬된 상위 플레이어 목록
-  """
-  leaderboard(
-    "게임 종류"
-    gameType: String!
-    "조회할 최대 인원 (기본값: 10, 최대: 100)"
-    limit: Int
-  ): [PlayerStats!]!
+  
+  # Game room queries
+  gameRoom(id: ID!): GameRoom
+  gameRooms(gameType: GameType): [GameRoom!]!
+  
+  # Quiz queries
+  randomOXQuiz(roomId: ID): OXQuiz
+  randomQAQuiz(roomId: ID): GeneralQuiz
+  
+  # Player stats queries
+  playerStats(username: String!, gameType: String): [PlayerStats!]!
+  leaderboard(gameType: String!, limit: Int): [PlayerStats!]!
+  
+  # Game config & data
+  gameConfig: GameConfig!
+  randomWordchainPrompt: WordchainPrompt!
 }
 
 # ============================================
 # Mutations
 # ============================================
 
-"""
-데이터 변경을 위한 뮤테이션 타입
-"""
 type Mutation {
-  "새 사용자 생성"
-  createUser(
-    "사용자 생성 정보"
-    input: CreateUserInput!
-  ): User!
-
-  "사용자 정보 수정"
-  updateUser(
-    "수정할 사용자명"
-    username: String!
-    "수정할 필드들"
-    input: UpdateUserInput!
-  ): User!
-
-  "새 게임 방 생성"
-  createGameRoom(
-    "게임 방 생성 정보"
-    input: CreateGameRoomInput!
-  ): GameRoom!
-
-  """
-  게임 방 입장
-  방이 가득 찼거나 게임 진행 중이면 에러 반환
-  """
-  joinGameRoom(
-    "입장할 방 ID"
-    roomId: ID!
-    "입장하는 플레이어 사용자명"
-    username: String!
-  ): GameRoom!
-
-  """
-  게임 방 퇴장
-  방장이 나가면 다음 플레이어가 방장이 됨
-  """
-  leaveGameRoom(
-    "퇴장할 방 ID"
-    roomId: ID!
-    "퇴장하는 플레이어 사용자명"
-    username: String!
-  ): GameRoom!
-
-  """
-  게임 시작 (방장만 가능)
-  최소 2명 이상 필요
-  """
-  startGame(
-    "시작할 방 ID"
-    roomId: ID!
-  ): GameRoom!
-
-  "게임 방 삭제"
-  deleteGameRoom(
-    "삭제할 방 ID"
-    roomId: ID!
-  ): Boolean!
+  # User mutations
+  createUser(input: CreateUserInput!): User!
+  updateUser(username: String!, input: UpdateUserInput!): User!
+  deleteUser(username: String!): Boolean!
+  
+  # Game room mutations
+  createGameRoom(input: CreateGameRoomInput!): GameRoom!
+  updateGameRoom(roomId: ID!, input: UpdateGameRoomInput!): GameRoom!
+  joinGameRoom(roomId: ID!, username: String!, password: String): GameRoom!
+  leaveGameRoom(roomId: ID!, username: String!): GameRoom!
+  deleteGameRoom(roomId: ID!): Boolean!
+  transferHost(roomId: ID!, newHostUsername: String!): GameRoom!
+  setReady(roomId: ID!, username: String!, ready: Boolean!): Boolean!
+  
+  # Invitation mutations
+  inviteUser(roomId: ID!, inviteeUsername: String!): Invitation!
+  acceptInvite(invitationId: ID!): GameRoom!
+  rejectInvite(invitationId: ID!): Boolean!
+  
+  # Game flow mutations
+  startGame(roomId: ID!): GameRoom!
+  startRound(roomId: ID!): GameRoom!
+  submitAnswer(roomId: ID!, username: String!, answer: String!): Boolean!
+  endGame(roomId: ID!): GameRoom!
+  
+  # Chat mutations
+  sendChat(roomId: ID!, username: String!, message: String!): ChatMessage!
 }
 
 # ============================================
 # Subscriptions
 # ============================================
 
-"""
-실시간 이벤트 구독을 위한 서브스크립션 타입
-WebSocket을 통해 실시간으로 이벤트를 수신합니다.
-"""
 type Subscription {
-  """
-  특정 게임 방의 상태 변경 구독
-  방 정보가 변경될 때마다 이벤트 수신
-  """
-  gameRoomUpdated(
-    "구독할 방 ID"
-    roomId: ID!
-  ): GameRoom!
-
-  """
-  로비 전체 방 목록 변경 구독
-  방이 생성/삭제/변경될 때마다 전체 목록 수신
-  """
+  # Lobby subscriptions
   lobbyUpdated: [GameRoom!]!
-
-  """
-  플레이어 입장 이벤트 구독
-  새 플레이어가 방에 들어올 때 알림
-  """
-  playerJoined(
-    "구독할 방 ID"
-    roomId: ID!
-  ): Player!
-
-  """
-  플레이어 퇴장 이벤트 구독
-  플레이어가 방에서 나갈 때 알림
-  """
-  playerLeft(
-    "구독할 방 ID"
-    roomId: ID!
-  ): Player!
-
-  """
-  게임 시작 이벤트 구독
-  방장이 게임을 시작할 때 알림
-  """
-  gameStarted(
-    "구독할 방 ID"
-    roomId: ID!
-  ): GameRoom!
+  gameRoomsUpdated: [GameRoom!]!
+  
+  # Room subscriptions
+  gameRoomUpdated(roomId: ID!): GameRoom!
+  playerJoined(roomId: ID!): Player!
+  playerLeft(roomId: ID!): Player!
+  playerReadyUpdated(roomId: ID!): Player!
+  hostChanged(roomId: ID!): Player!
+  
+  # Game flow subscriptions
+  gameStarted(roomId: ID!): GameRoom!
+  roundStarted(roomId: ID!): GameRoom!
+  roundEnded(roomId: ID!): GameRoom!
+  gameEnded(roomId: ID!): GameRoom!
+  
+  # Chat subscriptions
+  chatMessage(roomId: ID!): ChatMessage!
+  
+  # Event subscriptions
+  gameEvent(roomId: ID!): GameEvent!
+  error(roomId: ID!): ErrorEvent!
 }

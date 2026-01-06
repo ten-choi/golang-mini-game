@@ -123,6 +123,8 @@ type GameRoom {
   maxPlayers: Int!
   "방장 사용자명"
   hostUsername: String!
+  "이미 출제된 퀴즈 ID 목록 (중복 방지용)"
+  usedQuizIds: [String!]!
   "방 생성 일시"
   createdAt: Time!
 }
@@ -267,11 +269,23 @@ type Query {
     gameType: GameType
   ): [GameRoom!]!
 
-  "랜덤 O/X 퀴즈 1개 조회"
-  randomOXQuiz: OXQuiz
+  """
+  랜덤 O/X 퀴즈 1개 조회
+  roomId를 지정하면 해당 방에서 이미 출제된 퀴즈는 제외
+  """
+  randomOXQuiz(
+    "게임 방 ID (중복 방지용, 선택사항)"
+    roomId: ID
+  ): OXQuiz
 
-  "랜덤 일반상식 퀴즈 1개 조회"
-  randomQAQuiz: GeneralQuiz
+  """
+  랜덤 일반상식 퀴즈 1개 조회
+  roomId를 지정하면 해당 방에서 이미 출제된 퀴즈는 제외
+  """
+  randomQAQuiz(
+    "게임 방 ID (중복 방지용, 선택사항)"
+    roomId: ID
+  ): GeneralQuiz
 
   """
   플레이어 통계 조회

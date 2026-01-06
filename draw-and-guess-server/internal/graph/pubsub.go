@@ -11,10 +11,18 @@ type PubSub struct {
 	mu sync.RWMutex
 
 	// Room-specific subscribers
-	roomSubscribers  map[string]map[string]chan *model.GameRoom
-	playerJoinedSubs map[string]map[string]chan *model.Player
-	playerLeftSubs   map[string]map[string]chan *model.Player
-	gameStartedSubs  map[string]map[string]chan *model.GameRoom
+	roomSubscribers        map[string]map[string]chan *model.GameRoom
+	playerJoinedSubs       map[string]map[string]chan *model.Player
+	playerLeftSubs         map[string]map[string]chan *model.Player
+	playerReadyUpdatedSubs map[string]map[string]chan *model.Player
+	hostChangedSubs        map[string]map[string]chan *model.Player
+	gameStartedSubs        map[string]map[string]chan *model.GameRoom
+	roundStartedSubs       map[string]map[string]chan *model.GameRoom
+	roundEndedSubs         map[string]map[string]chan *model.GameRoom
+	gameEndedSubs          map[string]map[string]chan *model.GameRoom
+	chatMessageSubs        map[string]map[string]chan *model.ChatMessage
+	gameEventSubs          map[string]map[string]chan *model.GameEvent
+	errorSubs              map[string]map[string]chan *model.ErrorEvent
 
 	// Lobby subscribers (all rooms)
 	lobbySubscribers map[string]chan []*model.GameRoom
@@ -26,11 +34,19 @@ var pubsub = NewPubSub()
 // NewPubSub creates a new PubSub instance
 func NewPubSub() *PubSub {
 	return &PubSub{
-		roomSubscribers:  make(map[string]map[string]chan *model.GameRoom),
-		playerJoinedSubs: make(map[string]map[string]chan *model.Player),
-		playerLeftSubs:   make(map[string]map[string]chan *model.Player),
-		gameStartedSubs:  make(map[string]map[string]chan *model.GameRoom),
-		lobbySubscribers: make(map[string]chan []*model.GameRoom),
+		roomSubscribers:        make(map[string]map[string]chan *model.GameRoom),
+		playerJoinedSubs:       make(map[string]map[string]chan *model.Player),
+		playerLeftSubs:         make(map[string]map[string]chan *model.Player),
+		playerReadyUpdatedSubs: make(map[string]map[string]chan *model.Player),
+		hostChangedSubs:        make(map[string]map[string]chan *model.Player),
+		gameStartedSubs:        make(map[string]map[string]chan *model.GameRoom),
+		roundStartedSubs:       make(map[string]map[string]chan *model.GameRoom),
+		roundEndedSubs:         make(map[string]map[string]chan *model.GameRoom),
+		gameEndedSubs:          make(map[string]map[string]chan *model.GameRoom),
+		chatMessageSubs:        make(map[string]map[string]chan *model.ChatMessage),
+		gameEventSubs:          make(map[string]map[string]chan *model.GameEvent),
+		errorSubs:              make(map[string]map[string]chan *model.ErrorEvent),
+		lobbySubscribers:       make(map[string]chan []*model.GameRoom),
 	}
 }
 
@@ -237,6 +253,326 @@ func (ps *PubSub) PublishGameStarted(room *model.GameRoom) {
 		for _, ch := range subs {
 			select {
 			case ch <- room:
+			default:
+			}
+		}
+	}
+}
+
+// PlayerReadyUpdated subscription methods
+func (ps *PubSub) SubscribeToPlayerReadyUpdated(roomID, subscriberID string) <-chan *model.Player {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.playerReadyUpdatedSubs[roomID] == nil {
+		ps.playerReadyUpdatedSubs[roomID] = make(map[string]chan *model.Player)
+	}
+
+	ch := make(chan *model.Player, 1)
+	ps.playerReadyUpdatedSubs[roomID][subscriberID] = ch
+	return ch
+}
+
+func (ps *PubSub) UnsubscribeFromPlayerReadyUpdated(roomID, subscriberID string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if subs, ok := ps.playerReadyUpdatedSubs[roomID]; ok {
+		if ch, ok := subs[subscriberID]; ok {
+			close(ch)
+			delete(subs, subscriberID)
+		}
+	}
+}
+
+func (ps *PubSub) PublishPlayerReadyUpdated(roomID string, player *model.Player) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	if subs, ok := ps.playerReadyUpdatedSubs[roomID]; ok {
+		for _, ch := range subs {
+			select {
+			case ch <- player:
+			default:
+			}
+		}
+	}
+}
+
+// HostChanged subscription methods
+func (ps *PubSub) SubscribeToHostChanged(roomID, subscriberID string) <-chan *model.Player {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.hostChangedSubs[roomID] == nil {
+		ps.hostChangedSubs[roomID] = make(map[string]chan *model.Player)
+	}
+
+	ch := make(chan *model.Player, 1)
+	ps.hostChangedSubs[roomID][subscriberID] = ch
+	return ch
+}
+
+func (ps *PubSub) UnsubscribeFromHostChanged(roomID, subscriberID string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if subs, ok := ps.hostChangedSubs[roomID]; ok {
+		if ch, ok := subs[subscriberID]; ok {
+			close(ch)
+			delete(subs, subscriberID)
+		}
+	}
+}
+
+func (ps *PubSub) PublishHostChanged(roomID string, player *model.Player) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	if subs, ok := ps.hostChangedSubs[roomID]; ok {
+		for _, ch := range subs {
+			select {
+			case ch <- player:
+			default:
+			}
+		}
+	}
+}
+
+// RoundStarted subscription methods
+func (ps *PubSub) SubscribeToRoundStarted(roomID, subscriberID string) <-chan *model.GameRoom {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.roundStartedSubs[roomID] == nil {
+		ps.roundStartedSubs[roomID] = make(map[string]chan *model.GameRoom)
+	}
+
+	ch := make(chan *model.GameRoom, 1)
+	ps.roundStartedSubs[roomID][subscriberID] = ch
+	return ch
+}
+
+func (ps *PubSub) UnsubscribeFromRoundStarted(roomID, subscriberID string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if subs, ok := ps.roundStartedSubs[roomID]; ok {
+		if ch, ok := subs[subscriberID]; ok {
+			close(ch)
+			delete(subs, subscriberID)
+		}
+	}
+}
+
+func (ps *PubSub) PublishRoundStarted(roomID string, room *model.GameRoom) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	if subs, ok := ps.roundStartedSubs[roomID]; ok {
+		for _, ch := range subs {
+			select {
+			case ch <- room:
+			default:
+			}
+		}
+	}
+}
+
+// RoundEnded subscription methods
+func (ps *PubSub) SubscribeToRoundEnded(roomID, subscriberID string) <-chan *model.GameRoom {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.roundEndedSubs[roomID] == nil {
+		ps.roundEndedSubs[roomID] = make(map[string]chan *model.GameRoom)
+	}
+
+	ch := make(chan *model.GameRoom, 1)
+	ps.roundEndedSubs[roomID][subscriberID] = ch
+	return ch
+}
+
+func (ps *PubSub) UnsubscribeFromRoundEnded(roomID, subscriberID string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if subs, ok := ps.roundEndedSubs[roomID]; ok {
+		if ch, ok := subs[subscriberID]; ok {
+			close(ch)
+			delete(subs, subscriberID)
+		}
+	}
+}
+
+func (ps *PubSub) PublishRoundEnded(roomID string, room *model.GameRoom) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	if subs, ok := ps.roundEndedSubs[roomID]; ok {
+		for _, ch := range subs {
+			select {
+			case ch <- room:
+			default:
+			}
+		}
+	}
+}
+
+// GameEnded subscription methods
+func (ps *PubSub) SubscribeToGameEnded(roomID, subscriberID string) <-chan *model.GameRoom {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.gameEndedSubs[roomID] == nil {
+		ps.gameEndedSubs[roomID] = make(map[string]chan *model.GameRoom)
+	}
+
+	ch := make(chan *model.GameRoom, 1)
+	ps.gameEndedSubs[roomID][subscriberID] = ch
+	return ch
+}
+
+func (ps *PubSub) UnsubscribeFromGameEnded(roomID, subscriberID string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if subs, ok := ps.gameEndedSubs[roomID]; ok {
+		if ch, ok := subs[subscriberID]; ok {
+			close(ch)
+			delete(subs, subscriberID)
+		}
+	}
+}
+
+func (ps *PubSub) PublishGameEnded(roomID string, room *model.GameRoom) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	if subs, ok := ps.gameEndedSubs[roomID]; ok {
+		for _, ch := range subs {
+			select {
+			case ch <- room:
+			default:
+			}
+		}
+	}
+}
+
+// ChatMessage subscription methods
+func (ps *PubSub) SubscribeToChatMessage(roomID, subscriberID string) <-chan *model.ChatMessage {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.chatMessageSubs[roomID] == nil {
+		ps.chatMessageSubs[roomID] = make(map[string]chan *model.ChatMessage)
+	}
+
+	ch := make(chan *model.ChatMessage, 1)
+	ps.chatMessageSubs[roomID][subscriberID] = ch
+	return ch
+}
+
+func (ps *PubSub) UnsubscribeFromChatMessage(roomID, subscriberID string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if subs, ok := ps.chatMessageSubs[roomID]; ok {
+		if ch, ok := subs[subscriberID]; ok {
+			close(ch)
+			delete(subs, subscriberID)
+		}
+	}
+}
+
+func (ps *PubSub) PublishChatMessage(roomID string, message *model.ChatMessage) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	if subs, ok := ps.chatMessageSubs[roomID]; ok {
+		for _, ch := range subs {
+			select {
+			case ch <- message:
+			default:
+			}
+		}
+	}
+}
+
+// GameEvent subscription methods
+func (ps *PubSub) SubscribeToGameEvent(roomID, subscriberID string) <-chan *model.GameEvent {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.gameEventSubs[roomID] == nil {
+		ps.gameEventSubs[roomID] = make(map[string]chan *model.GameEvent)
+	}
+
+	ch := make(chan *model.GameEvent, 1)
+	ps.gameEventSubs[roomID][subscriberID] = ch
+	return ch
+}
+
+func (ps *PubSub) UnsubscribeFromGameEvent(roomID, subscriberID string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if subs, ok := ps.gameEventSubs[roomID]; ok {
+		if ch, ok := subs[subscriberID]; ok {
+			close(ch)
+			delete(subs, subscriberID)
+		}
+	}
+}
+
+func (ps *PubSub) PublishGameEvent(roomID string, event *model.GameEvent) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	if subs, ok := ps.gameEventSubs[roomID]; ok {
+		for _, ch := range subs {
+			select {
+			case ch <- event:
+			default:
+			}
+		}
+	}
+}
+
+// ErrorEvent subscription methods
+func (ps *PubSub) SubscribeToError(roomID, subscriberID string) <-chan *model.ErrorEvent {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if ps.errorSubs[roomID] == nil {
+		ps.errorSubs[roomID] = make(map[string]chan *model.ErrorEvent)
+	}
+
+	ch := make(chan *model.ErrorEvent, 1)
+	ps.errorSubs[roomID][subscriberID] = ch
+	return ch
+}
+
+func (ps *PubSub) UnsubscribeFromError(roomID, subscriberID string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	if subs, ok := ps.errorSubs[roomID]; ok {
+		if ch, ok := subs[subscriberID]; ok {
+			close(ch)
+			delete(subs, subscriberID)
+		}
+	}
+}
+
+func (ps *PubSub) PublishError(roomID string, errorEvent *model.ErrorEvent) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	if subs, ok := ps.errorSubs[roomID]; ok {
+		for _, ch := range subs {
+			select {
+			case ch <- errorEvent:
 			default:
 			}
 		}

@@ -10,12 +10,23 @@ import (
 	"time"
 )
 
+type ChatMessage struct {
+	ID          string    `json:"id"`
+	RoomID      string    `json:"roomId"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"displayName"`
+	Message     string    `json:"message"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
 type CreateGameRoomInput struct {
 	Name         string   `json:"name"`
 	GameType     GameType `json:"gameType"`
 	MaxPlayers   int32    `json:"maxPlayers"`
 	TotalRounds  int32    `json:"totalRounds"`
 	HostUsername string   `json:"hostUsername"`
+	IsPrivate    *bool    `json:"isPrivate,omitempty"`
+	Password     *string  `json:"password,omitempty"`
 }
 
 type CreateUserInput struct {
@@ -23,6 +34,29 @@ type CreateUserInput struct {
 	DisplayName string  `json:"displayName"`
 	Email       *string `json:"email,omitempty"`
 	AvatarURL   *string `json:"avatarUrl,omitempty"`
+}
+
+type ErrorEvent struct {
+	Code      string    `json:"code"`
+	Message   string    `json:"message"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type GameConfig struct {
+	MaxPlayers    int32 `json:"maxPlayers"`
+	RoundDuration int32 `json:"roundDuration"`
+	DrawingTime   int32 `json:"drawingTime"`
+	GuessingTime  int32 `json:"guessingTime"`
+	RoundsPerGame int32 `json:"roundsPerGame"`
+}
+
+type GameEvent struct {
+	Type        GameEventType `json:"type"`
+	RoomID      string        `json:"roomId"`
+	Username    *string       `json:"username,omitempty"`
+	DisplayName *string       `json:"displayName,omitempty"`
+	Data        *string       `json:"data,omitempty"`
+	Timestamp   time.Time     `json:"timestamp"`
 }
 
 type GameRoom struct {
@@ -35,6 +69,9 @@ type GameRoom struct {
 	Players      []*Player  `json:"players"`
 	MaxPlayers   int32      `json:"maxPlayers"`
 	HostUsername string     `json:"hostUsername"`
+	UsedQuizIds  []string   `json:"usedQuizIds"`
+	IsPrivate    bool       `json:"isPrivate"`
+	Password     *string    `json:"password,omitempty"`
 	CreatedAt    time.Time  `json:"createdAt"`
 }
 
@@ -51,6 +88,19 @@ type GeneralQuiz struct {
 	IsActive    bool      `json:"isActive"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type Invitation struct {
+	ID        string       `json:"id"`
+	RoomID    string       `json:"roomId"`
+	Room      *GameRoom    `json:"room"`
+	InviterID string       `json:"inviterId"`
+	Inviter   *User        `json:"inviter"`
+	InviteeID string       `json:"inviteeId"`
+	Invitee   *User        `json:"invitee"`
+	Status    InviteStatus `json:"status"`
+	CreatedAt time.Time    `json:"createdAt"`
+	ExpiresAt time.Time    `json:"expiresAt"`
 }
 
 type Mutation struct {
@@ -92,6 +142,14 @@ type Query struct {
 type Subscription struct {
 }
 
+type UpdateGameRoomInput struct {
+	Name        *string `json:"name,omitempty"`
+	MaxPlayers  *int32  `json:"maxPlayers,omitempty"`
+	TotalRounds *int32  `json:"totalRounds,omitempty"`
+	IsPrivate   *bool   `json:"isPrivate,omitempty"`
+	Password    *string `json:"password,omitempty"`
+}
+
 type UpdateUserInput struct {
 	DisplayName *string `json:"displayName,omitempty"`
 	Email       *string `json:"email,omitempty"`
@@ -106,6 +164,82 @@ type User struct {
 	AvatarURL   *string   `json:"avatarUrl,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type WordchainPrompt struct {
+	Word string  `json:"word"`
+	Hint *string `json:"hint,omitempty"`
+}
+
+type GameEventType string
+
+const (
+	GameEventTypePlayerJoined    GameEventType = "PLAYER_JOINED"
+	GameEventTypePlayerLeft      GameEventType = "PLAYER_LEFT"
+	GameEventTypePlayerReady     GameEventType = "PLAYER_READY"
+	GameEventTypeHostChanged     GameEventType = "HOST_CHANGED"
+	GameEventTypeRoundStarted    GameEventType = "ROUND_STARTED"
+	GameEventTypeRoundEnded      GameEventType = "ROUND_ENDED"
+	GameEventTypeAnswerSubmitted GameEventType = "ANSWER_SUBMITTED"
+	GameEventTypeCorrectAnswer   GameEventType = "CORRECT_ANSWER"
+	GameEventTypeWrongAnswer     GameEventType = "WRONG_ANSWER"
+	GameEventTypeGameEnded       GameEventType = "GAME_ENDED"
+)
+
+var AllGameEventType = []GameEventType{
+	GameEventTypePlayerJoined,
+	GameEventTypePlayerLeft,
+	GameEventTypePlayerReady,
+	GameEventTypeHostChanged,
+	GameEventTypeRoundStarted,
+	GameEventTypeRoundEnded,
+	GameEventTypeAnswerSubmitted,
+	GameEventTypeCorrectAnswer,
+	GameEventTypeWrongAnswer,
+	GameEventTypeGameEnded,
+}
+
+func (e GameEventType) IsValid() bool {
+	switch e {
+	case GameEventTypePlayerJoined, GameEventTypePlayerLeft, GameEventTypePlayerReady, GameEventTypeHostChanged, GameEventTypeRoundStarted, GameEventTypeRoundEnded, GameEventTypeAnswerSubmitted, GameEventTypeCorrectAnswer, GameEventTypeWrongAnswer, GameEventTypeGameEnded:
+		return true
+	}
+	return false
+}
+
+func (e GameEventType) String() string {
+	return string(e)
+}
+
+func (e *GameEventType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = GameEventType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid GameEventType", str)
+	}
+	return nil
+}
+
+func (e GameEventType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *GameEventType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e GameEventType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type GameStatus string
@@ -217,6 +351,120 @@ func (e *GameType) UnmarshalJSON(b []byte) error {
 }
 
 func (e GameType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type InviteStatus string
+
+const (
+	InviteStatusPending  InviteStatus = "PENDING"
+	InviteStatusAccepted InviteStatus = "ACCEPTED"
+	InviteStatusRejected InviteStatus = "REJECTED"
+	InviteStatusExpired  InviteStatus = "EXPIRED"
+)
+
+var AllInviteStatus = []InviteStatus{
+	InviteStatusPending,
+	InviteStatusAccepted,
+	InviteStatusRejected,
+	InviteStatusExpired,
+}
+
+func (e InviteStatus) IsValid() bool {
+	switch e {
+	case InviteStatusPending, InviteStatusAccepted, InviteStatusRejected, InviteStatusExpired:
+		return true
+	}
+	return false
+}
+
+func (e InviteStatus) String() string {
+	return string(e)
+}
+
+func (e *InviteStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = InviteStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid InviteStatus", str)
+	}
+	return nil
+}
+
+func (e InviteStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *InviteStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e InviteStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type OXChoice string
+
+const (
+	OXChoiceO OXChoice = "O"
+	OXChoiceX OXChoice = "X"
+)
+
+var AllOXChoice = []OXChoice{
+	OXChoiceO,
+	OXChoiceX,
+}
+
+func (e OXChoice) IsValid() bool {
+	switch e {
+	case OXChoiceO, OXChoiceX:
+		return true
+	}
+	return false
+}
+
+func (e OXChoice) String() string {
+	return string(e)
+}
+
+func (e *OXChoice) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = OXChoice(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid OXChoice", str)
+	}
+	return nil
+}
+
+func (e OXChoice) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *OXChoice) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e OXChoice) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

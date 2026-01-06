@@ -47,7 +47,7 @@ type OXQuiz struct {
 	Question    string    `db:"question" json:"question"`       // 예: "사과는 과일이다"
 	Answer      bool      `db:"answer" json:"answer"`           // true (O) 또는 false (X)
 	Explanation string    `db:"explanation" json:"explanation"` // 정답 설명
-	UsageCount  int       `db:"usage_count" json:"usage_count"`
+	UsageCount  int       `db:"usage_count" json:"usage_count"` // 사용 횟수
 	IsActive    bool      `db:"is_active" json:"is_active"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`

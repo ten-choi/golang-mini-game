@@ -8,8 +8,8 @@ import (
 
 // QuizService defines the interface for quiz business logic
 type QuizService interface {
-	GetRandomOXQuiz(ctx context.Context) (*models.OXQuiz, error)
-	GetRandomQAQuiz(ctx context.Context) (*models.GeneralQuiz, error)
+	GetRandomOXQuiz(ctx context.Context, excludedIds []string) (*models.OXQuiz, error)
+	GetRandomQAQuiz(ctx context.Context, excludedIds []string) (*models.GeneralQuiz, error)
 	IsValidWord(ctx context.Context, word string) (bool, error)
 }
 
@@ -22,12 +22,12 @@ func NewQuizService(repo repository.QuizRepository) QuizService {
 	return &quizService{repo: repo}
 }
 
-func (s *quizService) GetRandomOXQuiz(ctx context.Context) (*models.OXQuiz, error) {
-	return s.repo.GetRandomOXQuiz(ctx)
+func (s *quizService) GetRandomOXQuiz(ctx context.Context, excludedIds []string) (*models.OXQuiz, error) {
+	return s.repo.GetRandomOXQuiz(ctx, excludedIds)
 }
 
-func (s *quizService) GetRandomQAQuiz(ctx context.Context) (*models.GeneralQuiz, error) {
-	return s.repo.GetRandomQAQuiz(ctx)
+func (s *quizService) GetRandomQAQuiz(ctx context.Context, excludedIds []string) (*models.GeneralQuiz, error) {
+	return s.repo.GetRandomQAQuiz(ctx, excludedIds)
 }
 
 func (s *quizService) IsValidWord(ctx context.Context, word string) (bool, error) {
