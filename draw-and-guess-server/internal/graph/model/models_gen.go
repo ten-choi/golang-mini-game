@@ -59,35 +59,64 @@ type GameEvent struct {
 	Timestamp   time.Time     `json:"timestamp"`
 }
 
+// GameRoom represents a multiplayer game session.
+// Supports OX quiz, QA quiz, and wordchain game modes.
 type GameRoom struct {
-	ID           string     `json:"id"`
-	Name         string     `json:"name"`
-	GameType     GameType   `json:"gameType"`
-	Status       GameStatus `json:"status"`
-	CurrentRound int32      `json:"currentRound"`
-	TotalRounds  int32      `json:"totalRounds"`
-	Players      []*Player  `json:"players"`
-	MaxPlayers   int32      `json:"maxPlayers"`
-	HostUsername string     `json:"hostUsername"`
-	UsedQuizIds  []string   `json:"usedQuizIds"`
-	IsPrivate    bool       `json:"isPrivate"`
-	Password     *string    `json:"password,omitempty"`
-	CreatedAt    time.Time  `json:"createdAt"`
+	// Unique room identifier (UUID)
+	ID string `json:"id"`
+	// Room display name
+	Name string `json:"name"`
+	// Game mode: OX, QA, or WORDCHAIN
+	GameType GameType `json:"gameType"`
+	// Current game status
+	Status GameStatus `json:"status"`
+	// Current round number (1-based)
+	CurrentRound int32 `json:"currentRound"`
+	// Total rounds in this game (default: 5)
+	TotalRounds int32 `json:"totalRounds"`
+	// List of players in the room
+	Players []*Player `json:"players"`
+	// Maximum allowed players (2-10)
+	MaxPlayers int32 `json:"maxPlayers"`
+	// Username of the room host
+	HostUsername string `json:"hostUsername"`
+	// Quiz IDs already used in current game
+	UsedQuizIds []string `json:"usedQuizIds"`
+	// Whether room requires password
+	IsPrivate bool `json:"isPrivate"`
+	// Room password (only for private rooms)
+	Password *string `json:"password,omitempty"`
+	// Room creation timestamp
+	CreatedAt time.Time `json:"createdAt"`
 }
 
+// GeneralQuiz represents a multiple-choice question (4 options).
+// Used in QA game mode.
 type GeneralQuiz struct {
-	ID          string    `json:"id"`
-	Category    string    `json:"category"`
-	Difficulty  string    `json:"difficulty"`
-	Question    string    `json:"question"`
-	Options     []string  `json:"options"`
-	Answer      int32     `json:"answer"`
-	Explanation *string   `json:"explanation,omitempty"`
-	ImageURL    *string   `json:"imageUrl,omitempty"`
-	UsageCount  int32     `json:"usageCount"`
-	IsActive    bool      `json:"isActive"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	// Unique quiz ID (Snowflake)
+	ID string `json:"id"`
+	// Quiz category (e.g., Math, Geography)
+	Category string `json:"category"`
+	// Difficulty level: easy, medium, hard
+	Difficulty string `json:"difficulty"`
+	// The question text
+	Question string `json:"question"`
+	// Array of 4 answer options
+	Options []string `json:"options"`
+	// Correct answer index (0-3)
+	Answer int32 `json:"answer"`
+	// Optional explanation for the answer
+	Explanation *string `json:"explanation,omitempty"`
+	// Optional image URL for visual questions
+	ImageURL *string `json:"imageUrl,omitempty"`
+	// Number of times this quiz has been used
+	UsageCount int32 `json:"usageCount"`
+	// Whether this quiz is active
+	IsActive bool `json:"isActive"`
+	// Quiz creation timestamp
+	CreatedAt time.Time `json:"createdAt"`
+	// Last update timestamp
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Invitation struct {
@@ -106,17 +135,29 @@ type Invitation struct {
 type Mutation struct {
 }
 
+// OXQuiz represents a True/False question.
+// Used in OX game mode.
 type OXQuiz struct {
-	ID          string    `json:"id"`
-	Category    string    `json:"category"`
-	Difficulty  string    `json:"difficulty"`
-	Question    string    `json:"question"`
-	Answer      bool      `json:"answer"`
-	Explanation *string   `json:"explanation,omitempty"`
-	UsageCount  int32     `json:"usageCount"`
-	IsActive    bool      `json:"isActive"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	// Unique quiz ID (Snowflake)
+	ID string `json:"id"`
+	// Quiz category (e.g., Science, History)
+	Category string `json:"category"`
+	// Difficulty level: easy, medium, hard
+	Difficulty string `json:"difficulty"`
+	// The question text
+	Question string `json:"question"`
+	// Correct answer: true or false
+	Answer bool `json:"answer"`
+	// Optional explanation for the answer
+	Explanation *string `json:"explanation,omitempty"`
+	// Number of times this quiz has been used
+	UsageCount int32 `json:"usageCount"`
+	// Whether this quiz is active
+	IsActive bool `json:"isActive"`
+	// Quiz creation timestamp
+	CreatedAt time.Time `json:"createdAt"`
+	// Last update timestamp
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Player struct {
@@ -156,14 +197,23 @@ type UpdateUserInput struct {
 	AvatarURL   *string `json:"avatarUrl,omitempty"`
 }
 
+// User represents a game player account.
+// Username is unique and used as the primary identifier.
 type User struct {
-	ID          string    `json:"id"`
-	Username    string    `json:"username"`
-	DisplayName string    `json:"displayName"`
-	Email       *string   `json:"email,omitempty"`
-	AvatarURL   *string   `json:"avatarUrl,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	// Unique identifier (Snowflake ID)
+	ID string `json:"id"`
+	// Unique username (3-20 characters, login ID)
+	Username string `json:"username"`
+	// Display name shown in game (can be duplicate)
+	DisplayName string `json:"displayName"`
+	// Optional email address
+	Email *string `json:"email,omitempty"`
+	// Optional profile image URL
+	AvatarURL *string `json:"avatarUrl,omitempty"`
+	// Account creation timestamp
+	CreatedAt time.Time `json:"createdAt"`
+	// Last update timestamp
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type WordchainPrompt struct {

@@ -98,18 +98,177 @@ go run ./cmd/server/main.go
 
 ## 📚 API 문서
 
-### GraphQL Playground
-- 개발용: `http://localhost:8080/api/v1/graphql`
-- 프로덕션: [Apollo Studio](https://studio.apollographql.com) 사용 권장
+### GraphQL Endpoint
+- **개발**: `http://localhost:8080/graphql`
+- **프로덕션**: Apollo Studio 사용 권장
 
-### 주요 엔드포인트
-- `GET  /health` - 헬스 체크
-- `POST /api/v1/graphql` - GraphQL 쿼리/뮤테이션
-- `GET  /api/v1/graphql` - Apollo Sandbox (개발용)
-- `WS   /api/v1/ws/lobby` - 로비 WebSocket
-- `WS   /api/v1/ws/rooms/:id` - 게임방 WebSocket
+### REST Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | 헬스 체크 |
+| POST | `/graphql` | GraphQL Query/Mutation |
+| GET | `/graphql` | GraphQL Playground (개발용) |
 
-자세한 API 문서는 [PRD.md](PRD.md)를 참조하세요.
+### WebSocket Endpoints
+| Protocol | Path | Description |
+|----------|------|-------------|
+| WS | `/ws` | WebSocket 연결 (Subscriptions) |
+
+### GraphQL API 주요 기능
+
+#### 1. User Management
+```graphql
+# 사용자 생성
+mutation {
+  createUser(input: {
+    username: "player1"
+    displayName: "플레이어1"
+    email: "player1@example.com"
+  }) {
+    id
+    username
+    displayName
+    createdAt
+  }
+}
+
+# 사용자 조회
+query {
+  user(username: "player1") {
+    id
+    displayName
+    avatarUrl
+  }
+}
+```
+
+#### 2. Game Room Management
+```graphql
+# 게임방 생성
+mutation {
+  createGameRoom(input: {
+    name: "My Quiz Room"
+    gameType: QA
+    maxPlayers: 8
+    totalRounds: 5
+    hostUsername: "player1"
+    isPrivate: false
+  }) {
+    id
+    name
+    gameType
+    status
+  }
+}
+
+# 게임방 참가
+mutation {
+  joinGameRoom(
+    roomId: "room-uuid"
+    username: "player2"
+  ) {
+    id
+    players {
+      username
+      displayName
+      score
+      isReady
+    }
+  }
+}
+```
+
+#### 3. Quiz Queries
+```graphql
+# OX 퀴즈 조회
+query {
+  randomOXQuiz {
+    id
+    question
+    answer
+    explanation
+    difficulty
+  }
+}
+
+# QA 퀴즈 조회 (4지선다)
+query {
+  randomQAQuiz {
+    id
+    question
+    options
+    answer
+    explanation
+  }
+}
+```
+
+#### 4. Game Flow
+```graphql
+# 게임 시작 (방장만 가능)
+mutation {
+  startGame(roomId: "room-uuid") {
+    id
+    status
+    currentRound
+  }
+}
+
+# 정답 제출
+mutation {
+  submitAnswer(
+    roomId: "room-uuid"
+    username: "player1"
+    answer: "1"  # OX: "true"/"false", QA: "0"-"3"
+  )
+}
+```
+
+#### 5. Real-time Subscriptions
+```graphql
+# 게임방 업데이트 구독
+subscription {
+  gameRoomUpdated(roomId: "room-uuid") {
+    id
+    status
+    currentRound
+    players {
+      username
+      score
+      isReady
+    }
+  }
+}
+
+# 채팅 메시지 구독
+subscription {
+  chatMessage(roomId: "room-uuid") {
+    username
+    displayName
+    message
+    timestamp
+  }
+}
+```
+
+자세한 API 스키마는 [schema.graphqls](internal/graph/schema.graphqls)를 참고하세요.
+
+## 🎮 게임 타입
+
+| 게임 모드 | 설명 | 데이터 소스 |
+|----------|------|-------------|
+| **WORDCHAIN** | 한국어 끝말잇기 | `korean_words` 테이블 |
+| **OX** | O/X 퀴즈 (참/거짓) | `ox_quizzes` 테이블 |
+| **QA** | 4지선다 퀴즈 | `qa_quizzes` 테이블 |
+
+### 게임 흐름
+1. 방장이 게임방 생성 (게임 타입 선택)
+2. 플레이어들이 입장 및 준비
+3. 방장이 게임 시작 (최소 2명 필요)
+4. 각 라운드마다 퀴즈 출제
+5. 플레이어들이 답안 제출
+6. 정답 공개 및 점수 집계
+7. 모든 라운드 종료 후 최종 순위 발표
 
 ## 🧪 테스트
 
@@ -152,9 +311,21 @@ go test -cover ./...
 - **Graceful Shutdown**: 10초 타임아웃으로 안전한 종료
 
 ## 🎮 게임 타입
-- **wordchain** (끝말잇기): 한국어 단어 체인 게임
-- **ox** (OX 퀴즈): O/X 정답 맞추기
-- **qa** (일반 퀴즈): 4지선다 퀴즈
+
+| 게임 모드 | 설명 | 데이터 소스 |
+|----------|------|-------------|
+| **WORDCHAIN** | 한국어 끝말잇기 | `korean_words` 테이블 |
+| **OX** | O/X 퀴즈 (참/거짓) | `ox_quizzes` 테이블 |
+| **QA** | 4지선다 퀴즈 | `qa_quizzes` 테이블 |
+
+### 게임 흐름
+1. 방장이 게임방 생성 (게임 타입 선택)
+2. 플레이어들이 입장 및 준비
+3. 방장이 게임 시작 (최소 2명 필요)
+4. 각 라운드마다 퀴즈 출제
+5. 플레이어들이 답안 제출
+6. 정답 공개 및 점수 집계
+7. 모든 라운드 종료 후 최종 순위 발표
 
 ## 📖 GraphQL API 예제
 

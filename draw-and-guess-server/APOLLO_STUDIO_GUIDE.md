@@ -63,40 +63,60 @@ chmod +x scripts/publish-schema.sh
 ## 📖 문서화된 내용
 
 ### GraphQL Operations
+
 스키마는 다음을 포함합니다:
-- **Queries**: `user`, `gameRooms`, `gameRoom`, `quizzes`, `quiz`
-- **Mutations**: `createUser`, `createGameRoom`, `startGame` 등
-- **Subscriptions**: `gameRoomUpdated`, `lobbyUpdated`, `chatMessage`
+
+#### Queries (데이터 조회)
+- `user(username)` - 사용자 단건 조회
+- `users` - 모든 사용자 목록
+- `gameRoom(id)` - 게임방 단건 조회
+- `gameRooms(gameType?)` - 게임방 목록 (타입 필터링 가능)
+- `randomOXQuiz(roomId?)` - 랜덤 OX 퀴즈
+- `randomQAQuiz(roomId?)` - 랜덤 QA 퀴즈
+- `playerStats(username, gameType?)` - 플레이어 통계
+- `leaderboard(gameType, limit?)` - 리더보드
+- `gameConfig` - 게임 설정
+- `randomWordchainPrompt` - 끝말잇기 단어
+
+#### Mutations (데이터 변경)
+- `createUser(input)` - 사용자 생성
+- `updateUser(username, input)` - 사용자 정보 수정
+- `createGameRoom(input)` - 게임방 생성
+- `joinGameRoom(roomId, username, password?)` - 게임방 참가
+- `leaveGameRoom(roomId, username)` - 게임방 퇴장
+- `startGame(roomId)` - 게임 시작
+- `submitAnswer(roomId, username, answer)` - 답안 제출
+- `sendChat(roomId, username, message)` - 채팅 메시지 전송
+
+#### Subscriptions (실시간 업데이트)
+- `lobbyUpdated` - 로비 변경 알림
+- `gameRoomUpdated(roomId)` - 게임방 상태 변경
+- `playerJoined(roomId)` - 플레이어 입장 알림
+- `playerLeft(roomId)` - 플레이어 퇴장 알림
+- `gameStarted(roomId)` - 게임 시작 알림
+- `roundStarted(roomId)` - 라운드 시작 알림
+- `chatMessage(roomId)` - 채팅 메시지
+- `gameEvent(roomId)` - 게임 이벤트 (정답/오답 등)
+
+### 실제 사용 예제
+
+자세한 예제는 [README.md](README.md)의 "API 문서" 섹션을 참고하세요.
 
 ### REST API Endpoints
-스키마 주석에 모든 REST 엔드포인트가 문서화되어 있습니다:
 
-```graphql
-"""
-REST API Endpoints Documentation
+현재 프로젝트는 GraphQL 우선 설계로, REST 엔드포인트는 다음만 제공합니다:
 
-Game Room Management:
-  GET    /app/game/rooms              - Get all active game rooms
-  POST   /app/game/room               - Create new game room
-  POST   /app/game/room/:id/join      - Join game room
-  ...
-"""
-```
+- `GET /health` - 헬스 체크
+- `POST /graphql` - GraphQL 쿼리/뮤테이션
+- `GET /graphql` - GraphQL Playground (개발용)
 
 ### WebSocket Protocol
-WebSocket 프로토콜 전체가 문서화되어 있습니다:
 
-```graphql
-"""
-WebSocket Protocol Documentation
+WebSocket은 GraphQL Subscriptions을 통해 자동으로 처리됩니다:
 
-Connection: ws://host:port/app/ws
-
-Message Types:
-1. Subscribe: {"type": "subscribe", "channel": "lobby", ...}
-2. Unsubscribe: {"type": "unsubscribe", ...}
-3. Message: {"type": "message", ...}
-"""
+```
+Connection: ws://localhost:8080/graphql
+Protocol: graphql-transport-ws
 ```
 
 ## 🔍 문서 확인
@@ -110,19 +130,25 @@ Message Types:
 
 ## 🛠️ 스키마 파일
 
-- `src/graph/schema.graphqls` - 원본 GraphQL 스키마
-- `src/graph/schema-complete.graphqls` - **완전한 문서화 스키마** (REST API + WebSocket 포함)
+- `internal/graph/schema.graphqls` - GraphQL 스키마 원본
+- `internal/transport/graphql/schema.graphqls` - 트랜스포트 레이어 스키마 (동일 파일)
+
+> **Note**: 현재 프로젝트는 `internal/graph/` 디렉토리를 사용하고 있습니다.
 
 ## 📝 업데이트 방법
 
 API를 변경할 때마다:
 
-1. `schema-complete.graphqls` 파일 수정
-2. 스크립트 재실행:
+1. `internal/graph/schema.graphqls` 파일 수정
+2. GraphQL 코드 재생성:
+   ```bash
+   go run github.com/99designs/gqlgen generate
+   ```
+3. 스크립트 재실행:
    ```powershell
    .\scripts\publish-schema.ps1
    ```
-3. Apollo Studio에서 변경사항 확인
+4. Apollo Studio에서 변경사항 확인
 
 ## 🎯 장점
 
