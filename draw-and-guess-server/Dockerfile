@@ -39,14 +39,18 @@ RUN apk --no-cache add ca-certificates tzdata
 
 # 비-루트 사용자 및 그룹 생성 (보안 강화)
 RUN adduser -D -g '' appuser
-USER appuser
 
 # 작업 디렉토리 설정 (비-루트 사용자 권한으로)
 WORKDIR /home/appuser
 
-# 빌더 단계에서 컴파일된 실행 파일만 복사하고 실행 권한 부여
-# 'appuser'가 소유하도록 복사합니다.
+# 빌더 단계에서 컴파일된 실행 파일 복사 (appuser 소유)
 COPY --from=builder --chown=appuser:appuser /server ./server
+
+# 사전 데이터 복사 (런타임에 필요)
+COPY --from=builder --chown=appuser:appuser /app/data/japanese_words_jmdict.txt ./data/japanese_words_jmdict.txt
+
+# 비-루트 사용자로 전환
+USER appuser
 
 # 서버가 리스닝할 포트를 외부에 알립니다.
 EXPOSE 8080

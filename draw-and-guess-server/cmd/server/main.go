@@ -37,11 +37,10 @@ func main() {
 	dict := dictionary.GetInstance()
 	if err := dict.LoadFromFile(dictPath); err != nil {
 		logger.Error("Failed to load word dictionary: %v", err)
-		logger.Error("Wordchain game will not be available")
-		// Continue without dictionary - wordchain will fail but other games work
-	} else {
-		logger.Info("✓ Word dictionary loaded (%d words)", dict.GetWordCount())
+		logger.Error("Dictionary is required for wordchain game - server cannot start")
+		os.Exit(1)
 	}
+	logger.Info("✓ Word dictionary loaded (%d words)", dict.GetWordCount())
 
 	// Connect to Valkey (optional)
 	if err := valkey.Connect(); err != nil {

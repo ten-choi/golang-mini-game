@@ -10,53 +10,95 @@ import (
 	"time"
 )
 
+// 게임방 채팅 메시지입니다.
+// WebSocket을 통해 실시간으로 전달됩니다.
 type ChatMessage struct {
-	ID          string    `json:"id"`
-	RoomID      string    `json:"roomId"`
-	Username    string    `json:"username"`
-	DisplayName string    `json:"displayName"`
-	Message     string    `json:"message"`
-	Timestamp   time.Time `json:"timestamp"`
-}
-
-type CreateGameRoomInput struct {
-	Name         string   `json:"name"`
-	GameType     GameType `json:"gameType"`
-	MaxPlayers   int32    `json:"maxPlayers"`
-	TotalRounds  int32    `json:"totalRounds"`
-	HostUsername string   `json:"hostUsername"`
-	IsPrivate    *bool    `json:"isPrivate,omitempty"`
-	Password     *string  `json:"password,omitempty"`
-}
-
-type CreateUserInput struct {
-	Username    string  `json:"username"`
-	DisplayName string  `json:"displayName"`
-	Email       *string `json:"email,omitempty"`
-	AvatarURL   *string `json:"avatarUrl,omitempty"`
-}
-
-type ErrorEvent struct {
-	Code      string    `json:"code"`
-	Message   string    `json:"message"`
+	// 고유 메시지 ID
+	ID string `json:"id"`
+	// 메시지가 전송된 게임방 ID
+	RoomID string `json:"roomId"`
+	// 발신자 사용자명
+	Username string `json:"username"`
+	// 발신자 표시 이름
+	DisplayName string `json:"displayName"`
+	// 메시지 내용 (최대 500자)
+	Message string `json:"message"`
+	// 전송 시각
 	Timestamp time.Time `json:"timestamp"`
 }
 
+// 새 게임방 생성을 위한 입력 데이터
+// 생성자가 자동으로 방장이 되며 첫 번째 플레이어로 입장합니다.
+type CreateGameRoomInput struct {
+	// 게임방 이름 (1-50자, 로비에 표시)
+	Name string `json:"name"`
+	// 게임 모드 (OX, QA, WORDCHAIN 중 선택)
+	GameType GameType `json:"gameType"`
+	// 최대 플레이어 수 (2-10명, 권장: 4-6명)
+	MaxPlayers int32 `json:"maxPlayers"`
+	// 총 라운드 수 (1-20, 권장: 3-10)
+	TotalRounds int32 `json:"totalRounds"`
+	// 방장 사용자명 (게임방 생성자)
+	HostUsername string `json:"hostUsername"`
+	// 비공개 방 여부 (true: 비밀번호 필요, false: 누구나 입장 가능)
+	IsPrivate *bool `json:"isPrivate,omitempty"`
+	// 게임방 비밀번호 (isPrivate=true 시 필수, 4-20자)
+	Password *string `json:"password,omitempty"`
+}
+
+// 새 사용자 계정 생성을 위한 입력 데이터
+type CreateUserInput struct {
+	// 고유 사용자명 (3-20자, 영문/숫자/언더스코어만 허용)
+	Username string `json:"username"`
+	// 게임 내 표시 이름 (1-50자)
+	DisplayName string `json:"displayName"`
+	// 이메일 주소 (선택사항, 유효한 형식 필요)
+	Email *string `json:"email,omitempty"`
+	// 프로필 이미지 URL (선택사항)
+	AvatarURL *string `json:"avatarUrl,omitempty"`
+}
+
+// 에러 이벤트 정보입니다.
+// 게임 중 발생한 에러를 클라이언트에 전달합니다.
+type ErrorEvent struct {
+	// 에러 코드 (예: INVALID_ANSWER, ROOM_FULL, PERMISSION_DENIED)
+	Code string `json:"code"`
+	// 사용자에게 표시할 에러 메시지 (다국어 지원 권장)
+	Message string `json:"message"`
+	// 에러 발생 시각
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// 게임 전역 설정 정보입니다.
+// 서버에서 관리하며 클라이언트는 이 값을 참고하여 UI를 구성합니다.
 type GameConfig struct {
-	MaxPlayers    int32 `json:"maxPlayers"`
+	// 최대 플레이어 수 제한 (현재: 8명)
+	MaxPlayers int32 `json:"maxPlayers"`
+	// 라운드당 제한 시간 (초, 현재: 30초)
 	RoundDuration int32 `json:"roundDuration"`
-	DrawingTime   int32 `json:"drawingTime"`
-	GuessingTime  int32 `json:"guessingTime"`
+	// 그리기 제한 시간 (초, 향후 기능)
+	DrawingTime int32 `json:"drawingTime"`
+	// 추측 제한 시간 (초, 향후 기능)
+	GuessingTime int32 `json:"guessingTime"`
+	// 게임당 기본 라운드 수 (현재: 5)
 	RoundsPerGame int32 `json:"roundsPerGame"`
 }
 
+// 게임 이벤트 상세 정보입니다.
+// WebSocket을 통해 실시간으로 전달되며, 클라이언트는 type에 따라 적절한 처리를 수행해야 합니다.
 type GameEvent struct {
-	Type        GameEventType `json:"type"`
-	RoomID      string        `json:"roomId"`
-	Username    *string       `json:"username,omitempty"`
-	DisplayName *string       `json:"displayName,omitempty"`
-	Data        *string       `json:"data,omitempty"`
-	Timestamp   time.Time     `json:"timestamp"`
+	// 이벤트 타입 (어떤 이벤트가 발생했는지)
+	Type GameEventType `json:"type"`
+	// 이벤트가 발생한 게임방 ID
+	RoomID string `json:"roomId"`
+	// 이벤트 관련 플레이어 사용자명 (선택사항)
+	Username *string `json:"username,omitempty"`
+	// 이벤트 관련 플레이어 표시 이름 (선택사항)
+	DisplayName *string `json:"displayName,omitempty"`
+	// 추가 데이터 (JSON 문자열, type에 따라 다름)
+	Data *string `json:"data,omitempty"`
+	// 이벤트 발생 시각
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // 멀티플레이어 게임 세션을 나타냅니다.
@@ -119,17 +161,29 @@ type GeneralQuiz struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// 게임방 초대 정보입니다.
+// 사용자는 알림을 통해 초대를 받고 수락/거절할 수 있습니다.
 type Invitation struct {
-	ID        string       `json:"id"`
-	RoomID    string       `json:"roomId"`
-	Room      *GameRoom    `json:"room"`
-	InviterID string       `json:"inviterId"`
-	Inviter   *User        `json:"inviter"`
-	InviteeID string       `json:"inviteeId"`
-	Invitee   *User        `json:"invitee"`
-	Status    InviteStatus `json:"status"`
-	CreatedAt time.Time    `json:"createdAt"`
-	ExpiresAt time.Time    `json:"expiresAt"`
+	// 고유 초대 ID (UUID)
+	ID string `json:"id"`
+	// 초대 대상 게임방 ID
+	RoomID string `json:"roomId"`
+	// 초대 대상 게임방 정보
+	Room *GameRoom `json:"room"`
+	// 초대한 사용자 ID
+	InviterID string `json:"inviterId"`
+	// 초대한 사용자 정보
+	Inviter *User `json:"inviter"`
+	// 초대받은 사용자 ID
+	InviteeID string `json:"inviteeId"`
+	// 초대받은 사용자 정보
+	Invitee *User `json:"invitee"`
+	// 현재 초대 상태
+	Status InviteStatus `json:"status"`
+	// 초대 생성 시각
+	CreatedAt time.Time `json:"createdAt"`
+	// 초대 만료 시각 (생성 후 24시간)
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 type Mutation struct {
@@ -160,21 +214,36 @@ type OXQuiz struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// 게임방 내 플레이어 정보입니다.
+// WebSocket을 통해 실시간으로 업데이트됩니다.
 type Player struct {
-	Username    string `json:"username"`
+	// 플레이어의 고유 사용자명
+	Username string `json:"username"`
+	// 플레이어의 표시 이름
 	DisplayName string `json:"displayName"`
-	Score       int32  `json:"score"`
-	IsReady     bool   `json:"isReady"`
+	// 현재 게임에서 획득한 점수 (정답 시 +100점)
+	Score int32 `json:"score"`
+	// 준비 완료 여부 (게임 시작 전, 방장 제외 모든 플레이어 true 필요)
+	IsReady bool `json:"isReady"`
 }
 
+// 플레이어의 게임 타입별 통계 정보입니다.
+// 리더보드 및 프로필 화면에서 사용됩니다.
 type PlayerStats struct {
-	Username   string    `json:"username"`
-	GameType   string    `json:"gameType"`
-	TotalGames int32     `json:"totalGames"`
-	TotalWins  int32     `json:"totalWins"`
-	TotalScore int32     `json:"totalScore"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	// 플레이어 사용자명
+	Username string `json:"username"`
+	// 게임 타입 (OX, QA, WORDCHAIN)
+	GameType string `json:"gameType"`
+	// 총 플레이한 게임 수
+	TotalGames int32 `json:"totalGames"`
+	// 총 승리 횟수 (1등 횟수)
+	TotalWins int32 `json:"totalWins"`
+	// 총 획득 점수 (모든 게임 누적)
+	TotalScore int32 `json:"totalScore"`
+	// 통계 생성 시각
+	CreatedAt time.Time `json:"createdAt"`
+	// 마지막 업데이트 시각
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Query struct {
@@ -183,18 +252,29 @@ type Query struct {
 type Subscription struct {
 }
 
+// 게임방 설정 변경을 위한 입력 데이터 (모든 필드 선택사항)
+// 방장만 실행 가능하며, 게임 진행 중에는 변경 불가합니다.
 type UpdateGameRoomInput struct {
-	Name        *string `json:"name,omitempty"`
-	MaxPlayers  *int32  `json:"maxPlayers,omitempty"`
-	TotalRounds *int32  `json:"totalRounds,omitempty"`
-	IsPrivate   *bool   `json:"isPrivate,omitempty"`
-	Password    *string `json:"password,omitempty"`
+	// 새로운 게임방 이름
+	Name *string `json:"name,omitempty"`
+	// 새로운 최대 플레이어 수 (현재 인원보다 작게 설정 불가)
+	MaxPlayers *int32 `json:"maxPlayers,omitempty"`
+	// 새로운 총 라운드 수
+	TotalRounds *int32 `json:"totalRounds,omitempty"`
+	// 비공개 설정 변경 (true로 변경 시 password 필수)
+	IsPrivate *bool `json:"isPrivate,omitempty"`
+	// 새로운 비밀번호 (빈 문자열로 비밀번호 제거 가능)
+	Password *string `json:"password,omitempty"`
 }
 
+// 사용자 프로필 업데이트를 위한 입력 데이터 (모든 필드 선택사항)
 type UpdateUserInput struct {
+	// 새로운 표시 이름 (1-50자)
 	DisplayName *string `json:"displayName,omitempty"`
-	Email       *string `json:"email,omitempty"`
-	AvatarURL   *string `json:"avatarUrl,omitempty"`
+	// 새로운 이메일 주소
+	Email *string `json:"email,omitempty"`
+	// 새로운 프로필 이미지 URL
+	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
 // 게임 플레이어 계정을 나타냅니다.
@@ -216,24 +296,41 @@ type User struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// 끝말잇기 게임의 시작 단어 정보입니다.
+// 일본어 히라가나 또는 카타카나 단어입니다.
 type WordchainPrompt struct {
-	Word string  `json:"word"`
+	// 시작 단어 (히라가나 또는 카타카나, 2자 이상)
+	Word string `json:"word"`
+	// 힌트 (선택사항, 단어의 의미)
 	Hint *string `json:"hint,omitempty"`
 }
 
+// 게임 내에서 발생하는 이벤트 타입입니다.
+// WebSocket gameEvent 구독을 통해 실시간으로 수신됩니다.
+// 클라이언트는 이 이벤트에 따라 UI를 업데이트하고 효과음/애니메이션을 재생할 수 있습니다.
 type GameEventType string
 
 const (
-	GameEventTypePlayerJoined    GameEventType = "PLAYER_JOINED"
-	GameEventTypePlayerLeft      GameEventType = "PLAYER_LEFT"
-	GameEventTypePlayerReady     GameEventType = "PLAYER_READY"
-	GameEventTypeHostChanged     GameEventType = "HOST_CHANGED"
-	GameEventTypeRoundStarted    GameEventType = "ROUND_STARTED"
-	GameEventTypeRoundEnded      GameEventType = "ROUND_ENDED"
+	// 플레이어가 게임방에 입장함
+	GameEventTypePlayerJoined GameEventType = "PLAYER_JOINED"
+	// 플레이어가 게임방에서 퇴장함
+	GameEventTypePlayerLeft GameEventType = "PLAYER_LEFT"
+	// 플레이어가 준비 완료 상태로 변경함
+	GameEventTypePlayerReady GameEventType = "PLAYER_READY"
+	// 방장이 변경됨 (이전 방장 퇴장 또는 권한 양도)
+	GameEventTypeHostChanged GameEventType = "HOST_CHANGED"
+	// 새 라운드가 시작됨 (새 퀴즈 제시)
+	GameEventTypeRoundStarted GameEventType = "ROUND_STARTED"
+	// 라운드가 종료됨 (정답 공개 및 점수 갱신)
+	GameEventTypeRoundEnded GameEventType = "ROUND_ENDED"
+	// 플레이어가 답변을 제출함 (다른 플레이어에게 알림)
 	GameEventTypeAnswerSubmitted GameEventType = "ANSWER_SUBMITTED"
-	GameEventTypeCorrectAnswer   GameEventType = "CORRECT_ANSWER"
-	GameEventTypeWrongAnswer     GameEventType = "WRONG_ANSWER"
-	GameEventTypeGameEnded       GameEventType = "GAME_ENDED"
+	// 정답을 맞춤 (본인에게만 전송, +100점)
+	GameEventTypeCorrectAnswer GameEventType = "CORRECT_ANSWER"
+	// 오답 (본인에게만 전송, 점수 변화 없음)
+	GameEventTypeWrongAnswer GameEventType = "WRONG_ANSWER"
+	// 게임이 종료됨 (최종 결과 및 순위 표시)
+	GameEventTypeGameEnded GameEventType = "GAME_ENDED"
 )
 
 var AllGameEventType = []GameEventType{
@@ -292,11 +389,16 @@ func (e GameEventType) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// 게임방의 현재 상태를 나타냅니다.
+// 클라이언트는 이 값에 따라 UI를 다르게 표시해야 합니다.
 type GameStatus string
 
 const (
-	GameStatusWaiting  GameStatus = "WAITING"
-	GameStatusPlaying  GameStatus = "PLAYING"
+	// 대기 중 (플레이어 모집 중, 게임 시작 전)
+	GameStatusWaiting GameStatus = "WAITING"
+	// 게임 진행 중 (라운드 진행 중, 플레이어 입장 불가)
+	GameStatusPlaying GameStatus = "PLAYING"
+	// 게임 종료 (최종 결과 표시, 곧 대기 상태로 전환)
 	GameStatusFinished GameStatus = "FINISHED"
 )
 
@@ -349,11 +451,16 @@ func (e GameStatus) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// 게임 모드를 나타냅니다.
+// 클라이언트는 게임방 생성 시 이 값을 선택해야 합니다.
 type GameType string
 
 const (
-	GameTypeOx        GameType = "OX"
-	GameTypeQa        GameType = "QA"
+	// OX 퀴즈 게임 (참/거짓 문제, 빠른 판단력 게임)
+	GameTypeOx GameType = "OX"
+	// 4지선다 퀴즈 게임 (일반 지식 퀴즈)
+	GameTypeQa GameType = "QA"
+	// 끝말잇기 게임 (일본어 히라가나/카타카나 단어 연결)
 	GameTypeWordchain GameType = "WORDCHAIN"
 )
 
@@ -406,13 +513,19 @@ func (e GameType) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// 게임방 초대 상태를 나타냅니다.
+// 초대는 24시간 후 자동으로 만료됩니다.
 type InviteStatus string
 
 const (
-	InviteStatusPending  InviteStatus = "PENDING"
+	// 대기 중 (초대받은 사용자의 응답 대기)
+	InviteStatusPending InviteStatus = "PENDING"
+	// 수락됨 (사용자가 게임방에 입장함)
 	InviteStatusAccepted InviteStatus = "ACCEPTED"
+	// 거절됨 (사용자가 초대를 거절함)
 	InviteStatusRejected InviteStatus = "REJECTED"
-	InviteStatusExpired  InviteStatus = "EXPIRED"
+	// 만료됨 (24시간 경과 또는 게임방 삭제)
+	InviteStatusExpired InviteStatus = "EXPIRED"
 )
 
 var AllInviteStatus = []InviteStatus{
@@ -465,10 +578,14 @@ func (e InviteStatus) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// OX 퀴즈의 선택지입니다.
+// submitAnswer 뮤테이션에서 'true' 또는 'false' 문자열로 전달합니다.
 type OXChoice string
 
 const (
+	// 참 (정답: true)
 	OXChoiceO OXChoice = "O"
+	// 거짓 (정답: false)
 	OXChoiceX OXChoice = "X"
 )
 
