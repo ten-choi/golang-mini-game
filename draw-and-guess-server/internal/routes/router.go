@@ -1,8 +1,7 @@
 package routes
 
 import (
-	"database/sql"
-
+	"draw-and-guess-server/internal/database"
 	"draw-and-guess-server/internal/graph"
 	"draw-and-guess-server/internal/handlers"
 	"draw-and-guess-server/internal/middleware"
@@ -16,7 +15,7 @@ import (
 )
 
 // SetupRouter initializes and configures all routes
-func SetupRouter(db *sql.DB) *gin.Engine {
+func SetupRouter() *gin.Engine {
 	r := gin.New()
 
 	// Apply global middleware
@@ -33,7 +32,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	api := r.Group("")
 	{
 		setupWebSocketRoutes(api)
-		setupGraphQLRoutes(api, db)
+		setupGraphQLRoutes(api)
 	}
 
 	return r
@@ -49,11 +48,17 @@ func setupWebSocketRoutes(api *gin.RouterGroup) {
 }
 
 // setupGraphQLRoutes sets up GraphQL routes with gqlgen
-func setupGraphQLRoutes(api *gin.RouterGroup, db *sql.DB) {
+func setupGraphQLRoutes(api *gin.RouterGroup) {
 	// Initialize repositories
-	userRepo := repository.NewUserRepository(db)
-	quizRepo := repository.NewQuizRepository(db)
-	playerStatsRepo := repository.NewPlayerStatsRepository(db)
+	usersCollection := database.GetCollection("users")
+	wordsCollection := database.GetCollection("korean_words")
+	oxQuizzesCollection := database.GetCollection("ox_quizzes")
+	qaQuizzesCollection := database.GetCollection("qa_quizzes")
+	playerStatsCollection := database.GetCollection("player_stats")
+
+	userRepo := repository.NewUserRepository(usersCollection)
+	quizRepo := repository.NewQuizRepository(wordsCollection, oxQuizzesCollection, qaQuizzesCollection)
+	playerStatsRepo := repository.NewPlayerStatsRepository(playerStatsCollection)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)

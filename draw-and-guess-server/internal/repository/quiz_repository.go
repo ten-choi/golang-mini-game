@@ -2,14 +2,14 @@ package repository
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"fmt"
 
 	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/models"
 
-	"github.com/lib/pq"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // QuizRepository defines the interface for quiz data access
@@ -20,152 +20,114 @@ type QuizRepository interface {
 }
 
 type quizRepository struct {
-	db *sql.DB
+	wordsCollection     *mongo.Collection
+	oxQuizzesCollection *mongo.Collection
+	qaQuizzesCollection *mongo.Collection
 }
 
 // NewQuizRepository creates a new quiz repository
-func NewQuizRepository(db *sql.DB) QuizRepository {
-	return &quizRepository{db: db}
+func NewQuizRepository(wordsCollection, oxQuizzesCollection, qaQuizzesCollection *mongo.Collection) QuizRepository {
+	return &quizRepository{
+		wordsCollection:     wordsCollection,
+		oxQuizzesCollection: oxQuizzesCollection,
+		qaQuizzesCollection: qaQuizzesCollection,
+	}
 }
 
-// IsValidWord checks if a word exists in the Korean words dictionary
+// IsValidWord checks if a word exists in the dictionary (now uses in-memory dictionary)
+// This method is kept for interface compatibility but should not be used
+// Use pkg/dictionary directly instead
 func (r *quizRepository) IsValidWord(ctx context.Context, word string) (bool, error) {
-	var exists bool
-	query := "SELECT EXISTS(SELECT 1 FROM korean_words WHERE word = $1)"
-	err := r.db.QueryRowContext(ctx, query, word).Scan(&exists)
-	if err != nil {
-		return false, common.NewInternalError("failed to check word validity", err)
-	}
-	return exists, nil
+	// This is deprecated - word validation is now done in-memory
+	// Kept for interface compatibility only
+	return false, common.NewInternalError("IsValidWord is deprecated, use dictionary package", nil)
 }
 
 // GetRandomOXQuiz returns a random OX quiz, excluding already used quiz IDs
 func (r *quizRepository) GetRandomOXQuiz(ctx context.Context, excludedIds []string) (*models.OXQuiz, error) {
-	query := `
-		SELECT id, category, difficulty, question, answer, explanation, usage_count, is_active, created_at, updated_at
-		FROM ox_quizzes
-		WHERE is_active = true
-		AND id NOT IN (SELECT unnest($1::bigint[]))
-		ORDER BY RANDOM()
-		LIMIT 1
-	`
+	filter := bson.M{"is_active": true}
 
-	// Convert string IDs to bigint array format for PostgreSQL
-	var idArray []int64
-	for _, id := range excludedIds {
-		var numID int64
-		if _, err := fmt.Sscanf(id, "%d", &numID); err == nil {
-			idArray = append(idArray, numID)
+	// Exclude already used IDs
+	if len(excludedIds) > 0 {
+		var excludeIDList []int64
+		for _, id := range excludedIds {
+			var numID int64
+			if _, err := fmt.Sscanf(id, "%d", &numID); err == nil {
+				excludeIDList = append(excludeIDList, numID)
+			}
+		}
+		if len(excludeIDList) > 0 {
+			filter["id"] = bson.M{"$nin": excludeIDList}
 		}
 	}
 
-	// If no valid excludedIds, use simple query
-	if len(idArray) == 0 {
-		query = `
-			SELECT id, category, difficulty, question, answer, explanation, usage_count, is_active, created_at, updated_at
-			FROM ox_quizzes
-			WHERE is_active = true
-			ORDER BY RANDOM()
-			LIMIT 1
-		`
+	// MongoDB aggregation pipeline for random selection
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: filter}},
+		{{Key: "$sample", Value: bson.D{{Key: "size", Value: 1}}}},
 	}
 
-	quiz := &models.OXQuiz{}
-	var err error
-
-	if len(idArray) == 0 {
-		err = r.db.QueryRowContext(ctx, query).Scan(
-			&quiz.ID, &quiz.Category, &quiz.Difficulty, &quiz.Question,
-			&quiz.Answer, &quiz.Explanation, &quiz.UsageCount, &quiz.IsActive,
-			&quiz.CreatedAt, &quiz.UpdatedAt,
-		)
-	} else {
-		err = r.db.QueryRowContext(ctx, query, pq.Array(idArray)).Scan(
-			&quiz.ID, &quiz.Category, &quiz.Difficulty, &quiz.Question,
-			&quiz.Answer, &quiz.Explanation, &quiz.UsageCount, &quiz.IsActive,
-			&quiz.CreatedAt, &quiz.UpdatedAt,
-		)
-	}
-
-	if err == sql.ErrNoRows {
-		return nil, common.NewNotFoundError("no OX quizzes found")
-	}
+	cursor, err := r.oxQuizzesCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, common.NewInternalError("failed to get OX quiz", err)
 	}
+	defer cursor.Close(ctx)
 
-	return quiz, nil
+	if !cursor.Next(ctx) {
+		return nil, common.NewNotFoundError("no OX quizzes found")
+	}
+
+	var quiz models.OXQuiz
+	if err := cursor.Decode(&quiz); err != nil {
+		return nil, common.NewInternalError("failed to decode OX quiz", err)
+	}
+
+	return &quiz, nil
 }
 
 // GetRandomQAQuiz returns a random QA (general) quiz, excluding already used quiz IDs
 func (r *quizRepository) GetRandomQAQuiz(ctx context.Context, excludedIds []string) (*models.GeneralQuiz, error) {
-	query := `
-		SELECT id, category, difficulty, question, options, answer, explanation, image_url, usage_count, is_active, created_at, updated_at
-		FROM qa_quizzes
-		WHERE is_active = true
-		AND id NOT IN (SELECT unnest($1::bigint[]))
-		ORDER BY RANDOM()
-		LIMIT 1
-	`
+	filter := bson.M{"is_active": true}
 
-	// Convert string IDs to bigint array format for PostgreSQL
-	var idArray []int64
-	for _, id := range excludedIds {
-		var numID int64
-		if _, err := fmt.Sscanf(id, "%d", &numID); err == nil {
-			idArray = append(idArray, numID)
+	// Exclude already used IDs
+	if len(excludedIds) > 0 {
+		var excludeIDList []interface{}
+		for _, id := range excludedIds {
+			var numID int64
+			if _, err := fmt.Sscanf(id, "%d", &numID); err == nil {
+				excludeIDList = append(excludeIDList, numID)
+			} else {
+				// Try as ObjectID
+				if oid, err := primitive.ObjectIDFromHex(id); err == nil {
+					excludeIDList = append(excludeIDList, oid)
+				}
+			}
+		}
+		if len(excludeIDList) > 0 {
+			filter["_id"] = bson.M{"$nin": excludeIDList}
 		}
 	}
 
-	// If no valid excludedIds, use simple query
-	if len(idArray) == 0 {
-		query = `
-			SELECT id, category, difficulty, question, options, answer, explanation, image_url, usage_count, is_active, created_at, updated_at
-			FROM qa_quizzes
-			WHERE is_active = true
-			ORDER BY RANDOM()
-			LIMIT 1
-		`
+	// MongoDB aggregation pipeline for random selection
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: filter}},
+		{{Key: "$sample", Value: bson.D{{Key: "size", Value: 1}}}},
 	}
 
-	quiz := &models.GeneralQuiz{}
-	var optionsJSON []byte
-	var explanation, imageURL sql.NullString
-	var err error
-
-	if len(idArray) == 0 {
-		err = r.db.QueryRowContext(ctx, query).Scan(
-			&quiz.ID, &quiz.Category, &quiz.Difficulty, &quiz.Question,
-			&optionsJSON, &quiz.Answer, &explanation, &imageURL,
-			&quiz.UsageCount, &quiz.IsActive, &quiz.CreatedAt, &quiz.UpdatedAt,
-		)
-	} else {
-		err = r.db.QueryRowContext(ctx, query, pq.Array(idArray)).Scan(
-			&quiz.ID, &quiz.Category, &quiz.Difficulty, &quiz.Question,
-			&optionsJSON, &quiz.Answer, &explanation, &imageURL,
-			&quiz.UsageCount, &quiz.IsActive, &quiz.CreatedAt, &quiz.UpdatedAt,
-		)
-	}
-
-	if err == sql.ErrNoRows {
-		return nil, common.NewNotFoundError("no QA quizzes found")
-	}
+	cursor, err := r.qaQuizzesCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, common.NewInternalError("failed to get QA quiz", err)
 	}
+	defer cursor.Close(ctx)
 
-	// Unmarshal JSON options
-	if err := json.Unmarshal(optionsJSON, &quiz.Options); err != nil {
-		return nil, common.NewInternalError("failed to unmarshal quiz options", err)
+	if !cursor.Next(ctx) {
+		return nil, common.NewNotFoundError("no QA quizzes found")
 	}
 
-	// Handle nullable fields
-	if explanation.Valid {
-		quiz.Explanation = explanation.String
-	}
-	if imageURL.Valid {
-		quiz.ImageURL = imageURL.String
+	var quiz models.GeneralQuiz
+	if err := cursor.Decode(&quiz); err != nil {
+		return nil, common.NewInternalError("failed to decode QA quiz", err)
 	}
 
-	return quiz, nil
+	return &quiz, nil
 }

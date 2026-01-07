@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"draw-and-guess-server/internal/graph/model"
+	"draw-and-guess-server/pkg/dictionary"
 	"fmt"
 )
 
@@ -92,4 +93,10 @@ func (r *queryResolver) RandomQAQuiz(ctx context.Context, roomID *string) (*mode
 		CreatedAt:   quiz.CreatedAt,
 		UpdatedAt:   quiz.UpdatedAt,
 	}, nil
+}
+
+// IsValidWord is the resolver for the isValidWord field.
+func (r *queryResolver) IsValidWord(ctx context.Context, word string) (bool, error) {
+	dict := dictionary.GetInstance()
+	return dict.IsValidWord(word), nil
 }

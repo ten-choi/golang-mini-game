@@ -2,10 +2,14 @@ package repository
 
 import (
 	"context"
-	"database/sql"
+	"time"
 
 	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/models"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // PlayerStatsRepository defines the interface for player stats data access
@@ -16,94 +20,77 @@ type PlayerStatsRepository interface {
 }
 
 type playerStatsRepository struct {
-	db *sql.DB
+	collection *mongo.Collection
 }
 
 // NewPlayerStatsRepository creates a new player stats repository
-func NewPlayerStatsRepository(db *sql.DB) PlayerStatsRepository {
-	return &playerStatsRepository{db: db}
+func NewPlayerStatsRepository(collection *mongo.Collection) PlayerStatsRepository {
+	return &playerStatsRepository{collection: collection}
 }
 
 func (r *playerStatsRepository) GetByUsername(ctx context.Context, username string, gameType *string) ([]*models.PlayerStats, error) {
-	var query string
-	var rows *sql.Rows
-	var err error
+	filter := bson.M{"username": username}
 
 	if gameType != nil {
-		query = `
-			SELECT username, game_type, total_games, total_wins, total_score, created_at, updated_at
-			FROM player_stats
-			WHERE username = $1 AND game_type = $2
-		`
-		rows, err = r.db.QueryContext(ctx, query, username, *gameType)
-	} else {
-		query = `
-			SELECT username, game_type, total_games, total_wins, total_score, created_at, updated_at
-			FROM player_stats
-			WHERE username = $1
-		`
-		rows, err = r.db.QueryContext(ctx, query, username)
+		filter["game_type"] = *gameType
 	}
 
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return nil, common.NewInternalError("failed to query player stats", err)
 	}
-	defer rows.Close()
+	defer cursor.Close(ctx)
 
 	var stats []*models.PlayerStats
-	for rows.Next() {
-		s := &models.PlayerStats{}
-		err := rows.Scan(&s.Username, &s.GameType, &s.TotalGames, &s.TotalWins, &s.TotalScore, &s.CreatedAt, &s.UpdatedAt)
-		if err != nil {
-			return nil, common.NewInternalError("failed to scan player stats", err)
-		}
-		stats = append(stats, s)
+	if err := cursor.All(ctx, &stats); err != nil {
+		return nil, common.NewInternalError("failed to decode player stats", err)
 	}
 
 	return stats, nil
 }
 
 func (r *playerStatsRepository) GetLeaderboard(ctx context.Context, gameType string, limit int) ([]*models.PlayerStats, error) {
-	query := `
-		SELECT username, game_type, total_games, total_wins, total_score, created_at, updated_at
-		FROM player_stats
-		WHERE game_type = $1
-		ORDER BY total_score DESC, total_wins DESC
-		LIMIT $2
-	`
+	filter := bson.M{"game_type": gameType}
+	opts := options.Find().
+		SetSort(bson.D{{Key: "total_score", Value: -1}, {Key: "total_wins", Value: -1}}).
+		SetLimit(int64(limit))
 
-	rows, err := r.db.QueryContext(ctx, query, gameType, limit)
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, common.NewInternalError("failed to query leaderboard", err)
 	}
-	defer rows.Close()
+	defer cursor.Close(ctx)
 
 	var stats []*models.PlayerStats
-	for rows.Next() {
-		s := &models.PlayerStats{}
-		err := rows.Scan(&s.Username, &s.GameType, &s.TotalGames, &s.TotalWins, &s.TotalScore, &s.CreatedAt, &s.UpdatedAt)
-		if err != nil {
-			return nil, common.NewInternalError("failed to scan leaderboard", err)
-		}
-		stats = append(stats, s)
+	if err := cursor.All(ctx, &stats); err != nil {
+		return nil, common.NewInternalError("failed to decode leaderboard", err)
 	}
 
 	return stats, nil
 }
 
 func (r *playerStatsRepository) UpsertStats(ctx context.Context, stats *models.PlayerStats) error {
-	query := `
-		INSERT INTO player_stats (username, game_type, total_games, total_wins, total_score)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (username, game_type) 
-		DO UPDATE SET 
-			total_games = player_stats.total_games + EXCLUDED.total_games,
-			total_wins = player_stats.total_wins + EXCLUDED.total_wins,
-			total_score = player_stats.total_score + EXCLUDED.total_score,
-			updated_at = CURRENT_TIMESTAMP
-	`
+	filter := bson.M{
+		"username":  stats.Username,
+		"game_type": stats.GameType,
+	}
 
-	_, err := r.db.ExecContext(ctx, query, stats.Username, stats.GameType, stats.TotalGames, stats.TotalWins, stats.TotalScore)
+	update := bson.M{
+		"$inc": bson.M{
+			"total_games": stats.TotalGames,
+			"total_wins":  stats.TotalWins,
+			"total_score": stats.TotalScore,
+		},
+		"$set": bson.M{
+			"updated_at": time.Now(),
+		},
+		"$setOnInsert": bson.M{
+			"created_at": time.Now(),
+		},
+	}
+
+	opts := options.Update().SetUpsert(true)
+	_, err := r.collection.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
 		return common.NewInternalError("failed to upsert player stats", err)
 	}

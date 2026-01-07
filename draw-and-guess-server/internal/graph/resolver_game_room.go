@@ -18,6 +18,12 @@ func (r *mutationResolver) CreateGameRoom(ctx context.Context, input model.Creat
 	roomID := uuid.New().String()
 	now := time.Now()
 
+	// Set isPrivate based on input, default to false
+	isPrivate := false
+	if input.IsPrivate != nil {
+		isPrivate = *input.IsPrivate
+	}
+
 	room := &model.GameRoom{
 		ID:           roomID,
 		Name:         input.Name,
@@ -29,6 +35,8 @@ func (r *mutationResolver) CreateGameRoom(ctx context.Context, input model.Creat
 		MaxPlayers:   int32(input.MaxPlayers),
 		HostUsername: input.HostUsername,
 		UsedQuizIds:  []string{}, // Initialize empty quiz history
+		IsPrivate:    isPrivate,
+		Password:     input.Password, // Set password if provided
 		CreatedAt:    now,
 	}
 

@@ -45,7 +45,7 @@ GraphQL + WebSocket 기반의 멀티플레이어 그림 맞추기 게임 서버
 ## 📦 기술 스택
 - **Language**: Go 1.24+
 - **GraphQL**: gqlgen (schema-first)
-- **Database**: PostgreSQL 16
+- **Database**: MongoDB 7.0
 - **Cache**: Valkey (Redis 호환)
 - **WebSocket**: gorilla/websocket
 - **Web Framework**: Gin
@@ -59,22 +59,18 @@ go mod download
 
 ### 2. 데이터베이스 준비 (Kubernetes)
 ```bash
-# PostgreSQL & Valkey 배포
+# MongoDB & Valkey 배포
 cd deployments/k8s
 .\deploy-all.ps1
 
-# 데이터베이스 생성
-kubectl exec -n data postgres-0 -- psql -U postgres -c "CREATE DATABASE draw_and_guess_db;"
+# MongoDB는 자동으로 데이터베이스를 생성합니다
 ```
 
 ### 3. 환경 변수 설정 (.env)
 ```env
-# PostgreSQL (Kubernetes NodePort)
-POSTGRES_HOST=localhost
-POSTGRES_PORT=30432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=password
-POSTGRES_DB=draw_and_guess_db
+# MongoDB (Kubernetes NodePort)
+MONGO_URI=mongodb://admin:password@localhost:30017
+MONGO_DB=draw_and_guess_db
 
 # Valkey (Kubernetes NodePort)
 VALKEY_ADDR=localhost:30379

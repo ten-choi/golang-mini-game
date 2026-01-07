@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"draw-and-guess-server/internal/database"
 	"draw-and-guess-server/internal/routes"
 	"draw-and-guess-server/internal/valkey"
+	"draw-and-guess-server/pkg/dictionary"
 	"draw-and-guess-server/pkg/utils"
 )
 
@@ -30,6 +32,17 @@ func main() {
 	}
 	logger.Info("✓ Snowflake ID generator initialized")
 
+	// Load Japanese word dictionary (required for wordchain game)
+	dictPath := filepath.Join("data", "japanese_words.txt")
+	dict := dictionary.GetInstance()
+	if err := dict.LoadFromFile(dictPath); err != nil {
+		logger.Error("Failed to load word dictionary: %v", err)
+		logger.Error("Wordchain game will not be available")
+		// Continue without dictionary - wordchain will fail but other games work
+	} else {
+		logger.Info("✓ Word dictionary loaded (%d words)", dict.GetWordCount())
+	}
+
 	// Connect to Valkey (optional)
 	if err := valkey.Connect(); err != nil {
 		logger.Warn("Valkey connection failed: %v (continuing without cache)", err)
@@ -42,19 +55,19 @@ func main() {
 		}()
 	}
 
-	// Connect to PostgreSQL (required)
+	// Connect to MongoDB (required)
 	if err := database.Connect(); err != nil {
-		logger.Error("Failed to connect to PostgreSQL: %v", err)
+		logger.Error("Failed to connect to MongoDB: %v", err)
 		os.Exit(1)
 	}
-	logger.Info("✓ Connected to PostgreSQL")
+	logger.Info("✓ Connected to MongoDB")
 	defer func() {
 		if err := database.Disconnect(); err != nil {
-			logger.Error("Failed to disconnect PostgreSQL: %v", err)
+			logger.Error("Failed to disconnect MongoDB: %v", err)
 		}
 	}()
 
-	// Initialize database schema
+	// Initialize database schema (create indexes)
 	if err := database.InitSchema(); err != nil {
 		logger.Error("Failed to initialize database schema: %v", err)
 		os.Exit(1)
@@ -62,7 +75,7 @@ func main() {
 	logger.Info("✓ Database schema initialized")
 
 	// Setup router
-	r := routes.SetupRouter(database.DB)
+	r := routes.SetupRouter()
 
 	// Configure server
 	srv := &http.Server{

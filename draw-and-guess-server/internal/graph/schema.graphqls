@@ -311,6 +311,8 @@ type Query {
   gameConfig: GameConfig!
   "끝말잇기용 랜덤 단어 조회"
   randomWordchainPrompt: WordchainPrompt!
+  "단어 유효성 검증 (끝말잇기용)"
+  isValidWord(word: String!): Boolean!
 }
 
 # ============================================

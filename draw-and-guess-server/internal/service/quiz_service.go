@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"fmt"
+
 	"draw-and-guess-server/internal/models"
 	"draw-and-guess-server/internal/repository"
+	"draw-and-guess-server/pkg/dictionary"
 )
 
 // QuizService defines the interface for quiz business logic
@@ -31,5 +34,11 @@ func (s *quizService) GetRandomQAQuiz(ctx context.Context, excludedIds []string)
 }
 
 func (s *quizService) IsValidWord(ctx context.Context, word string) (bool, error) {
-	return s.repo.IsValidWord(ctx, word)
+	// Use in-memory dictionary instead of database
+	// Import: "draw-and-guess-server/pkg/dictionary"
+	dict := dictionary.GetInstance()
+	if !dict.IsLoaded() {
+		return false, fmt.Errorf("dictionary not loaded")
+	}
+	return dict.IsValidWord(word), nil
 }

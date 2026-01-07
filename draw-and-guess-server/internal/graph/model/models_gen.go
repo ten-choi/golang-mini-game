@@ -59,63 +59,63 @@ type GameEvent struct {
 	Timestamp   time.Time     `json:"timestamp"`
 }
 
-// GameRoom represents a multiplayer game session.
-// Supports OX quiz, QA quiz, and wordchain game modes.
+// 멀티플레이어 게임 세션을 나타냅니다.
+// OX 퀴즈, QA 퀴즈, 끝말잇기 게임 모드를 지원합니다.
 type GameRoom struct {
-	// Unique room identifier (UUID)
+	// 고유 게임방 식별자 (UUID)
 	ID string `json:"id"`
-	// Room display name
+	// 게임방 표시 이름
 	Name string `json:"name"`
-	// Game mode: OX, QA, or WORDCHAIN
+	// 게임 모드: OX, QA, 또는 WORDCHAIN
 	GameType GameType `json:"gameType"`
-	// Current game status
+	// 현재 게임 상태
 	Status GameStatus `json:"status"`
-	// Current round number (1-based)
+	// 현재 라운드 번호 (1부터 시작)
 	CurrentRound int32 `json:"currentRound"`
-	// Total rounds in this game (default: 5)
+	// 총 라운드 수 (기본값: 5)
 	TotalRounds int32 `json:"totalRounds"`
-	// List of players in the room
+	// 게임방 내 플레이어 목록
 	Players []*Player `json:"players"`
-	// Maximum allowed players (2-10)
+	// 최대 플레이어 수 (2-10명)
 	MaxPlayers int32 `json:"maxPlayers"`
-	// Username of the room host
+	// 방장 사용자명
 	HostUsername string `json:"hostUsername"`
-	// Quiz IDs already used in current game
+	// 현재 게임에서 사용된 퀴즈 ID 목록
 	UsedQuizIds []string `json:"usedQuizIds"`
-	// Whether room requires password
+	// 비공개방 여부
 	IsPrivate bool `json:"isPrivate"`
-	// Room password (only for private rooms)
+	// 게임방 비밀번호 (비공개방만)
 	Password *string `json:"password,omitempty"`
-	// Room creation timestamp
+	// 게임방 생성 시각
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// GeneralQuiz represents a multiple-choice question (4 options).
-// Used in QA game mode.
+// 4지선다 퀴즈를 나타냅니다.
+// QA 게임 모드에서 사용됩니다.
 type GeneralQuiz struct {
-	// Unique quiz ID (Snowflake)
+	// 고유 퀴즈 ID (Snowflake)
 	ID string `json:"id"`
-	// Quiz category (e.g., Math, Geography)
+	// 퀴즈 카테고리 (예: 수학, 지리)
 	Category string `json:"category"`
-	// Difficulty level: easy, medium, hard
+	// 난이도: easy, medium, hard
 	Difficulty string `json:"difficulty"`
-	// The question text
+	// 문제 텍스트
 	Question string `json:"question"`
-	// Array of 4 answer options
+	// 4개의 선택지 배열
 	Options []string `json:"options"`
-	// Correct answer index (0-3)
+	// 정답 인덱스 (0-3)
 	Answer int32 `json:"answer"`
-	// Optional explanation for the answer
+	// 정답 설명 (선택사항)
 	Explanation *string `json:"explanation,omitempty"`
-	// Optional image URL for visual questions
+	// 시각적 문제를 위한 이미지 URL (선택사항)
 	ImageURL *string `json:"imageUrl,omitempty"`
-	// Number of times this quiz has been used
+	// 이 퀴즈가 사용된 횟수
 	UsageCount int32 `json:"usageCount"`
-	// Whether this quiz is active
+	// 퀴즈 활성화 여부
 	IsActive bool `json:"isActive"`
-	// Quiz creation timestamp
+	// 퀴즈 생성 시각
 	CreatedAt time.Time `json:"createdAt"`
-	// Last update timestamp
+	// 마지막 업데이트 시각
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
@@ -135,28 +135,28 @@ type Invitation struct {
 type Mutation struct {
 }
 
-// OXQuiz represents a True/False question.
-// Used in OX game mode.
+// OX 퀴즈 (참/거짓 문제)를 나타냅니다.
+// OX 게임 모드에서 사용됩니다.
 type OXQuiz struct {
-	// Unique quiz ID (Snowflake)
+	// 고유 퀴즈 ID (Snowflake)
 	ID string `json:"id"`
-	// Quiz category (e.g., Science, History)
+	// 퀴즈 카테고리 (예: 과학, 역사)
 	Category string `json:"category"`
-	// Difficulty level: easy, medium, hard
+	// 난이도: easy, medium, hard
 	Difficulty string `json:"difficulty"`
-	// The question text
+	// 문제 텍스트
 	Question string `json:"question"`
-	// Correct answer: true or false
+	// 정답: true 또는 false
 	Answer bool `json:"answer"`
-	// Optional explanation for the answer
+	// 정답 설명 (선택사항)
 	Explanation *string `json:"explanation,omitempty"`
-	// Number of times this quiz has been used
+	// 이 퀴즈가 사용된 횟수
 	UsageCount int32 `json:"usageCount"`
-	// Whether this quiz is active
+	// 퀴즈 활성화 여부
 	IsActive bool `json:"isActive"`
-	// Quiz creation timestamp
+	// 퀴즈 생성 시각
 	CreatedAt time.Time `json:"createdAt"`
-	// Last update timestamp
+	// 마지막 업데이트 시각
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
@@ -197,22 +197,22 @@ type UpdateUserInput struct {
 	AvatarURL   *string `json:"avatarUrl,omitempty"`
 }
 
-// User represents a game player account.
-// Username is unique and used as the primary identifier.
+// 게임 플레이어 계정을 나타냅니다.
+// Username은 고유하며 주요 식별자로 사용됩니다.
 type User struct {
-	// Unique identifier (Snowflake ID)
+	// 고유 식별자 (Snowflake ID)
 	ID string `json:"id"`
-	// Unique username (3-20 characters, login ID)
+	// 고유 사용자명 (3-20자, 로그인 ID)
 	Username string `json:"username"`
-	// Display name shown in game (can be duplicate)
+	// 게임 내 표시 이름 (중복 가능)
 	DisplayName string `json:"displayName"`
-	// Optional email address
+	// 선택적 이메일 주소
 	Email *string `json:"email,omitempty"`
-	// Optional profile image URL
+	// 선택적 프로필 이미지 URL
 	AvatarURL *string `json:"avatarUrl,omitempty"`
-	// Account creation timestamp
+	// 계정 생성 시각
 	CreatedAt time.Time `json:"createdAt"`
-	// Last update timestamp
+	// 마지막 업데이트 시각
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 

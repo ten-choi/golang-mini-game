@@ -8,13 +8,10 @@ import (
 )
 
 var (
-	PostgresHost     string
-	PostgresPort     string
-	PostgresUser     string
-	PostgresPassword string
-	PostgresDBName   string
-	ValkeyAddr       string
-	ServerPort       string
+	MongoURI   string
+	MongoDB    string
+	ValkeyAddr string
+	ServerPort string
 )
 
 func Init() {
@@ -26,11 +23,8 @@ func Init() {
 		log.Println("Loaded configuration from .env file")
 	}
 
-	PostgresHost = getEnv("POSTGRES_HOST", "localhost")
-	PostgresPort = getEnv("POSTGRES_PORT", "5432")
-	PostgresUser = getEnv("POSTGRES_USER", "postgres")
-	PostgresPassword = getEnv("POSTGRES_PASSWORD", "password")
-	PostgresDBName = getEnv("POSTGRES_DB", "draw_and_guess_db")
+	MongoURI = getEnv("MONGO_URI", "mongodb://localhost:27017")
+	MongoDB = getEnv("MONGO_DB", "draw_and_guess_db")
 	ValkeyAddr = getEnv("VALKEY_ADDR", "localhost:6379")
 	ServerPort = getEnv("SERVER_PORT", "8080")
 
@@ -39,8 +33,8 @@ func Init() {
 		log.Fatal("SERVER_PORT must be set")
 	}
 
-	log.Printf("Config loaded - ServerPort: %s, ValkeyAddr: %s, PostgreSQL: %s:%s/%s",
-		ServerPort, ValkeyAddr, PostgresHost, PostgresPort, PostgresDBName)
+	log.Printf("Config loaded - ServerPort: %s, ValkeyAddr: %s, MongoDB: %s/%s",
+		ServerPort, ValkeyAddr, MongoURI, MongoDB)
 }
 
 func getEnv(key, defaultValue string) string {

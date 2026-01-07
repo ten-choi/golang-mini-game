@@ -2,11 +2,15 @@ package repository
 
 import (
 	"context"
-	"database/sql"
+	"time"
 
 	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/models"
 	"draw-and-guess-server/pkg/utils"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // UserRepository defines the interface for user data access
@@ -18,61 +22,39 @@ type UserRepository interface {
 }
 
 type userRepository struct {
-	db *sql.DB
+	collection *mongo.Collection
 }
 
 // NewUserRepository creates a new user repository
-func NewUserRepository(db *sql.DB) UserRepository {
-	return &userRepository{db: db}
+func NewUserRepository(collection *mongo.Collection) UserRepository {
+	return &userRepository{collection: collection}
 }
 
 func (r *userRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
-	query := `
-		SELECT id, username, display_name, email, avatar_url, created_at, updated_at
-		FROM users
-		WHERE username = $1
-	`
+	var user models.User
+	err := r.collection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
 
-	user := &models.User{}
-	err := r.db.QueryRowContext(ctx, query, username).Scan(
-		&user.ID, &user.Username, &user.DisplayName, &user.Email,
-		&user.AvatarURL, &user.CreatedAt, &user.UpdatedAt,
-	)
-
-	if err == sql.ErrNoRows {
+	if err == mongo.ErrNoDocuments {
 		return nil, common.NewNotFoundError("user not found")
 	}
 	if err != nil {
 		return nil, common.NewInternalError("failed to get user", err)
 	}
 
-	return user, nil
+	return &user, nil
 }
 
 func (r *userRepository) GetAll(ctx context.Context) ([]*models.User, error) {
-	query := `
-		SELECT id, username, display_name, email, avatar_url, created_at, updated_at
-		FROM users
-		ORDER BY created_at DESC
-	`
-
-	rows, err := r.db.QueryContext(ctx, query)
+	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}})
+	cursor, err := r.collection.Find(ctx, bson.M{}, opts)
 	if err != nil {
 		return nil, common.NewInternalError("failed to query users", err)
 	}
-	defer rows.Close()
+	defer cursor.Close(ctx)
 
 	var users []*models.User
-	for rows.Next() {
-		user := &models.User{}
-		err := rows.Scan(
-			&user.ID, &user.Username, &user.DisplayName, &user.Email,
-			&user.AvatarURL, &user.CreatedAt, &user.UpdatedAt,
-		)
-		if err != nil {
-			return nil, common.NewInternalError("failed to scan user", err)
-		}
-		users = append(users, user)
+	if err := cursor.All(ctx, &users); err != nil {
+		return nil, common.NewInternalError("failed to decode users", err)
 	}
 
 	return users, nil
@@ -81,18 +63,14 @@ func (r *userRepository) GetAll(ctx context.Context) ([]*models.User, error) {
 func (r *userRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
 	// Generate Snowflake ID
 	user.ID = utils.GenerateID()
-	
-	query := `
-		INSERT INTO users (id, username, display_name, email, avatar_url)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING created_at, updated_at
-	`
+	user.CreatedAt = time.Now()
+	user.UpdatedAt = time.Now()
 
-	err := r.db.QueryRowContext(ctx, query,
-		user.ID, user.Username, user.DisplayName, user.Email, user.AvatarURL,
-	).Scan(&user.CreatedAt, &user.UpdatedAt)
-
+	_, err := r.collection.InsertOne(ctx, user)
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return nil, common.NewInternalError("username already exists", err)
+		}
 		return nil, common.NewInternalError("failed to create user", err)
 	}
 
@@ -100,28 +78,38 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) (*models
 }
 
 func (r *userRepository) Update(ctx context.Context, username string, displayName, email, avatarURL *string) (*models.User, error) {
-	query := `
-		UPDATE users
-		SET display_name = COALESCE($2, display_name),
-		    email = COALESCE($3, email),
-		    avatar_url = COALESCE($4, avatar_url),
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE username = $1
-		RETURNING id, username, display_name, email, avatar_url, created_at, updated_at
-	`
+	update := bson.M{
+		"$set": bson.M{
+			"updated_at": time.Now(),
+		},
+	}
 
-	user := &models.User{}
-	err := r.db.QueryRowContext(ctx, query, username, displayName, email, avatarURL).Scan(
-		&user.ID, &user.Username, &user.DisplayName, &user.Email,
-		&user.AvatarURL, &user.CreatedAt, &user.UpdatedAt,
-	)
+	setFields := update["$set"].(bson.M)
+	if displayName != nil {
+		setFields["display_name"] = *displayName
+	}
+	if email != nil {
+		setFields["email"] = *email
+	}
+	if avatarURL != nil {
+		setFields["avatar_url"] = *avatarURL
+	}
 
-	if err == sql.ErrNoRows {
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	var user models.User
+	err := r.collection.FindOneAndUpdate(
+		ctx,
+		bson.M{"username": username},
+		update,
+		opts,
+	).Decode(&user)
+
+	if err == mongo.ErrNoDocuments {
 		return nil, common.NewNotFoundError("user not found")
 	}
 	if err != nil {
 		return nil, common.NewInternalError("failed to update user", err)
 	}
 
-	return user, nil
+	return &user, nil
 }
