@@ -12,19 +12,3 @@ spec:
     - ReadWriteOnce
   hostPath:
     path: "/mnt/data/mongodb"
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: pvc-mongodb
-  namespace: data
-spec:
-  storageClassName: manual
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
-  selector:
-    matchLabels:
-      type: local

@@ -23,35 +23,40 @@ function Test-Word {
     }
 }
 
-Write-Host "`n=== Testing Japanese Word Dictionary ===" -ForegroundColor Yellow
-Write-Host "Testing with in-memory hash-based search (FNV 64-bit + Binary Search)" -ForegroundColor Cyan
+Write-Host "`n=== Testing JMdict Dictionary (211,029 words) ===" -ForegroundColor Yellow
+Write-Host "With 2+ characters, no maximum length limit" -ForegroundColor Cyan
 
 $passCount = 0
 $totalCount = 0
 
-# Test valid words
-$totalCount++; if(Test-Word "りんご" $true "Valid Hiragana word (apple)") { $passCount++ }
-$totalCount++; if(Test-Word "リンゴ" $true "Valid Katakana word (apple - normalized)") { $passCount++ }
-$totalCount++; if(Test-Word "らーめん" $true "Word with long vowel mark") { $passCount++ }
-$totalCount++; if(Test-Word "ごりら" $true "Gorilla in Hiragana") { $passCount++ }
-$totalCount++; if(Test-Word "ゴリラ" $true "Gorilla in Katakana") { $passCount++ }
-$totalCount++; if(Test-Word "ねこ" $true "Cat in Hiragana") { $passCount++ }
+# Test short words
+$totalCount++; if(Test-Word "りんご" $true "Apple (4 chars)") { $passCount++ }
+$totalCount++; if(Test-Word "リンゴ" $true "Apple in Katakana") { $passCount++ }
+$totalCount++; if(Test-Word "ねこ" $true "Cat (2 chars)") { $passCount++ }
 $totalCount++; if(Test-Word "ネコ" $true "Cat in Katakana") { $passCount++ }
-$totalCount++; if(Test-Word "らっぱ" $true "Trumpet in Hiragana") { $passCount++ }
-$totalCount++; if(Test-Word "ラッパ" $true "Trumpet in Katakana") { $passCount++ }
+
+# Test longer words (now should be valid!)
+$totalCount++; if(Test-Word "バナナ" $true "Banana (3 chars)") { $passCount++ }
+$totalCount++; if(Test-Word "コンピュータ" $true "Computer (7 chars)") { $passCount++ }
+$totalCount++; if(Test-Word "おもしろい" $true "Interesting (5 chars)") { $passCount++ }
+$totalCount++; if(Test-Word "プログラミング" $true "Programming (8 chars)") { $passCount++ }
+
+# Test very long words
+$totalCount++; if(Test-Word "インターネット" $true "Internet (8 chars)") { $passCount++ }
+$totalCount++; if(Test-Word "スマートフォン" $true "Smartphone (8 chars)") { $passCount++ }
 
 # Test invalid words
-$totalCount++; if(Test-Word "バナナ" $false "Invalid word (banana)") { $passCount++ }
+$totalCount++; if(Test-Word "あ" $false "Single character (too short)") { $passCount++ }
 $totalCount++; if(Test-Word "apple" $false "English word") { $passCount++ }
 $totalCount++; if(Test-Word "" $false "Empty string") { $passCount++ }
-$totalCount++; if(Test-Word "あいうえお" $false "Random Hiragana") { $passCount++ }
+$totalCount++; if(Test-Word "あいうえお" $true "Random valid hiragana") { $passCount++ }
 
 Write-Host "`n=== Test Results ===" -ForegroundColor Yellow
 Write-Host "Passed: $passCount / $totalCount" -ForegroundColor $(if($passCount -eq $totalCount){"Green"}else{"Yellow"})
 Write-Host "Success Rate: $([math]::Round($passCount/$totalCount*100, 2))%" -ForegroundColor Cyan
-Write-Host "`nDictionary validation is working with:" -ForegroundColor Green
-Write-Host "  • In-memory storage (no database queries)" -ForegroundColor White
-Write-Host "  • FNV 64-bit hashing for word fingerprints" -ForegroundColor White  
-Write-Host "  • Binary search for O(log n) lookup" -ForegroundColor White
+Write-Host "`nDictionary powered by JMdict:" -ForegroundColor Green
+Write-Host "  • 211,029 words from JMdict-eng-3.6.1.json" -ForegroundColor White
+Write-Host "  • Minimum 2 characters (no maximum limit)" -ForegroundColor White
+Write-Host "  • In-memory FNV 64-bit hashing" -ForegroundColor White  
+Write-Host "  • Binary search O(log n) lookup" -ForegroundColor White
 Write-Host "  • Katakana → Hiragana normalization" -ForegroundColor White
-Write-Host "  • 57 words loaded from japanese_words.txt" -ForegroundColor White

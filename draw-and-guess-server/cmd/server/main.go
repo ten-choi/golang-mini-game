@@ -33,7 +33,7 @@ func main() {
 	logger.Info("✓ Snowflake ID generator initialized")
 
 	// Load Japanese word dictionary (required for wordchain game)
-	dictPath := filepath.Join("data", "japanese_words.txt")
+	dictPath := filepath.Join("data", "japanese_words_jmdict.txt")
 	dict := dictionary.GetInstance()
 	if err := dict.LoadFromFile(dictPath); err != nil {
 		logger.Error("Failed to load word dictionary: %v", err)
