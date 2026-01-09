@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"hash/fnv"
+	"math/rand"
 	"os"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Dictionary provides fast word validation for Japanese wordchain game
@@ -110,6 +112,20 @@ func (d *Dictionary) GetWordCount() int {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return len(d.hashes)
+}
+
+// GetRandomWord returns a random word from the dictionary
+func (d *Dictionary) GetRandomWord() string {
+	commonWords := []string{
+		"あき", "いぬ", "うみ", "えび", "おか",
+		"かぜ", "きつね", "くも", "けんか", "こころ",
+		"さくら", "しま", "すいか", "せかい", "そら",
+		"たいよう", "ちから", "つき", "てんき", "とけい",
+		"なまえ", "にわ", "ぬま", "ねこ", "のりもの",
+	}
+	
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return commonWords[r.Intn(len(commonWords))]
 }
 
 // normalizeWord converts katakana to hiragana for consistent lookup

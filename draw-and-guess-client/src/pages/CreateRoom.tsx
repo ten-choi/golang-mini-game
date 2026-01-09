@@ -8,7 +8,7 @@ const CreateRoom: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [username] = useState(sessionStorage.getItem('username') || '');
-  const [selectedGameType, setSelectedGameType] = useState<GameType>('guess');
+  const [selectedGameType, setSelectedGameType] = useState<GameType>('WORDCHAIN');
   const [loading, setLoading] = useState(false);
 
   React.useEffect(() => {
@@ -19,19 +19,20 @@ const CreateRoom: React.FC = () => {
 
   const gameModes = [
     {
-      type: 'guess' as GameType,
-      title: '🎨 그림 맞추기',
-      description: '그림을 그리고 다른 사람이 맞추는 게임',
+      type: 'WORDCHAIN' as GameType,
+      title: '🔤 끝말잇기',
+      description: '일본어 단어로 끝말잇기 게임',
       color: '#FF6B6B',
-      icon: '🎨',
+      icon: '🔤',
       rules: [
-        '한 명씩 돌아가며 그림을 그립니다',
-        '다른 플레이어들이 채팅으로 정답을 맞춥니다',
-        '정답자 +2점, 그린 사람 +1점',
+        '일본어 히라가나/카타카나 단어를 입력합니다',
+        '이전 단어의 마지막 글자로 시작해야 합니다',
+        'ん으로 끝나는 단어는 사용 불가',
+        '정답 +100점',
       ],
     },
     {
-      type: 'ox' as GameType,
+      type: 'OX' as GameType,
       title: '⭕❌ OX 퀴즈',
       description: '참/거짓을 빠르게 판단하는 게임',
       color: '#4ECDC4',
@@ -39,11 +40,11 @@ const CreateRoom: React.FC = () => {
       rules: [
         '문제가 나오면 O 또는 X를 선택합니다',
         '가장 빠르게 정답을 맞춘 사람이 점수를 얻습니다',
-        '정답 +2점',
+        '정답 +100점',
       ],
     },
     {
-      type: 'general' as GameType,
+      type: 'QA' as GameType,
       title: '📚 일반 상식 퀴즈',
       description: '4개 중 정답을 고르는 객관식 게임',
       color: '#95E1D3',
@@ -51,7 +52,19 @@ const CreateRoom: React.FC = () => {
       rules: [
         '4개의 선택지 중 정답을 고릅니다',
         '가장 빠르게 정답을 맞춘 사람이 점수를 얻습니다',
-        '정답 +2점',
+        '정답 +100점',
+      ],
+    },
+    {
+      type: 'DRAWING' as GameType,
+      title: '🎨 그림 맞추기',
+      description: '그림을 그리고 정답을 맞추는 게임',
+      color: '#F38181',
+      icon: '🎨',
+      rules: [
+        '제시된 단어를 그림으로 표현합니다',
+        '다른 플레이어가 정답을 맞춥니다',
+        '정답을 맞춘 사람과 그린 사람 모두 점수 획득',
       ],
     },
   ];
@@ -65,11 +78,18 @@ const CreateRoom: React.FC = () => {
 
     setLoading(true);
     try {
-      const result = await apiService.createGameRoom(username, selectedGameType);
-      navigate(`/game/${result.room_id}`);
+      const result = await apiService.createGameRoom({
+        name: `${username}의 게임방`,
+        gameType: selectedGameType,
+        maxPlayers: 4,
+        totalRounds: 3,
+        hostUsername: username,
+        isPrivate: false
+      });
+      navigate(`/game/${result.id}`);
     } catch (error) {
       console.error('Failed to create room:', error);
-      alert('방 생성에 실패했습니다.');
+      alert(`방 생성에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setLoading(false);
     }

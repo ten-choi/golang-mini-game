@@ -1,30 +1,26 @@
 // ============================================
-// Core Game Types (aligned with backend)
+// Core Game Types (aligned with backend GraphQL schema)
 // ============================================
 
 export interface GameRoom {
   id: string;
-  uuid: string;
-  is_active: boolean;
-  drawer_user: string;
-  room_creator: string;
-  last_round_winner?: string;
+  name: string;
+  gameType: GameType;
+  status: GameStatus;
+  currentRound: number;
+  totalRounds: number;
+  roundTimeLimit: number;
   players: Player[];
-  current_word: string;
-  current_word_translations?: Record<string, string>;
-  round_number: number;
-  time_left: number;
-  game_status: GameStatus;
-  used_words: string[];
-  max_rounds: number;
-  winning_score: number;
-  game_type?: GameType;
-  created_at: string;
-  updated_at: string;
+  maxPlayers: number;
+  hostUsername: string;
+  usedQuizIds: string[];
+  isPrivate: boolean;
+  password?: string;
+  createdAt: string;
 }
 
-export type GameStatus = 'waiting' | 'playing' | 'finished';
-export type GameType = 'ox' | 'general' | 'guess';
+export type GameStatus = 'WAITING' | 'PLAYING' | 'FINISHED';
+export type GameType = 'OX' | 'QA' | 'WORDCHAIN' | 'DRAWING';
 
 // Quiz Types
 export interface GeneralQuiz {
@@ -35,7 +31,11 @@ export interface GeneralQuiz {
   options: string[];
   answer: number;
   explanation?: string;
-  image_url?: string;
+  imageUrl?: string;
+  usageCount?: number;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface OXQuiz {
@@ -45,18 +45,139 @@ export interface OXQuiz {
   question: string;
   answer: boolean;
   explanation?: string;
+  usageCount?: number;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Player {
   username: string;
+  displayName: string;
   score: number;
-  attempts: number;
+  isReady: boolean;
+}
+
+// User Types
+export interface User {
+  id: string;
+  nickname: string;
+  avatarUrl?: string;
+  level: number;
+  credit: number;
+  hanCoin: number;
+  guildId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateUserInput {
+  nickname: string;
+  avatarUrl?: string;
+}
+
+export interface UpdateUserInput {
+  avatarUrl?: string;
+  level?: number;
+  credit?: number;
+}
+
+// Game Room Input Types
+export interface CreateGameRoomInput {
+  name: string;
+  gameType: GameType;
+  maxPlayers: number;
+  totalRounds: number;
+  roundTimeLimit: number;
+  hostUsername: string;
+  isPrivate?: boolean;
+  password?: string;
+}
+
+export interface UpdateGameRoomInput {
+  name?: string;
+  maxPlayers?: number;
+  totalRounds?: number;
+  roundTimeLimit?: number;
+  isPrivate?: boolean;
+  password?: string;
+}
+
+// Invitation Types
+export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
+
+export interface Invitation {
+  id: string;
+  roomId: string;
+  room: GameRoom;
+  inviterId: string;
+  inviter: User;
+  inviteeId: string;
+  invitee: User;
+  status: InviteStatus;
+  createdAt: string;
+  expiresAt: string;
+}
+
+// Player Stats Types
+export interface PlayerStats {
+  username: string;
+  gameType: string;
+  totalGames: number;
+  totalWins: number;
+  totalScore: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Game Config Types
+export interface GameConfig {
+  maxPlayers: number;
+  roundDuration: number;
+  drawingTime: number;
+  guessingTime: number;
+  roundsPerGame: number;
+}
+
+// Wordchain Types
+export interface WordchainPrompt {
+  word: string;
+  hint?: string;
+}
+
+// Game Event Types
+export type GameEventType = 
+  | 'PLAYER_JOINED'
+  | 'PLAYER_LEFT'
+  | 'PLAYER_READY'
+  | 'HOST_CHANGED'
+  | 'ROUND_STARTED'
+  | 'ROUND_ENDED'
+  | 'ANSWER_SUBMITTED'
+  | 'CORRECT_ANSWER'
+  | 'WRONG_ANSWER'
+  | 'GAME_ENDED';
+
+export interface GameEvent {
+  type: GameEventType;
+  roomId: string;
+  username?: string;
+  displayName?: string;
+  data?: string;
+  timestamp: string;
+}
+
+export interface ErrorEvent {
+  code: string;
+  message: string;
+  timestamp: string;
 }
 
 export interface GameTopic {
   canonical: string;
   translations: Record<string, string>;
 }
+
 
 // ============================================
 // Drawing Types (aligned with backend)
@@ -89,26 +210,28 @@ export interface DrawingData {
 // ============================================
 
 export interface ChatMessage {
+  id: string;
+  roomId: string;
   username: string;
-  text: string;
-  type: 'chat' | 'system' | 'answer';
-  timestamp?: string;
+  displayName: string;
+  message: string;
+  timestamp: string;
 }
 
 export interface ChatMessageData {
-  room_id: string;
-  user_id: string;
+  roomId: string;
+  userId: string;
   username: string;
   message: string;
 }
 
 // ============================================
-// WebSocket Types (aligned with backend)
+// WebSocket Types (aligned with backend websocket_dto.go)
 // ============================================
 
 // Base WebSocket Messages
 export interface WebSocketRequest {
-  type: 'subscribe' | 'unsubscribe' | 'message' | 'chat' | 'drawing' | 'game_action';
+  type: 'subscribe' | 'unsubscribe' | 'message';
   channel: string;
   data?: any;
 }
@@ -119,59 +242,42 @@ export interface WebSocketResponse {
   data: any;
 }
 
-// Server Message Format (ws_message.go)
-export interface WSSuccessMessage {
-  type: string;
-  payload: any;
-}
-
-export interface WSErrorMessage {
-  type: 'ERROR';
-  code: string;
+// WebSocket Message Data Types from websocket_dto.go
+export interface WSChatMessageData {
+  room_id: string;
+  user_id: string;
+  username: string;
   message: string;
 }
 
-// Game Event Types
-export interface GameEventPayload {
-  eventType: 'player_joined' | 'player_left' | 'game_started' | 'round_started' | 'round_ended' | 'game_ended';
-  roomId: string;
-  data: any;
-}
-
-export interface ChatMessagePayload {
-  roomId: string;
-  playerId: string;
-  playerName: string;
-  message: string;
-}
-
-export interface DrawingEventPayload {
-  roomId: string;
-  playerId: string;
-  strokeId?: string;
-  points?: Point[];
-  color?: string;
-  lineWidth?: number;
-  action: 'start' | 'draw' | 'end' | 'clear' | 'undo';
-}
-
-// Legacy Game State Types (websocket_dto.go)
-export interface GameStateData {
+export interface WSGameStateData {
   room_id: string;
   current_round: number;
   drawer: string;
   time_left: number;
-  players: Player[];
+  players: Array<{
+    username: string;
+    score: number;
+    is_ready: boolean;
+  }>;
 }
 
-export interface TimerUpdateData {
+export interface WSDrawingData {
   room_id: string;
-  time_left: number;
-  round_number: number;
-  game_status: GameStatus;
+  action: 'draw' | 'clear' | 'undo';
+  points?: Array<{ x: number; y: number }>;
+  color?: string;
+  width?: number;
 }
 
-export interface CorrectAnswerData {
+export interface WSAnswerSubmitData {
+  room_id: string;
+  user_id: string;
+  username: string;
+  answer: string;
+}
+
+export interface WSCorrectAnswerData {
   room_id: string;
   user_id: string;
   username: string;
@@ -179,7 +285,7 @@ export interface CorrectAnswerData {
   score: number;
 }
 
-export interface RoundStartData {
+export interface WSRoundStartData {
   room_id: string;
   round: number;
   drawer: string;
@@ -188,62 +294,39 @@ export interface RoundStartData {
   time_limit: number;
 }
 
-export interface RoundEndData {
+export interface WSRoundEndData {
   room_id: string;
   round: number;
-  topic: string;
+  correct_answer: string;
   winners: string[];
-  scoreboard: Player[];
+  scoreboard: Array<{
+    username: string;
+    score: number;
+  }>;
 }
 
-export interface GameEndData {
+export interface WSGameEndData {
   room_id: string;
-  winner: Player;
-  final_score: Player[];
-}
-
-export interface PlayerJoinedData {
-  room_id: string;
-  user_id: string;
-  username: string;
-}
-
-export interface PlayerLeftData {
-  room_id: string;
-  user_id: string;
-  username: string;
-}
-
-export interface ErrorResponse {
-  type: 'error';
-  channel: string;
-  data: ErrorMessage;
-}
-
-export interface ErrorMessage {
-  code: string;
-  message: string;
+  winner: {
+    username: string;
+    score: number;
+  };
+  final_scores: Array<{
+    username: string;
+    score: number;
+  }>;
 }
 
 // ============================================
 // API Response Types
 // ============================================
 
-export interface ApiResult<T = any> {
-  status: boolean;
-  message: string;
-  result: T;
-}
-
-export interface CreateRoomResponse {
-  room_id: string;
-  current_word: string;
-  current_word_translations?: Record<string, string>;
-}
-
-export interface AnswerSubmitResponse {
-  is_correct: boolean;
-  message: string;
+export interface GraphQLResponse<T = any> {
+  data?: T;
+  errors?: Array<{
+    message: string;
+    extensions?: any;
+  }>;
 }
 
 // ============================================

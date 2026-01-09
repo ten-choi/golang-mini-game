@@ -20,7 +20,7 @@ const GameRoom: React.FC = () => {
   const [room, setRoom] = useState<GameRoomType | null>(null);
   const [isDrawer, setIsDrawer] = useState(false);
   const [message, setMessage] = useState('');
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<Array<{username: string, text: string, type: 'chat' | 'system' | 'answer'}>>([]);
   const [chatInput, setChatInput] = useState('');
   const [clearCanvasTrigger, setClearCanvasTrigger] = useState(0);
@@ -49,6 +49,8 @@ const GameRoom: React.FC = () => {
     wsService.connect(
       () => {
         console.log('[GameRoom] WebSocket connected');
+        // Identify client with username and roomId
+        wsService.identify(username, roomId);
       }, 
       (error) => console.error('[GameRoom] WebSocket connection error:', error)
     );
@@ -60,20 +62,32 @@ const GameRoom: React.FC = () => {
       console.log('[GameRoom] Received game message:', data);
       
       if (data.type === 'update' || data.type === 'room_update') {
+        // If we have the full room data, update it directly
+        if (data.data) {
+          console.log('[GameRoom] Updating room from WebSocket:', data.data);
+          setRoom(data.data);
+          
+          // Update isDrawer based on new room data
+          if (data.data.hostUsername) {
+            setIsDrawer(data.data.hostUsername === username);
+          }
+        } else {
+          // Fallback: reload room data from API
+          loadRoom();
+        }
+        
         // Update timer from WebSocket if available
         if (data.time_left !== undefined) {
           setTimeLeft(data.time_left);
         }
-        if (data.game_status !== undefined && data.game_status === 'finished') {
+        if (data.status !== undefined && data.status === 'FINISHED') {
           setMessage(t.gameRoom.gameFinished);
         }
-        // Always reload full room data
-        loadRoom();
       } else if (data.type === 'timer_update') {
         // Timer update from WebSocket
         if (data.data) {
           setTimeLeft(data.data.time_left);
-          if (data.data.game_status === 'finished') {
+          if (data.data.status === 'FINISHED') {
             setMessage(t.gameRoom.gameFinished);
             loadRoom();
           }
@@ -142,33 +156,77 @@ const GameRoom: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
+  // Update timeLeft when room is loaded or status changes
+  useEffect(() => {
+    if (room && room.status !== 'PLAYING') {
+      setTimeLeft(room.roundTimeLimit);
+    }
+  }, [room?.roundTimeLimit, room?.status]);
+
   useEffect(() => {
     // No longer need polling - timer updates come via WebSocket
     // Only load room initially and when game state changes
-  }, [room?.game_status]);
+  }, [room?.status]);
 
   const loadRoom = async () => {
     if (!roomId) return;
     try {
-      const rooms = await apiService.getGameRooms(roomId);
-      if (rooms.length > 0) {
-        const newRoom = rooms[0];
+      const newRoom = await apiService.getGameRoom(roomId);
+      if (!newRoom) {
+        console.error('[GameRoom] Room not found:', roomId);
+        alert('게임방을 찾을 수 없습니다.');
+        navigate('/room-list');
+        return;
+      }
         
-        // If it's a quiz game, redirect to QuizRoom
-        if (newRoom.game_type === 'ox' || newRoom.game_type === 'general') {
-          navigate(`/quiz-room/${roomId}`, { replace: true });
-          return;
+      // If it's a quiz game, redirect to QuizRoom
+      if (newRoom.gameType === 'OX' || newRoom.gameType === 'QA') {
+        navigate(`/quiz-room/${roomId}`, { replace: true });
+        return;
+      }
+
+      // If it's a wordchain game, redirect to WordchainRoom
+      if (newRoom.gameType === 'WORDCHAIN') {
+        navigate(`/wordchain-room/${roomId}`, { replace: true });
+        return;
+      }
+
+      // This component only handles DRAWING type
+      if (newRoom.gameType !== 'DRAWING') {
+        console.error('[GameRoom] Invalid game type for this component:', newRoom.gameType);
+        alert('잘못된 게임 타입입니다.');
+        navigate('/rooms');
+        return;
+      }
+      
+      // Check if round changed - clear canvas if so
+      if (prevRoundRef.current !== newRoom.currentRound) {
+        setClearCanvasTrigger(prev => prev + 1);
+        prevRoundRef.current = newRoom.currentRound;
+      }
+      
+      setRoom(newRoom);
+      // Set isDrawer based on hostUsername
+      setIsDrawer(newRoom.hostUsername === username);
+      
+      // Set initial timeLeft when room is loaded
+      setTimeLeft(newRoom.roundTimeLimit);
+      
+      // Auto-rejoin if not in players list (e.g., after refresh)
+      const isInRoom = newRoom.players.some(p => p.username === username);
+      if (!isInRoom) {
+        console.log('[GameRoom] Player not in room, auto-rejoining...');
+        try {
+          await apiService.joinGameRoom(roomId, username);
+          // Reload room to get updated player list
+          const updatedRoom = await apiService.getGameRoom(roomId);
+          if (updatedRoom) {
+            setRoom(updatedRoom);
+            setIsDrawer(updatedRoom.hostUsername === username);
+          }
+        } catch (joinError) {
+          console.error('[GameRoom] Failed to auto-rejoin:', joinError);
         }
-        
-        // Check if round changed - clear canvas if so
-        if (prevRoundRef.current !== newRoom.round_number) {
-          setClearCanvasTrigger(prev => prev + 1);
-          prevRoundRef.current = newRoom.round_number;
-        }
-        
-        setRoom(newRoom);
-        setIsDrawer(newRoom.drawer_user === username);
-        setTimeLeft(newRoom.time_left);
       }
     } catch (error) {
       console.error('Failed to load room:', error);
@@ -193,7 +251,7 @@ const GameRoom: React.FC = () => {
     wsService.sendChatMessage(roomId, username, username, chatInput);
 
     // If player (not drawer) and game is playing, check if it's correct answer
-    if (room?.drawer_user !== username && room?.game_status === 'playing') {
+    if (room?.hostUsername !== username && room?.status === 'PLAYING') {
       try {
         const response = await apiService.handleChatMessage(roomId, username, chatInput);
         
@@ -222,7 +280,15 @@ const GameRoom: React.FC = () => {
     setChatInput('');
   };
 
-  const handleLeaveRoom = () => {
+  const handleLeaveRoom = async () => {
+    if (!roomId) return;
+    
+    try {
+      await apiService.leaveGameRoom(roomId, username);
+    } catch (error) {
+      console.error('[GameRoom] Failed to leave room:', error);
+    }
+    
     navigate('/rooms');
   };
 
@@ -232,8 +298,6 @@ const GameRoom: React.FC = () => {
 
   const myPlayer = room.players.find((p: Player) => p.username === username);
   const sortedPlayers = [...room.players].sort((a, b) => b.score - a.score);
-
-  const localizedWord = room.current_word_translations?.[preferredLanguage] || room.current_word;
 
   return (
     <div style={styles.container}>
@@ -253,29 +317,28 @@ const GameRoom: React.FC = () => {
       <div style={styles.gameInfo}>
         <div style={styles.infoBox}>
           <span style={styles.infoLabel}>{t.gameRoom.round}</span>
-          <span style={styles.infoValue}>{room.round_number}/{room.max_rounds}</span>
+          <span style={styles.infoValue}>
+            {room.status === 'WAITING' ? `0/${room.totalRounds}` : `${room.currentRound}/${room.totalRounds}`}
+          </span>
         </div>
         <div style={styles.infoBox}>
           <span style={styles.infoLabel}>{t.gameRoom.timeLeft}</span>
-          <span style={styles.infoValue}>{timeLeft}{t.gameRoom.seconds}</span>
+          <span style={styles.infoValue}>{timeLeft ?? room.roundTimeLimit}{t.gameRoom.seconds}</span>
         </div>
         <div style={styles.infoBox}>
           <span style={styles.infoLabel}>{t.gameRoom.status}</span>
           <span style={styles.infoValue}>
-            {room.game_status === 'waiting' && t.gameRoom.statusValues.waiting}
-            {room.game_status === 'playing' && t.gameRoom.statusValues.playing}
-            {room.game_status === 'finished' && t.gameRoom.statusValues.finished}
+            {room.status === 'WAITING' && t.gameRoom.statusValues.waiting}
+            {room.status === 'PLAYING' && t.gameRoom.statusValues.playing}
+            {room.status === 'FINISHED' && t.gameRoom.statusValues.finished}
           </span>
         </div>
       </div>
 
-      {/* Current Word (Drawer only) */}
-      {isDrawer && room.game_status === 'playing' && (
+      {/* Current Word - Only for WORDCHAIN game (not yet implemented) */}
+      {isDrawer && room.status === 'PLAYING' && room.gameType === 'WORDCHAIN' && (
         <div style={styles.wordDisplay}>
-          {t.gameRoom.currentWord}: <strong>{localizedWord}</strong>
-          {localizedWord && localizedWord !== room.current_word && (
-            <span style={styles.wordHint}> ({room.current_word})</span>
-          )}
+          {t.gameRoom.currentWord}: <strong>{/* Word display to be implemented */}</strong>
         </div>
       )}
 
@@ -303,12 +366,12 @@ const GameRoom: React.FC = () => {
           
         <DrawingCanvas
           uuid={roomId}
-          allowDrawing={isDrawer && room.game_status === 'playing'}
+          allowDrawing={isDrawer && room.status === 'PLAYING'}
           selectedColor={selectedColor}
           username={username}
           clearTrigger={clearCanvasTrigger}
         />          {/* Start Button (Drawer only) */}
-          {isDrawer && room.game_status === 'waiting' && (
+          {isDrawer && room.status === 'WAITING' && (
             <button onClick={handleStartGame} style={styles.startButton}>
               {t.gameRoom.gameStart}
             </button>
@@ -331,10 +394,10 @@ const GameRoom: React.FC = () => {
                 <div style={styles.playerInfo}>
                   <div style={styles.playerName}>
                     {player.username}
-                    {player.username === room.drawer_user && ' 👑'}
+                    {player.username === room.hostUsername && ' 👑'}
                   </div>
                   <div style={styles.playerStats}>
-                    {t.gameRoom.score}: {player.score} | {t.gameRoom.attempts}: {player.attempts}/3
+                    {t.gameRoom.score}: {player.score}
                   </div>
                 </div>
               </div>
@@ -377,7 +440,7 @@ const GameRoom: React.FC = () => {
           </div>
 
           {/* Game Result */}
-          {room.game_status === 'finished' && (
+          {room.status === 'FINISHED' && (
             <div style={styles.resultSection}>
               <h3 style={styles.resultTitle}>🎊 {t.gameRoom.gameFinished}</h3>
               <div style={styles.winner}>

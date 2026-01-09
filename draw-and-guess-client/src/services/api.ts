@@ -2,34 +2,38 @@
  * API Service
  * 
  * This module provides a centralized API client for communicating with the backend.
- * All API calls are typed and include error handling.
- * Uses GraphQL for all game-related operations.
+ * All API calls use GraphQL for game-related operations.
  */
 
-import axios, { AxiosError } from 'axios';
-import { graphqlClient, CREATE_GAME_ROOM, GET_GAME_ROOMS, GET_GAME_ROOM, JOIN_GAME_ROOM, LEAVE_GAME_ROOM, START_GAME, DELETE_GAME_ROOM } from './graphql';
+import { graphqlClient, 
+  // Queries
+  GET_GAME_ROOMS, GET_GAME_ROOM, GET_USER, GET_USERS,
+  GET_RANDOM_OX_QUIZ, GET_RANDOM_QA_QUIZ, 
+  GET_PLAYER_STATS, GET_LEADERBOARD, GET_GAME_CONFIG,
+  GET_RANDOM_WORDCHAIN_PROMPT, VALIDATE_WORD,
+  // Mutations
+  CREATE_GAME_ROOM, UPDATE_GAME_ROOM, JOIN_GAME_ROOM, 
+  LEAVE_GAME_ROOM, DELETE_GAME_ROOM, START_GAME,
+  SUBMIT_ANSWER, READY_PLAYER, NEXT_ROUND, END_GAME,
+  CREATE_USER, UPDATE_USER, DELETE_USER,
+  SEND_CHAT, TRANSFER_HOST, SET_READY, START_ROUND,
+  SEND_INVITATION, RESPOND_INVITATION
+} from './graphql';
 import type { 
   GameRoom, 
-  ApiResult, 
-  CreateRoomResponse, 
-  AnswerSubmitResponse 
+  User,
+  Player,
+  CreateGameRoomInput,
+  UpdateGameRoomInput,
+  CreateUserInput,
+  UpdateUserInput,
+  GeneralQuiz,
+  OXQuiz,
+  PlayerStats,
+  GameConfig,
+  WordchainPrompt,
+  GraphQLResponse
 } from '../types';
-
-// ============================================
-// Configuration
-// ============================================
-
-import { env } from '../config/env';
-
-const API_BASE_URL = `${env.apiBaseUrl}/api/v1`;
-
-export const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/x-www-form-urlencoded',
-  },
-});
 
 // ============================================
 // Error Handling
@@ -44,107 +48,140 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = 'ApiError';
-    
-    // Ensure proper prototype chain for instanceof checks
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
 
-const handleApiError = (error: unknown, context?: string): never => {
+const handleGraphQLError = (error: any, context?: string): never => {
   const contextPrefix = context ? `[${context}] ` : '';
   
-  if (axios.isAxiosError(error)) {
-    const axiosError = error as AxiosError<{code?: string, message?: string, error?: string}>;
-    const statusCode = axiosError.response?.status;
-    const errorData = axiosError.response?.data;
-    const message = errorData?.message || errorData?.error || axiosError.message || 'Unknown API error';
-    const code = errorData?.code;
-    
-    console.error(`${contextPrefix}API Error:`, {
-      statusCode,
-      code,
-      message,
-      url: axiosError.config?.url,
-      method: axiosError.config?.method
-    });
-    
-    throw new ApiError(message, statusCode, code, error);
+  console.error(`${contextPrefix}GraphQL Error:`, error);
+  
+  if (error.response?.errors) {
+    const firstError = error.response.errors[0];
+    throw new ApiError(
+      firstError.message || 'GraphQL error',
+      error.response.status,
+      firstError.extensions?.code,
+      error
+    );
   }
   
-  console.error(`${contextPrefix}Unknown error:`, error);
-  throw new ApiError('Unknown error occurred', undefined, 'UNKNOWN_ERROR', error);
+  throw new ApiError(
+    error.message || 'Unknown GraphQL error',
+    undefined,
+    'UNKNOWN_ERROR',
+    error
+  );
 };
+
 
 // ============================================
 // API Service Methods
 // ============================================
 
 export const apiService = {
-  /**
-   * Get all game rooms or a specific room by UUID
-   * @param uuid - Optional room UUID
-   * @returns Array of game rooms
-   */
-  getGameRooms: async (uuid?: string): Promise<GameRoom[]> => {
+  // ===== User Methods =====
+  
+  async getUser(nickname: string): Promise<User | null> {
     try {
-      if (uuid) {
-        // Get single room
-        const data: any = await graphqlClient.request(GET_GAME_ROOM, { id: uuid });
-        console.log('[API] Get game room:', uuid);
-        return data.gameRoom ? [mapGraphQLRoomToGameRoom(data.gameRoom)] : [];
-      } else {
-        // Get all rooms
-        const data: any = await graphqlClient.request(GET_GAME_ROOMS);
-        console.log('[API] Get game rooms:', data.gameRooms?.length || 0, 'rooms');
-        return (data.gameRooms || []).map(mapGraphQLRoomToGameRoom);
-      }
-    } catch (error) {
-      return handleApiError(error, 'getGameRooms');
+      console.log('[API] Getting user:', nickname);
+      const data: any = await graphqlClient.request(GET_USER, { nickname });
+      console.log('[API] User found:', data.user);
+      return data.user;
+    } catch (error: any) {
+      // 사용자가 없는 경우 null 반환 (에러를 던지지 않음)
+      console.log('[API] User not found or error:', error?.message || error);
+      return null;
     }
   },
 
-  /**
-   * Create a new game room
-   * @param ldapUser - Username of the room creator
-   * @param gameType - Type of game (ox, general, guess)
-   * @returns Room creation result with room ID and word (for guess type)
-   */
-  createGameRoom: async (ldapUser: string, gameType: 'ox' | 'general' | 'guess' = 'guess'): Promise<CreateRoomResponse> => {
+  async getUsers(): Promise<User[]> {
     try {
-      if (!ldapUser || ldapUser.trim() === '') {
-        throw new ApiError('Username is required', 400, 'INVALID_INPUT');
+      const data: any = await graphqlClient.request(GET_USERS);
+      return data.users || [];
+    } catch (error) {
+      return handleGraphQLError(error, 'getUsers');
+    }
+  },
+
+  async createUser(input: CreateUserInput): Promise<User> {
+    try {
+      const data: any = await graphqlClient.request(CREATE_USER, { input });
+      console.log('[API] Created user:', data.createUser.nickname);
+      return data.createUser;
+    } catch (error) {
+      return handleGraphQLError(error, 'createUser');
+    }
+  },
+
+  async updateUser(nickname: string, input: UpdateUserInput): Promise<User> {
+    try {
+      const data: any = await graphqlClient.request(UPDATE_USER, { nickname, input });
+      console.log('[API] Updated user:', nickname);
+      return data.updateUser;
+    } catch (error) {
+      return handleGraphQLError(error, 'updateUser');
+    }
+  },
+
+  async deleteUser(nickname: string): Promise<boolean> {
+    try {
+      const data: any = await graphqlClient.request(DELETE_USER, { nickname });
+      console.log('[API] Deleted user:', nickname);
+      return data.deleteUser;
+    } catch (error) {
+      return handleGraphQLError(error, 'deleteUser');
+    }
+  },
+
+  // ===== Game Room Methods =====
+  
+  async getGameRooms(gameType?: 'OX' | 'QA' | 'WORDCHAIN'): Promise<GameRoom[]> {
+    try {
+      const data: any = await graphqlClient.request(GET_GAME_ROOMS, { gameType });
+      console.log('[API] Get game rooms:', data.gameRooms?.length || 0, 'rooms');
+      return data.gameRooms || [];
+    } catch (error) {
+      return handleGraphQLError(error, 'getGameRooms');
+    }
+  },
+
+  async getGameRoom(id: string): Promise<GameRoom | null> {
+    try {
+      const data: any = await graphqlClient.request(GET_GAME_ROOM, { id });
+      console.log('[API] Get game room:', id);
+      return data.gameRoom;
+    } catch (error) {
+      return handleGraphQLError(error, 'getGameRoom');
+    }
+  },
+
+  async createGameRoom(input: CreateGameRoomInput): Promise<GameRoom> {
+    try {
+      if (!input.hostUsername || input.hostUsername.trim() === '') {
+        throw new ApiError('Host username is required', 400, 'INVALID_INPUT');
       }
       
-      // Map game type to GraphQL GameType enum
-      const gqlGameType = gameType === 'ox' ? 'OX' : gameType === 'general' ? 'QA' : 'WORDCHAIN';
-      
-      const data: any = await graphqlClient.request(CREATE_GAME_ROOM, {
-        input: {
-          name: `${ldapUser}'s Game`,
-          gameType: gqlGameType,
-          maxPlayers: 8,
-          totalRounds: 3,
-          hostUsername: ldapUser
-        }
-      });
-      
+      const data: any = await graphqlClient.request(CREATE_GAME_ROOM, { input });
       console.log('[API] Created game room:', data.createGameRoom.id);
-      return {
-        room_id: data.createGameRoom.id,
-        current_word: '', // Will be set by game logic
-        current_word_translations: {}
-      };
+      return data.createGameRoom;
     } catch (error) {
-      return handleApiError(error, 'createGameRoom');
+      return handleGraphQLError(error, 'createGameRoom');
     }
   },
 
-  /**
-   * Join an existing game room
-   * @param roomId - Room UUID
-   * @param username - Username of the player joining
-   */
-  joinGameRoom: async (roomId: string, username: string): Promise<any> => {
+  async updateGameRoom(roomId: string, input: UpdateGameRoomInput): Promise<GameRoom> {
+    try {
+      const data: any = await graphqlClient.request(UPDATE_GAME_ROOM, { roomId, input });
+      console.log('[API] Updated game room:', roomId);
+      return data.updateGameRoom;
+    } catch (error) {
+      return handleGraphQLError(error, 'updateGameRoom');
+    }
+  },
+
+  async joinGameRoom(roomId: string, username: string, password?: string): Promise<GameRoom> {
     try {
       if (!roomId || !username || username.trim() === '') {
         throw new ApiError('Room ID and username are required', 400, 'INVALID_INPUT');
@@ -152,153 +189,18 @@ export const apiService = {
       
       const data: any = await graphqlClient.request(JOIN_GAME_ROOM, {
         roomId,
-        username
+        username,
+        password
       });
       
       console.log('[API] Joined game room:', roomId, 'as', username);
-      return { success: true, room: mapGraphQLRoomToGameRoom(data.joinGameRoom) };
+      return data.joinGameRoom;
     } catch (error) {
-      return handleApiError(error, 'joinGameRoom');
+      return handleGraphQLError(error, 'joinGameRoom');
     }
   },
 
-  /**
-   * Start the game (only host can call this)
-   * @param roomId - Room UUID
-   */
-  startGame: async (roomId: string): Promise<any> => {
-    try {
-      if (!roomId) {
-        throw new ApiError('Room ID is required', 400, 'INVALID_INPUT');
-      }
-      
-      const data: any = await graphqlClient.request(START_GAME, { roomId });
-      console.log('[API] Started game in room:', roomId);
-      return { success: true, room: data.startGame };
-    } catch (error) {
-      return handleApiError(error, 'startGame');
-    }
-  },
-
-  /**
-   * Submit an answer (deprecated - use handleChatMessage instead)
-   * @param roomId - Room UUID
-   * @param username - Username of the player
-   * @param answer - The answer to submit
-   */
-  submitAnswer: async (roomId: string, username: string, answer: string): Promise<any> => {
-    try {
-      const formData = new URLSearchParams();
-      formData.append('username', username);
-      formData.append('answer', answer);
-      const response = await api.post(`/game/room/${roomId}/answer`, formData);
-      return response.data;
-    } catch (error) {
-      return handleApiError(error, 'submitAnswer');
-    }
-  },
-
-  /**
-   * Send a chat message (also checks if it's a correct answer)
-   * @param roomId - Room UUID
-   * @param username - Username of the sender
-   * @param message - Message content
-   * @returns Result indicating if the message was a correct answer
-   */
-  handleChatMessage: async (
-    roomId: string, 
-    username: string, 
-    message: string
-  ): Promise<any> => {
-    try {
-      if (!roomId || !username || !message || message.trim() === '') {
-        throw new ApiError('All fields are required', 400, 'INVALID_INPUT');
-      }
-      
-      const response = await api.post(
-        `/game/room/${roomId}/chat`,
-        { username, message },
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-      console.log('[API] Chat message sent:', message, 'correct:', response.data?.result?.is_correct);
-      return response.data;
-    } catch (error) {
-      return handleApiError(error, 'handleChatMessage');
-    }
-  },
-
-  /**
-   * Advance to the next round (internal use)
-   * @param roomId - Room UUID
-   */
-  advanceRound: async (roomId: string): Promise<any> => {
-    try {
-      const formData = new URLSearchParams();
-      formData.append('action', 'advance_round');
-      const response = await api.patch(`/game/room/${roomId}`, formData);
-      console.log('[API] Advanced round in room:', roomId);
-      return response.data;
-    } catch (error) {
-      return handleApiError(error, 'advanceRound');
-    }
-  },
-
-  /**
-   * Update game room settings
-   * @param uuid - Room UUID
-   * @param data - Data to update
-   */
-  updateGameRoom: async (
-    uuid: string,
-    data: { 
-      user_count?: number; 
-      topic?: string; 
-      isCorrect?: boolean; 
-      is_active?: boolean;
-    }
-  ): Promise<any> => {
-    try {
-      if (!uuid) {
-        throw new ApiError('Room UUID is required', 400, 'INVALID_INPUT');
-      }
-      
-      const formData = new URLSearchParams();
-      if (data.user_count !== undefined) formData.append('user_count', data.user_count.toString());
-      if (data.topic) formData.append('topic', data.topic);
-      if (data.isCorrect !== undefined) formData.append('isCorrect', data.isCorrect.toString());
-      if (data.is_active !== undefined) formData.append('is_active', data.is_active.toString());
-      const response = await api.patch(`/game/room/${uuid}`, formData);
-      console.log('[API] Updated game room:', uuid);
-      return response.data;
-    } catch (error) {
-      return handleApiError(error, 'updateGameRoom');
-    }
-  },
-
-  /**
-   * Delete a game room
-   * @param uuid - Room UUID
-   */
-  deleteGameRoom: async (uuid: string): Promise<any> => {
-    try {
-      if (!uuid) {
-        throw new ApiError('Room UUID is required', 400, 'INVALID_INPUT');
-      }
-      
-      const response = await api.delete(`/game/room/${uuid}`);
-      console.log('[API] Deleted game room:', uuid);
-      return response.data;
-    } catch (error) {
-      return handleApiError(error, 'deleteGameRoom');
-    }
-  },
-
-  /**
-   * Leave a game room
-   * @param roomId - Room UUID
-   * @param username - Username of the player leaving
-   */
-  leaveGameRoom: async (roomId: string, username: string): Promise<any> => {
+  async leaveGameRoom(roomId: string, username: string): Promise<GameRoom> {
     try {
       if (!roomId || !username) {
         throw new ApiError('Room ID and username are required', 400, 'INVALID_INPUT');
@@ -310,42 +212,216 @@ export const apiService = {
       });
       
       console.log('[API] Left game room:', roomId, 'user:', username);
-      return { success: true, room: data.leaveGameRoom };
+      return data.leaveGameRoom;
     } catch (error) {
-      return handleApiError(error, 'leaveGameRoom');
+      return handleGraphQLError(error, 'leaveGameRoom');
+    }
+  },
+
+  async deleteGameRoom(roomId: string): Promise<boolean> {
+    try {
+      if (!roomId) {
+        throw new ApiError('Room ID is required', 400, 'INVALID_INPUT');
+      }
+      
+      const data: any = await graphqlClient.request(DELETE_GAME_ROOM, { roomId });
+      console.log('[API] Deleted game room:', roomId);
+      return data.deleteGameRoom;
+    } catch (error) {
+      return handleGraphQLError(error, 'deleteGameRoom');
+    }
+  },
+
+  async transferHost(roomId: string, newHostUsername: string): Promise<GameRoom> {
+    try {
+      const data: any = await graphqlClient.request(TRANSFER_HOST, { roomId, newHostUsername });
+      console.log('[API] Transferred host in room:', roomId, 'to', newHostUsername);
+      return data.transferHost;
+    } catch (error) {
+      return handleGraphQLError(error, 'transferHost');
+    }
+  },
+
+  async setReady(roomId: string, username: string, ready: boolean): Promise<boolean> {
+    try {
+      const data: any = await graphqlClient.request(SET_READY, { roomId, username, ready });
+      console.log('[API] Set ready:', username, ready);
+      return data.setReady;
+    } catch (error) {
+      return handleGraphQLError(error, 'setReady');
+    }
+  },
+
+  async readyPlayer(roomId: string, username: string): Promise<GameRoom> {
+    try {
+      const data: any = await graphqlClient.request(READY_PLAYER, { roomId, username });
+      console.log('[API] Ready player:', username);
+      return data.readyPlayer;
+    } catch (error) {
+      return handleGraphQLError(error, 'readyPlayer');
+    }
+  },
+
+  // ===== Game Flow Methods =====
+  
+  async startGame(roomId: string): Promise<GameRoom> {
+    try {
+      if (!roomId) {
+        throw new ApiError('Room ID is required', 400, 'INVALID_INPUT');
+      }
+      
+      const data: any = await graphqlClient.request(START_GAME, { roomId });
+      console.log('[API] Started game in room:', roomId);
+      return data.startGame;
+    } catch (error) {
+      return handleGraphQLError(error, 'startGame');
+    }
+  },
+
+  async startRound(roomId: string): Promise<GameRoom> {
+    try {
+      const data: any = await graphqlClient.request(START_ROUND, { roomId });
+      console.log('[API] Started round in room:', roomId);
+      return data.startRound;
+    } catch (error) {
+      return handleGraphQLError(error, 'startRound');
+    }
+  },
+
+  async submitAnswer(roomId: string, username: string, answer: string): Promise<{ isCorrect: boolean; score: number; message: string }> {
+    try {
+      const data: any = await graphqlClient.request(SUBMIT_ANSWER, { roomId, username, answer });
+      console.log('[API] Submitted answer:', answer, 'correct:', data.submitAnswer.isCorrect);
+      return data.submitAnswer;
+    } catch (error) {
+      return handleGraphQLError(error, 'submitAnswer');
+    }
+  },
+
+  async nextRound(roomId: string): Promise<GameRoom> {
+    try {
+      const data: any = await graphqlClient.request(NEXT_ROUND, { roomId });
+      console.log('[API] Next round in room:', roomId);
+      return data.nextRound;
+    } catch (error) {
+      return handleGraphQLError(error, 'nextRound');
+    }
+  },
+
+  async endGame(roomId: string): Promise<GameRoom> {
+    try {
+      const data: any = await graphqlClient.request(END_GAME, { roomId });
+      console.log('[API] Ended game in room:', roomId);
+      return data.endGame;
+    } catch (error) {
+      return handleGraphQLError(error, 'endGame');
+    }
+  },
+
+  // ===== Quiz Methods =====
+  
+  async getRandomOXQuiz(roomId?: string): Promise<OXQuiz | null> {
+    try {
+      const data: any = await graphqlClient.request(GET_RANDOM_OX_QUIZ, { roomId });
+      return data.randomOXQuiz;
+    } catch (error) {
+      return handleGraphQLError(error, 'getRandomOXQuiz');
+    }
+  },
+
+  async getRandomQAQuiz(roomId?: string): Promise<GeneralQuiz | null> {
+    try {
+      const data: any = await graphqlClient.request(GET_RANDOM_QA_QUIZ, { roomId });
+      return data.randomQAQuiz;
+    } catch (error) {
+      return handleGraphQLError(error, 'getRandomQAQuiz');
+    }
+  },
+
+  // ===== Player Stats Methods =====
+  
+  async getPlayerStats(username: string, gameType?: string): Promise<PlayerStats[]> {
+    try {
+      const data: any = await graphqlClient.request(GET_PLAYER_STATS, { username, gameType });
+      return data.playerStats || [];
+    } catch (error) {
+      return handleGraphQLError(error, 'getPlayerStats');
+    }
+  },
+
+  async getLeaderboard(gameType: string, limit?: number): Promise<PlayerStats[]> {
+    try {
+      const data: any = await graphqlClient.request(GET_LEADERBOARD, { gameType, limit });
+      return data.leaderboard || [];
+    } catch (error) {
+      return handleGraphQLError(error, 'getLeaderboard');
+    }
+  },
+
+  // ===== Game Config Methods =====
+  
+  async getGameConfig(): Promise<GameConfig> {
+    try {
+      const data: any = await graphqlClient.request(GET_GAME_CONFIG);
+      return data.gameConfig;
+    } catch (error) {
+      return handleGraphQLError(error, 'getGameConfig');
+    }
+  },
+
+  async getRandomWordchainPrompt(): Promise<WordchainPrompt> {
+    try {
+      const data: any = await graphqlClient.request(GET_RANDOM_WORDCHAIN_PROMPT);
+      return data.randomWordchainPrompt;
+    } catch (error) {
+      return handleGraphQLError(error, 'getRandomWordchainPrompt');
+    }
+  },
+
+  async validateWord(word: string): Promise<boolean> {
+    try {
+      const data: any = await graphqlClient.request(VALIDATE_WORD, { word });
+      return data.validateWord;
+    } catch (error) {
+      return handleGraphQLError(error, 'validateWord');
+    }
+  },
+
+  // ===== Chat Methods =====
+  
+  async sendChat(roomId: string, username: string, message: string): Promise<any> {
+    try {
+      if (!roomId || !username || !message || message.trim() === '') {
+        throw new ApiError('All fields are required', 400, 'INVALID_INPUT');
+      }
+      
+      const data: any = await graphqlClient.request(SEND_CHAT, { roomId, username, message });
+      console.log('[API] Chat message sent:', message);
+      return data.sendChat;
+    } catch (error) {
+      return handleGraphQLError(error, 'sendChat');
+    }
+  },
+
+  // ===== Invitation Methods =====
+  
+  async sendInvitation(roomId: string, inviterId: string, inviteeId: string): Promise<any> {
+    try {
+      const data: any = await graphqlClient.request(SEND_INVITATION, { roomId, inviterId, inviteeId });
+      console.log('[API] Sent invitation to:', inviteeId);
+      return data.sendInvitation;
+    } catch (error) {
+      return handleGraphQLError(error, 'sendInvitation');
+    }
+  },
+
+  async respondInvitation(invitationId: string, accept: boolean): Promise<any> {
+    try {
+      const data: any = await graphqlClient.request(RESPOND_INVITATION, { invitationId, accept });
+      console.log('[API] Responded to invitation:', accept);
+      return data.respondInvitation;
+    } catch (error) {
+      return handleGraphQLError(error, 'respondInvitation');
     }
   },
 };
-
-// ============================================
-// Helper Functions
-// ============================================
-
-/**
- * Map GraphQL GameRoom to client GameRoom type
- */
-function mapGraphQLRoomToGameRoom(gqlRoom: any): GameRoom {
-  return {
-    id: gqlRoom.id,
-    uuid: gqlRoom.id,
-    is_active: gqlRoom.status === 'PLAYING',
-    drawer_user: gqlRoom.hostUsername,
-    room_creator: gqlRoom.hostUsername,
-    players: gqlRoom.players?.map((p: any) => ({
-      username: p.username,
-      score: p.score,
-      attempts: 0
-    })) || [],
-    current_word: '',
-    current_word_translations: {},
-    round_number: gqlRoom.currentRound || 1,
-    time_left: 60,
-    game_status: gqlRoom.status?.toLowerCase() || 'waiting',
-    used_words: [],
-    max_rounds: gqlRoom.totalRounds || 3,
-    winning_score: 100,
-    game_type: gqlRoom.gameType?.toLowerCase() === 'ox' ? 'ox' : gqlRoom.gameType?.toLowerCase() === 'qa' ? 'general' : 'guess',
-    created_at: gqlRoom.createdAt,
-    updated_at: gqlRoom.createdAt
-  };
-}

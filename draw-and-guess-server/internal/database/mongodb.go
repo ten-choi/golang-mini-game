@@ -8,6 +8,7 @@ import (
 
 	"draw-and-guess-server/internal/config"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -64,8 +65,8 @@ func InitSchema() error {
 	usersCollection := DB.Collection("users")
 	_, err := usersCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
-			Keys:    map[string]interface{}{"username": 1},
-			Options: options.Index().SetUnique(true),
+			Keys:    map[string]interface{}{"nickname": 1},
+			Options: options.Index().SetUnique(true).SetSparse(true),
 		},
 		{
 			Keys: map[string]interface{}{"created_at": -1},
@@ -131,18 +132,76 @@ func InitSchema() error {
 	playerStatsCollection := DB.Collection("player_stats")
 	_, err = playerStatsCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
-			Keys:    map[string]interface{}{"username": 1},
+			Keys:    map[string]interface{}{"user_id": 1},
 			Options: options.Index().SetUnique(true),
 		},
 		{
 			Keys: map[string]interface{}{"total_score": -1},
 		},
-		{
-			Keys: map[string]interface{}{"total_wins": -1},
-		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create player_stats indexes: %w", err)
+	}
+
+	// Shop items collection indexes
+	shopItemsCollection := DB.Collection("shop_items")
+	_, err = shopItemsCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys: map[string]interface{}{"item_type": 1},
+		},
+		{
+			Keys: map[string]interface{}{"is_available": 1},
+		},
+		{
+			Keys: map[string]interface{}{"is_featured": 1},
+		},
+		{
+			Keys: map[string]interface{}{"price": 1},
+		},
+		{
+			Keys: map[string]interface{}{"tags": 1},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create shop_items indexes: %w", err)
+	}
+
+	// User inventory collection indexes
+	userInventoryCollection := DB.Collection("user_inventory")
+	_, err = userInventoryCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys:    bson.D{{"user_id", 1}, {"item_id", 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			Keys: bson.D{{"user_id", 1}, {"item_type", 1}},
+		},
+		{
+			Keys: bson.D{{"user_id", 1}, {"is_equipped", 1}},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create user_inventory indexes: %w", err)
+	}
+
+	// Transactions collection indexes
+	transactionsCollection := DB.Collection("transactions")
+	_, err = transactionsCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys: bson.D{{"user_id", 1}, {"created_at", -1}},
+		},
+		{
+			Keys: bson.D{{"user_id", 1}, {"type", 1}},
+		},
+		{
+			Keys: bson.D{{"user_id", 1}, {"status", 1}},
+		},
+		{
+			Keys: bson.D{{"created_at", -1}},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create transactions indexes: %w", err)
 	}
 
 	log.Println("MongoDB indexes created successfully")

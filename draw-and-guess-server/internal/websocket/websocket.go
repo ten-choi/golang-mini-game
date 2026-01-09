@@ -2,8 +2,10 @@ package websocket
 
 import (
 	"context"
+	"draw-and-guess-server/internal/graph"
 	"draw-and-guess-server/internal/valkey"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -24,6 +26,7 @@ var (
 type Client struct {
 	conn          *websocket.Conn // WebSocket 연결
 	roomID        string          // 클라이언트가 속한 방 ID
+	username      string          // 클라이언트의 사용자명
 	subscriptions map[string]bool // 구독 중인 채널 목록
 	mu            sync.Mutex      // 구조체 필드 동시성 제어
 }
@@ -95,6 +98,23 @@ func HandleLobbyWebSocket(c *gin.Context) {
 
 	// 자동으로 로비 채널 구독
 	handleSubscribe(client, "lobby")
+
+	// 로비 채팅 히스토리 전송
+	ctx := context.Background()
+	chatHistory, err := valkey.GetLobbyChatHistory(ctx, 1000)
+	if err != nil {
+		log.Printf("Failed to get lobby chat history: %v", err)
+	} else if len(chatHistory) > 0 {
+		// 채팅 히스토리를 클라이언트에게 전송
+		historyPayload := map[string]interface{}{
+			"type":     "LOBBY_CHAT_HISTORY",
+			"messages": chatHistory,
+		}
+		if data, err := json.Marshal(historyPayload); err == nil {
+			client.conn.WriteMessage(websocket.TextMessage, data)
+			log.Printf("Sent %d chat history messages to client", len(chatHistory))
+		}
+	}
 
 	// 고루틴으로 로비 메시지 처리 시작
 	go handleLobbyMessages(client)
@@ -181,6 +201,8 @@ func handleRoomMessages(client *Client, roomID string) {
 			handleDrawingMessage(roomID, wsMsg.Data)
 		case "game_action":
 			handleGameAction(roomID, wsMsg.Data)
+		case "wordchain_submit":
+			handleWordchainSubmit(roomID, wsMsg.Data)
 		default:
 			log.Printf("Unknown room message type: %s", wsMsg.Type)
 		}
@@ -207,10 +229,94 @@ func handleGameAction(roomID string, data interface{}) {
 	handlePublish(channel, actionPayload)
 }
 
+// handleWordchainSubmit은 끝말잇기 단어 제출을 처리
+func handleWordchainSubmit(roomID string, data interface{}) {
+	wordData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid wordchain submit data format")
+		return
+	}
+
+	username, _ := wordData["username"].(string)
+	word, _ := wordData["word"].(string)
+	lastWord, _ := wordData["lastWord"].(string)
+
+	if username == "" || word == "" {
+		log.Printf("Missing required fields for wordchain submit")
+		return
+	}
+
+	// Validate wordchain rules
+	correct := true
+	reason := ""
+	isDuplicate := false
+
+	// Check for duplicate words first
+	if graph.IsWordchainDuplicate(roomID, word) {
+		correct = false
+		reason = "이미 사용된 단어입니다. 다른 단어를 입력해주세요."
+		isDuplicate = true
+		log.Printf("[Wordchain] Duplicate word: %s by %s", word, username)
+	} else if lastWord == "" {
+		// First word case (no lastWord) - accept any valid word
+		correct = true
+	} else {
+		// Check if first character of new word matches last character of lastWord
+		if len(lastWord) > 0 && len(word) > 0 {
+			lastChar := []rune(lastWord)[len([]rune(lastWord))-1]
+			firstChar := []rune(word)[0]
+
+			if lastChar != firstChar {
+				correct = false
+				reason = fmt.Sprintf("'%s'의 마지막 글자 '%c'와 시작이 일치하지 않습니다", lastWord, lastChar)
+			}
+		}
+
+		// Check if word ends with ん (invalid in wordchain)
+		if correct && len(word) > 0 {
+			lastChar := []rune(word)[len([]rune(word))-1]
+			if lastChar == 'ん' {
+				correct = false
+				reason = "ん으로 끝나는 단어는 사용할 수 없습니다"
+			}
+		}
+	}
+
+	log.Printf("Wordchain validation: username=%s, word=%s, correct=%v, duplicate=%v", username, word, correct, isDuplicate)
+
+	// Check if it's this user's turn
+	isCorrectTurn := graph.CheckWordchainTurn(roomID, username)
+	if !isCorrectTurn {
+		correct = false
+		reason = "당신의 차례가 아닙니다"
+		log.Printf("[Wordchain] Not %s's turn in room %s", username, roomID)
+	}
+
+	// Publish result to all players via graph package
+	graph.PublishWordchainResult(roomID, username, word, correct, reason)
+
+	// If correct, update last word, give points, and move to next player
+	if correct && isCorrectTurn {
+		graph.UpdateWordchainState(roomID, word, username)
+		graph.MoveToNextTurn(roomID)
+	} else if isCorrectTurn && !isDuplicate {
+		// If wrong answer (but not duplicate) and correct turn, end round
+		log.Printf("[Wordchain] Wrong answer from %s: %s. Ending round.", username, reason)
+		graph.EndWordchainRound(roomID, fmt.Sprintf("%s님이 오답: %s", username, reason))
+	}
+	// If duplicate, don't move turn - let same player try again
+}
+
 // handleLobbyMessages는 로비 클라이언트로부터 메시지를 계속 수신하고 처리
 func handleLobbyMessages(client *Client) {
 	// 함수 종료 시 클라이언트 정리
 	defer func() {
+		// 연결 해제 시 자동으로 방에서 플레이어 제거
+		if client.roomID != "" && client.roomID != "lobby" && client.username != "" {
+			log.Printf("Auto-removing player %s from room %s due to WebSocket disconnect", client.username, client.roomID)
+			removePlayerFromRoom(client.roomID, client.username)
+		}
+
 		mutex.Lock()
 		delete(clients, client.conn)
 		mutex.Unlock()
@@ -242,10 +348,24 @@ func handleLobbyMessages(client *Client) {
 			continue
 		}
 
-		// 로비 채팅 메시지 처리
-		if wsMsg.Type == "lobby_chat" {
+		// 메시지 타입에 따라 처리
+		switch wsMsg.Type {
+		case "subscribe":
+			if wsMsg.Channel != "" {
+				handleSubscribe(client, wsMsg.Channel)
+			}
+		case "unsubscribe":
+			if wsMsg.Channel != "" {
+				handleUnsubscribe(client, wsMsg.Channel)
+			}
+		case "lobby_chat":
 			handleLobbyChatMessage(client, wsMsg.Data)
-		} else {
+		case "identify":
+			handleIdentify(client, wsMsg.Data)
+		case "message":
+			// Handle game messages sent through lobby WebSocket
+			handleGameMessage(client, wsMsg)
+		default:
 			log.Printf("Unknown lobby message type: %s", wsMsg.Type)
 		}
 	}
@@ -272,10 +392,10 @@ func handleLobbyChatMessage(client *Client, data interface{}) {
 	log.Printf("Lobby chat from %s: %s", playerName, message)
 
 	// Valkey에 채팅 메시지 저장
-	// TODO: Implement chat message persistence with GraphQL mutation
-	// if err := SaveLobbyChatMessage(playerID, playerName, message); err != nil {
-	// 	log.Printf("Failed to save lobby chat message: %v", err)
-	// }
+	ctx := context.Background()
+	if err := valkey.SaveLobbyChatMessage(ctx, playerID, playerName, message); err != nil {
+		log.Printf("Failed to save lobby chat message: %v", err)
+	}
 
 	// 로비 채널에 메시지 발행
 	chatPayload := map[string]interface{}{
@@ -288,6 +408,43 @@ func handleLobbyChatMessage(client *Client, data interface{}) {
 	}
 
 	handlePublish("lobby", chatPayload)
+}
+
+// handleGameMessage handles game-related messages sent through lobby WebSocket
+func handleGameMessage(client *Client, wsMsg WSMessage) {
+	// Extract the actual game message from wsMsg.Data
+	dataMap, ok := wsMsg.Data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid game message data format")
+		return
+	}
+
+	gameType, _ := dataMap["type"].(string)
+	gameData := dataMap["data"]
+
+	log.Printf("Handling game message: type=%s, roomID=%s", gameType, client.roomID)
+
+	// Route to appropriate handler based on game message type
+	switch gameType {
+	case "wordchain_submit":
+		if client.roomID != "" {
+			handleWordchainSubmit(client.roomID, gameData)
+		} else {
+			log.Printf("Cannot handle wordchain_submit: client has no roomID")
+		}
+	case "chat":
+		handleChatMessage(client, gameData)
+	case "drawing":
+		if client.roomID != "" {
+			handleDrawingMessage(client.roomID, gameData)
+		}
+	case "game_action":
+		if client.roomID != "" {
+			handleGameAction(client.roomID, gameData)
+		}
+	default:
+		log.Printf("Unknown game message type: %s", gameType)
+	}
 }
 
 // handleMessages는 클라이언트로부터 메시지를 계속 수신하고 처리
@@ -337,6 +494,8 @@ func handleMessages(client *Client) {
 			handlePublish(wsMsg.Channel, wsMsg.Data)
 		case "chat": // 채팅 메시지 요청
 			handleChatMessage(client, wsMsg.Data)
+		case "identify": // 클라이언트 식별 요청
+			handleIdentify(client, wsMsg.Data)
 		default:
 			log.Printf("Unknown message type: %s", wsMsg.Type)
 		}
@@ -496,4 +655,31 @@ func splitChannel(channel string) []string {
 		parts = append(parts, current)
 	}
 	return parts
+}
+
+// handleIdentify는 클라이언트의 식별 정보를 처리
+func handleIdentify(client *Client, data interface{}) {
+	identifyData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid identify data format")
+		return
+	}
+
+	username, _ := identifyData["username"].(string)
+	roomID, _ := identifyData["roomId"].(string)
+
+	if username != "" {
+		client.mu.Lock()
+		client.username = username
+		if roomID != "" && roomID != "lobby" {
+			client.roomID = roomID
+		}
+		client.mu.Unlock()
+		log.Printf("Client identified: username=%s, roomId=%s", username, roomID)
+	}
+}
+
+// removePlayerFromRoom는 방에서 플레이어를 제거
+func removePlayerFromRoom(roomID, username string) {
+	graph.RemovePlayerFromRoom(roomID, username)
 }

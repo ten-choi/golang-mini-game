@@ -6,19 +6,19 @@ import (
 
 	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/models"
-	"draw-and-guess-server/pkg/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // UserRepository defines the interface for user data access
 type UserRepository interface {
-	GetByUsername(ctx context.Context, username string) (*models.User, error)
+	GetByNickname(ctx context.Context, nickname string) (*models.User, error)
 	GetAll(ctx context.Context) ([]*models.User, error)
 	Create(ctx context.Context, user *models.User) (*models.User, error)
-	Update(ctx context.Context, username string, displayName, email, avatarURL *string) (*models.User, error)
+	Update(ctx context.Context, nickname string, avatarURL *string, level, credit, hanCoin *int) (*models.User, error) // hanCoin은 외부 재화 (nil 전달)
 }
 
 type userRepository struct {
@@ -30,9 +30,9 @@ func NewUserRepository(collection *mongo.Collection) UserRepository {
 	return &userRepository{collection: collection}
 }
 
-func (r *userRepository) GetByUsername(ctx context.Context, username string) (*models.User, error) {
+func (r *userRepository) GetByNickname(ctx context.Context, nickname string) (*models.User, error) {
 	var user models.User
-	err := r.collection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
+	err := r.collection.FindOne(ctx, bson.M{"nickname": nickname}).Decode(&user)
 
 	if err == mongo.ErrNoDocuments {
 		return nil, common.NewNotFoundError("user not found")
@@ -61,15 +61,17 @@ func (r *userRepository) GetAll(ctx context.Context) ([]*models.User, error) {
 }
 
 func (r *userRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
-	// Generate Snowflake ID
-	user.ID = utils.GenerateID()
+	// Generate MongoDB ObjectID
+	if user.ID.IsZero() {
+		user.ID = primitive.NewObjectID()
+	}
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 
 	_, err := r.collection.InsertOne(ctx, user)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			return nil, common.NewInternalError("username already exists", err)
+			return nil, common.NewInternalError("nickname already exists", err)
 		}
 		return nil, common.NewInternalError("failed to create user", err)
 	}
@@ -77,7 +79,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) (*models
 	return user, nil
 }
 
-func (r *userRepository) Update(ctx context.Context, username string, displayName, email, avatarURL *string) (*models.User, error) {
+func (r *userRepository) Update(ctx context.Context, nickname string, avatarURL *string, level, credit, hanCoin *int) (*models.User, error) {
 	update := bson.M{
 		"$set": bson.M{
 			"updated_at": time.Now(),
@@ -85,21 +87,24 @@ func (r *userRepository) Update(ctx context.Context, username string, displayNam
 	}
 
 	setFields := update["$set"].(bson.M)
-	if displayName != nil {
-		setFields["display_name"] = *displayName
-	}
-	if email != nil {
-		setFields["email"] = *email
-	}
 	if avatarURL != nil {
 		setFields["avatar_url"] = *avatarURL
+	}
+	if level != nil {
+		setFields["level"] = *level
+	}
+	if credit != nil {
+		setFields["credit"] = *credit
+	}
+	if hanCoin != nil {
+		setFields["han_coin"] = *hanCoin
 	}
 
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 	var user models.User
 	err := r.collection.FindOneAndUpdate(
 		ctx,
-		bson.M{"username": username},
+		bson.M{"nickname": nickname},
 		update,
 		opts,
 	).Decode(&user)

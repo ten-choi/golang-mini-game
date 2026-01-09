@@ -1,76 +1,111 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLanguage } from '../i18n/LanguageContext';
+import { apiService } from '../services/api';
 
 const Home: React.FC = () => {
   const [username, setUsername] = useState('');
-  const { language, setLanguage, t } = useLanguage();
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const languageOptions = [
-    { code: 'ko', label: '한국어' },
-    { code: 'en', label: 'English' },
-    { code: 'ja', label: '日本語' },
-  ];
+  const handleLogin = async () => {
+    if (!username.trim()) {
+      alert('닉네임을 입력해주세요');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      console.log('[Home] === 로그인 시작 ===');
+      console.log('[Home] 입력된 닉네임:', username.trim());
+      
+      const user = await apiService.getUser(username.trim());
+      console.log('[Home] getUser 결과:', user);
+      
+      if (!user) {
+        console.log('[Home] ❌ 사용자를 찾을 수 없습니다.');
+        alert('존재하지 않는 닉네임입니다. 회원가입을 해주세요.');
+        return;
+      }
+      
+      console.log('[Home] ✅ 기존 사용자 로그인:', user);
+      sessionStorage.setItem('username', username.trim());
+      navigate('/rooms');
+    } catch (error: any) {
+      console.error('[Home] ❌ 로그인 에러:', error);
+      alert(`로그인 실패: ${error?.message || '알 수 없는 오류'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignup = async () => {
+    if (!username.trim()) {
+      alert('닉네임을 입력해주세요');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      console.log('[Home] === 회원가입 시작 ===');
+      console.log('[Home] 입력된 닉네임:', username.trim());
+      
+      // 먼저 중복 확인
+      const existingUser = await apiService.getUser(username.trim());
+      if (existingUser) {
+        console.log('[Home] ❌ 이미 존재하는 닉네임');
+        alert('이미 사용 중인 닉네임입니다. 다른 닉네임을 사용해주세요.');
+        return;
+      }
+      
+      // 새 사용자 생성
+      const newUser = await apiService.createUser({
+        nickname: username.trim(),
+      });
+      console.log('[Home] ✅ 회원가입 완료:', newUser);
+      
+      alert(`환영합니다, ${newUser.nickname}님!`);
+      sessionStorage.setItem('username', username.trim());
+      navigate('/rooms');
+    } catch (error: any) {
+      console.error('[Home] ❌ 회원가입 에러:', error);
+      alert(`회원가입 실패: ${error?.message || '알 수 없는 오류'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div style={styles.container}>
       <div style={styles.content}>
-        <h1 style={styles.title}>🎨 {t.home.title}</h1>
+        <h1 style={styles.title}>🎨 그림 맞추기 게임</h1>
         
-        <p style={styles.subtitle}>{t.home.subtitle}</p>
-
-        <div style={styles.rulesBox}>
-          <h3 style={styles.rulesTitle}>{t.home.rulesTitle}</h3>
-          <ul style={styles.rulesList}>
-            {t.home.rules.map((rule, index) => (
-              <li key={index}>{rule}</li>
-            ))}
-          </ul>
-        </div>
-
         <div style={styles.inputGroup}>
           <input
             type="text"
-            placeholder={t.home.usernamePlaceholder}
+            placeholder="닉네임 입력"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
             style={styles.input}
+            autoFocus
           />
-        </div>
-
-        <div style={styles.languageGroup}>
-          <span style={styles.languageLabel}>{t.home.selectLanguage}</span>
-          <div style={styles.languageButtons}>
-            {languageOptions.map((option) => (
-              <button
-                key={option.code}
-                type="button"
-                onClick={() => setLanguage(option.code)}
-                style={{
-                  ...styles.languageButton,
-                  ...(language === option.code ? styles.languageButtonActive : {}),
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div style={styles.buttonGroup}>
           <button
-            onClick={() => {
-              if (!username.trim()) {
-                alert(t.home.enterUsername);
-                return;
-              }
-              sessionStorage.setItem('username', username.trim());
-              navigate('/game-mode');
-            }}
-            style={styles.button}
+            onClick={handleLogin}
+            style={{...styles.button, ...styles.loginButton}}
+            disabled={loading}
           >
-            🎯 게임 시작
+            {loading ? '로딩 중...' : '🔑 로그인'}
+          </button>
+          
+          <button
+            onClick={handleSignup}
+            style={{...styles.button, ...styles.signupButton}}
+            disabled={loading}
+          >
+            {loading ? '로딩 중...' : '✨ 회원가입'}
           </button>
         </div>
       </div>
@@ -89,105 +124,50 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   content: {
     background: 'white',
-    padding: 'clamp(20px, 5vw, 40px)',
+    padding: '40px',
     borderRadius: '12px',
     boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-    maxWidth: '500px',
+    maxWidth: '400p3',
     width: '100%',
   },
   title: {
     textAlign: 'center',
-    marginBottom: '15px',
+    marginBottom: '30px',
     color: '#333',
-    fontSize: 'clamp(20px, 5vw, 28px)',
-  },
-  subtitle: {
-    textAlign: 'center',
-    marginBottom: '20px',
-    color: '#666',
-    fontSize: 'clamp(14px, 3vw, 16px)',
-  },
-  rulesBox: {
-    background: '#f7fafc',
-    padding: 'clamp(12px, 3vw, 20px)',
-    borderRadius: '8px',
-    marginBottom: '20px',
-    border: '2px solid #e2e8f0',
-  },
-  rulesTitle: {
-    margin: '0 0 10px 0',
-    color: '#667eea',
-    fontSize: 'clamp(14px, 3.5vw, 18px)',
-  },
-  rulesList: {
-    margin: '0',
-    paddingLeft: '20px',
-    color: '#555',
-    fontSize: 'clamp(12px, 2.5vw, 14px)',
-    lineHeight: '1.8',
+    fontSize: '28px',
   },
   inputGroup: {
-    marginBottom: '15px',
-  },
-  languageGroup: {
-    marginBottom: '20px',
-  },
-  languageLabel: {
-    display: 'block',
-    marginBottom: '8px',
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#2d3748',
-  },
-  languageButtons: {
+    margGroup: {
     display: 'flex',
-    gap: '8px',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
+    gap: '12px',
   },
-  languageButton: {
-    flex: '1 1 30%',
-    minWidth: '90px',
-    padding: '10px',
-    borderRadius: '999px',
-    border: '2px solid #cbd5f5',
-    background: '#fff',
-    color: '#4c51bf',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'background 0.2s, color 0.2s, border 0.2s',
-  },
-  languageButtonActive: {
-    background: '#667eea',
-    color: '#fff',
-    borderColor: '#667eea',
+  buttoninBottom: '20px',
   },
   input: {
     width: '100%',
-    padding: 'clamp(10px, 2vw, 12px)',
-    fontSize: 'clamp(14px, 3vw, 16px)',
+    padding: '12px',
+    fontSize: '16px',
     border: '2px solid #ddd',
     borderRadius: '8px',
     boxSizing: 'border-box',
   },
-  buttonGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-  },
   button: {
-    padding: 'clamp(10px, 2.5vw, 14px)',
-    fontSize: 'clamp(14px, 3.5vw, 18px)',
+    padding: '14px',
+    fontSize: '18px',
     fontWeight: 'bold',
     color: 'white',
-    background: '#667eea',
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer',
     transition: 'background 0.3s',
     width: '100%',
   },
-  secondaryButton: {
-    background: '#48bb78',
+  loginButton: {
+    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  },
+  signupButton: {
+    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
   },
 };
 

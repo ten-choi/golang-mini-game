@@ -7,6 +7,7 @@ import CreateRoom from './pages/CreateRoom';
 import RoomList from './pages/RoomList';
 import GameRoom from './pages/GameRoom';
 import QuizRoom from './pages/QuizRoom';
+import WordchainRoom from './pages/WordchainRoom';
 import QuizGame from './pages/QuizGame';
 import './App.css';
 
@@ -26,6 +27,7 @@ const App: React.FC = () => {
           <Route path="/rooms" element={<RoomList />} />
           <Route path="/game/:roomId" element={<GameRoom />} />
           <Route path="/quiz-room/:roomId" element={<QuizRoom />} />
+          <Route path="/wordchain-room/:roomId" element={<WordchainRoom />} />
           <Route path="/game/:roomId/guess" element={<GameRoom />} />
           <Route path="/quiz/:type" element={<QuizGame />} />
         </Routes>

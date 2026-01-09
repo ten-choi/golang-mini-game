@@ -2,6 +2,7 @@ package valkey
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -60,4 +61,67 @@ func SubscribeChannel(ctx context.Context, channels ...string) *redis.PubSub {
 		return nil
 	}
 	return Client.Subscribe(ctx, channels...)
+}
+
+// SaveLobbyChatMessage saves a lobby chat message to Valkey list (max 1000 messages)
+func SaveLobbyChatMessage(ctx context.Context, playerID, playerName, message string) error {
+	if Client == nil {
+		return fmt.Errorf("valkey client is not initialized")
+	}
+
+	// Create chat message JSON
+	chatMsg := map[string]interface{}{
+		"playerId":   playerID,
+		"playerName": playerName,
+		"message":    message,
+		"timestamp":  time.Now().Unix(),
+	}
+
+	// Convert to JSON string
+	msgBytes, err := json.Marshal(chatMsg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal chat message: %w", err)
+	}
+
+	// Add to list (LPUSH adds to the head)
+	if err := Client.LPush(ctx, "lobby:chat:messages", msgBytes).Err(); err != nil {
+		return fmt.Errorf("failed to save chat message: %w", err)
+	}
+
+	// Keep only the latest 1000 messages
+	if err := Client.LTrim(ctx, "lobby:chat:messages", 0, 999).Err(); err != nil {
+		return fmt.Errorf("failed to trim chat messages: %w", err)
+	}
+
+	return nil
+}
+
+// GetLobbyChatHistory retrieves the last N lobby chat messages
+func GetLobbyChatHistory(ctx context.Context, count int64) ([]map[string]interface{}, error) {
+	if Client == nil {
+		return nil, fmt.Errorf("valkey client is not initialized")
+	}
+
+	if count > 1000 {
+		count = 1000
+	}
+
+	// Get messages from list (LRANGE 0 count-1)
+	msgs, err := Client.LRange(ctx, "lobby:chat:messages", 0, count-1).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chat history: %w", err)
+	}
+
+	// Parse JSON messages
+	var chatHistory []map[string]interface{}
+	for i := len(msgs) - 1; i >= 0; i-- { // Reverse to show oldest first
+		var msg map[string]interface{}
+		if err := json.Unmarshal([]byte(msgs[i]), &msg); err != nil {
+			log.Printf("Failed to unmarshal chat message: %v", err)
+			continue
+		}
+		chatHistory = append(chatHistory, msg)
+	}
+
+	return chatHistory, nil
 }

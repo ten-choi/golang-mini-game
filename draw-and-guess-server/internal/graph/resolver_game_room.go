@@ -3,7 +3,11 @@ package graph
 import (
 	"context"
 	"draw-and-guess-server/internal/graph/model"
+	"draw-and-guess-server/internal/valkey"
+	"draw-and-guess-server/pkg/dictionary"
+	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,20 +28,31 @@ func (r *mutationResolver) CreateGameRoom(ctx context.Context, input model.Creat
 		isPrivate = *input.IsPrivate
 	}
 
+	// Set roundTimeLimit based on input, default to 30 seconds
+	roundTimeLimit := int32(30)
+	if input.RoundTimeLimit != nil {
+		// Validate roundTimeLimit (5-300 seconds)
+		if *input.RoundTimeLimit < 5 || *input.RoundTimeLimit > 300 {
+			return nil, fmt.Errorf("round time limit must be between 5 and 300 seconds")
+		}
+		roundTimeLimit = *input.RoundTimeLimit
+	}
+
 	room := &model.GameRoom{
-		ID:           roomID,
-		Name:         input.Name,
-		GameType:     input.GameType,
-		Status:       model.GameStatusWaiting,
-		CurrentRound: 0,
-		TotalRounds:  int32(input.TotalRounds),
-		Players:      []*model.Player{},
-		MaxPlayers:   int32(input.MaxPlayers),
-		HostUsername: input.HostUsername,
-		UsedQuizIds:  []string{}, // Initialize empty quiz history
-		IsPrivate:    isPrivate,
-		Password:     input.Password, // Set password if provided
-		CreatedAt:    now,
+		ID:             roomID,
+		Name:           input.Name,
+		GameType:       input.GameType,
+		Status:         model.GameStatusWaiting,
+		CurrentRound:   0,
+		TotalRounds:    int32(input.TotalRounds),
+		RoundTimeLimit: roundTimeLimit,
+		Players:        []*model.Player{},
+		MaxPlayers:     int32(input.MaxPlayers),
+		HostUsername:   input.HostUsername,
+		UsedQuizIds:    []string{}, // Initialize empty quiz history
+		IsPrivate:      isPrivate,
+		Password:       input.Password, // Set password if provided
+		CreatedAt:      now,
 	}
 
 	// Add host as first player
@@ -82,6 +97,11 @@ func (r *mutationResolver) JoinGameRoom(ctx context.Context, roomID string, user
 		}
 	}
 
+	// Check if room is full
+	if int32(len(room.Players)) >= room.MaxPlayers {
+		return nil, fmt.Errorf("room is full (max %d players)", room.MaxPlayers)
+	}
+
 	// Add player
 	newPlayer := &model.Player{
 		Username:    username,
@@ -96,6 +116,9 @@ func (r *mutationResolver) JoinGameRoom(ctx context.Context, roomID string, user
 		GetPubSub().PublishRoomUpdate(room)
 		GetPubSub().PublishPlayerJoined(roomID, newPlayer)
 		publishLobbyUpdate()
+
+		// Also publish to WebSocket via Valkey
+		publishRoomUpdateToWebSocket(roomID, room)
 	}()
 
 	return room, nil
@@ -136,6 +159,9 @@ func (r *mutationResolver) LeaveGameRoom(ctx context.Context, roomID string, use
 			GetPubSub().PublishRoomUpdate(room)
 			GetPubSub().PublishPlayerLeft(roomID, leavingPlayer)
 			publishLobbyUpdate()
+
+			// Also publish to WebSocket via Valkey
+			publishRoomUpdateToWebSocket(roomID, room)
 		}()
 	}
 
@@ -145,22 +171,38 @@ func (r *mutationResolver) LeaveGameRoom(ctx context.Context, roomID string, use
 // StartGame is the resolver for the startGame field.
 func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model.GameRoom, error) {
 	roomMutex.Lock()
-	defer roomMutex.Unlock()
-
 	room, exists := gameRooms[roomID]
 	if !exists {
+		roomMutex.Unlock()
 		return nil, fmt.Errorf("room not found")
 	}
 
 	room.Status = model.GameStatusPlaying
 	room.CurrentRound = 1
+	roomMutex.Unlock()
 
 	// Publish events
 	go func() {
 		GetPubSub().PublishRoomUpdate(room)
 		GetPubSub().PublishGameStarted(room)
 		publishLobbyUpdate()
+
+		// Also publish to WebSocket via Valkey
+		publishRoomUpdateToWebSocket(roomID, room)
 	}()
+
+	// Start game management based on game type
+	log.Printf("[StartGame] Room %s game type: %s", roomID, room.GameType)
+	if room.GameType == model.GameTypeWordchain {
+		log.Printf("[StartGame] Starting wordchain game for room %s", roomID)
+		go startWordchainGame(roomID)
+	} else if room.GameType == model.GameTypeOx || room.GameType == model.GameTypeQa {
+		log.Printf("[StartGame] Starting quiz game for room %s (type: %s)", roomID, room.GameType)
+		// Use background context for goroutine
+		go startQuizGame(context.Background(), roomID, room.GameType, r.QuizService)
+	} else {
+		log.Printf("[StartGame] Unknown game type: %s", room.GameType)
+	}
 
 	return room, nil
 }
@@ -254,6 +296,38 @@ func (r *subscriptionResolver) PlayerJoined(ctx context.Context, roomID string) 
 	return ch, nil
 }
 
+// startWordchainGame manages wordchain game flow
+func startWordchainGame(roomID string) {
+	roomMutex.Lock()
+	room, exists := gameRooms[roomID]
+	if !exists {
+		roomMutex.Unlock()
+		return
+	}
+
+	// Generate initial word and set first turn to host (first player)
+	dict := dictionary.GetInstance()
+	initialWord := dict.GetRandomWord()
+
+	room.WordchainLastWord = initialWord
+	if len(room.Players) > 0 {
+		room.CurrentTurnUsername = room.Players[0].Username
+	}
+
+	// Initialize used words array with initial word
+	room.WordchainUsedWords = []string{initialWord}
+	roomMutex.Unlock()
+
+	// Broadcast initial word prompt (nil for prompt since we're just showing lastWord)
+	publishWordchainPromptToWebSocket(roomID, nil, initialWord)
+
+	// Publish room update to show changes
+	publishRoomUpdateToWebSocket(roomID, room)
+
+	// Start turn timer for first player
+	StartWordchainTurnTimer(roomID)
+}
+
 // PlayerLeft is the resolver for the playerLeft field.
 func (r *subscriptionResolver) PlayerLeft(ctx context.Context, roomID string) (<-chan *model.Player, error) {
 	subscriberID := uuid.New().String()
@@ -301,6 +375,13 @@ func (r *mutationResolver) UpdateGameRoom(ctx context.Context, roomID string, in
 	}
 	if input.TotalRounds != nil {
 		room.TotalRounds = *input.TotalRounds
+	}
+	if input.RoundTimeLimit != nil {
+		// Validate roundTimeLimit (5-300 seconds)
+		if *input.RoundTimeLimit < 5 || *input.RoundTimeLimit > 300 {
+			return nil, fmt.Errorf("round time limit must be between 5 and 300 seconds")
+		}
+		room.RoundTimeLimit = *input.RoundTimeLimit
 	}
 	if input.IsPrivate != nil {
 		room.IsPrivate = *input.IsPrivate
@@ -608,4 +689,82 @@ func (r *subscriptionResolver) Error(ctx context.Context, roomID string) (<-chan
 	}()
 
 	return ch, nil
+}
+
+// ========================================
+// WebSocket Helper Functions
+// ========================================
+
+// StartWordchainTurnTimer starts a timer for the current turn in wordchain game
+func StartWordchainTurnTimer(roomID string) {
+	go func() {
+		roomMutex.Lock()
+		room, exists := gameRooms[roomID]
+		if !exists || room.Status != model.GameStatusPlaying {
+			roomMutex.Unlock()
+			return
+		}
+
+		timeLimit := int(room.RoundTimeLimit)
+		now := time.Now()
+		room.WordchainTurnStartTime = &now
+		gameRooms[roomID] = room
+		roomMutex.Unlock()
+
+		log.Printf("[Wordchain] Turn timer started for %s: %d seconds", room.CurrentTurnUsername, timeLimit)
+
+		// Countdown timer
+		for i := timeLimit; i >= 0; i-- {
+			roomMutex.Lock()
+			room, exists := gameRooms[roomID]
+			if !exists || room.Status != model.GameStatusPlaying {
+				roomMutex.Unlock()
+				return
+			}
+
+			// Check if turn has changed (player answered correctly)
+			if room.WordchainTurnStartTime == nil || !room.WordchainTurnStartTime.Equal(now) {
+				roomMutex.Unlock()
+				log.Printf("[Wordchain] Turn changed, stopping timer")
+				return
+			}
+			roomMutex.Unlock()
+
+			// Broadcast time remaining
+			publishTimerToWebSocket(roomID, i)
+
+			if i > 0 {
+				time.Sleep(1 * time.Second)
+			}
+		}
+
+		// Time's up - end round
+		log.Printf("[Wordchain] Time's up for %s, ending round", room.CurrentTurnUsername)
+		EndWordchainRound(roomID, fmt.Sprintf("%s님 시간 초과", room.CurrentTurnUsername))
+	}()
+}
+
+// publishRoomUpdateToWebSocket publishes room update to WebSocket clients via Valkey
+func publishRoomUpdateToWebSocket(roomID string, room *model.GameRoom) {
+	channel := "game/" + roomID
+
+	// Create the message payload
+	payload := map[string]interface{}{
+		"type": "room_update",
+		"data": room,
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal room update: %v", err)
+		return
+	}
+
+	// Publish to Valkey
+	if err := valkey.PublishMessage(context.Background(), channel, string(jsonData)); err != nil {
+		log.Printf("Failed to publish room update to WebSocket: %v", err)
+	} else {
+		log.Printf("Published room update to WebSocket channel: %s", channel)
+	}
 }

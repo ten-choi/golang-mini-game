@@ -1,0 +1,6 @@
+2026/01/14 11:33:14 Loaded configuration from .env file
+2026/01/14 11:33:14 Config loaded - ServerPort: 8080, ValkeyAddr: 10.33.255.58:30379, MongoDB: mongodb://admin:password@10.33.255.58:30017/draw_and_guess_db
+2026/01/14 11:33:14 Snowflake ID generator initialized with node ID: 1
+2026/01/14 11:33:14 ✓ Connected to Valkey
+2026/01/14 11:33:15 Successfully connected to MongoDB!
+2026/01/14 11:33:15 MongoDB indexes created successfully

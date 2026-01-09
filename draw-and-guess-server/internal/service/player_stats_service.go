@@ -8,9 +8,9 @@ import (
 
 // PlayerStatsService defines the interface for player stats business logic
 type PlayerStatsService interface {
-	GetPlayerStats(ctx context.Context, username string, gameType *string) ([]*models.PlayerStats, error)
+	GetPlayerStats(ctx context.Context, userID string) (*models.PlayerStats, error)
 	GetLeaderboard(ctx context.Context, gameType string, limit int) ([]*models.PlayerStats, error)
-	RecordGameResult(ctx context.Context, username, gameType string, won bool, score int) error
+	UpsertStats(ctx context.Context, stats *models.PlayerStats) error
 }
 
 type playerStatsService struct {
@@ -22,8 +22,8 @@ func NewPlayerStatsService(repo repository.PlayerStatsRepository) PlayerStatsSer
 	return &playerStatsService{repo: repo}
 }
 
-func (s *playerStatsService) GetPlayerStats(ctx context.Context, username string, gameType *string) ([]*models.PlayerStats, error) {
-	return s.repo.GetByUsername(ctx, username, gameType)
+func (s *playerStatsService) GetPlayerStats(ctx context.Context, userID string) (*models.PlayerStats, error) {
+	return s.repo.GetByUserID(ctx, userID)
 }
 
 func (s *playerStatsService) GetLeaderboard(ctx context.Context, gameType string, limit int) ([]*models.PlayerStats, error) {
@@ -36,19 +36,6 @@ func (s *playerStatsService) GetLeaderboard(ctx context.Context, gameType string
 	return s.repo.GetLeaderboard(ctx, gameType, limit)
 }
 
-func (s *playerStatsService) RecordGameResult(ctx context.Context, username, gameType string, won bool, score int) error {
-	wins := 0
-	if won {
-		wins = 1
-	}
-
-	stats := &models.PlayerStats{
-		Username:   username,
-		GameType:   gameType,
-		TotalGames: 1,
-		TotalWins:  wins,
-		TotalScore: score,
-	}
-
+func (s *playerStatsService) UpsertStats(ctx context.Context, stats *models.PlayerStats) error {
 	return s.repo.UpsertStats(ctx, stats)
 }

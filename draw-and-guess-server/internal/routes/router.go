@@ -8,8 +8,10 @@ import (
 	"draw-and-guess-server/internal/repository"
 	"draw-and-guess-server/internal/service"
 	"draw-and-guess-server/internal/websocket"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
 )
@@ -74,9 +76,18 @@ func setupGraphQLRoutes(api *gin.RouterGroup) {
 
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 
-	// GraphQL endpoint
-	api.POST("/graphql", gin.WrapH(srv))
+	// Add transports for GraphQL
+	srv.AddTransport(transport.POST{})    // POST requests for mutations/queries
+	srv.AddTransport(transport.GET{})     // GET requests for queries
+	srv.AddTransport(transport.Websocket{ // WebSocket for subscriptions
+		KeepAlivePingInterval: 10 * time.Second,
+	})
 
-	// Apollo Sandbox (GET) - Development environment
-	api.GET("/graphql", gin.WrapH(playground.ApolloSandboxHandler("Apollo Sandbox", "/graphql")))
+	// GraphQL endpoint - handles all HTTP methods and WebSocket upgrades
+	api.POST("/graphql", gin.WrapH(srv))
+	api.GET("/graphql", gin.WrapH(srv)) // WebSocket upgrades happen on GET
+
+	// Playground UIs
+	api.GET("/playground", gin.WrapH(playground.Handler("GraphQL Playground", "/graphql")))
+	api.GET("/sandbox", gin.WrapH(playground.ApolloSandboxHandler("Apollo Sandbox", "/graphql")))
 }

@@ -14,7 +14,7 @@ const QuizRoom: React.FC = () => {
   const [currentQuiz, setCurrentQuiz] = useState<OXQuiz | GeneralQuiz | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answered, setAnswered] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(10);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [chatMessages, setChatMessages] = useState<Array<{username: string, text: string, type: 'chat' | 'system'}>>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -23,15 +23,45 @@ const QuizRoom: React.FC = () => {
     if (!roomId) return;
     
     wsService.connect(
-      () => {}, 
-      (error) => console.error('WebSocket connection error:', error)
+      () => {
+        console.log('[QuizRoom] WebSocket connected');
+        // Identify client with username and roomId
+        wsService.identify(username, roomId);
+      }, 
+      (error) => console.error('[QuizRoom] WebSocket connection error:', error)
     );
     
     loadRoom();
 
-    const handleUpdate = () => {
-      loadRoom();
-    };
+    // Subscribe to game channel for room updates
+    const gameSubscription = wsService.subscribe(`game/${roomId}`, (data) => {
+      console.log('[QuizRoom] Received game message:', data);
+      console.log('[QuizRoom] Message type:', data.type);
+      console.log('[QuizRoom] Message data:', data.data);
+      
+      if (data.type === 'update' || data.type === 'room_update') {
+        // If we have the full room data, update it directly
+        if (data.data) {
+          console.log('[QuizRoom] Updating room from WebSocket. Players count:', data.data.players?.length);
+          setRoom(data.data);
+        } else {
+          // Fallback: reload room data from API
+          console.log('[QuizRoom] No data in message, reloading from API');
+          loadRoom();
+        }
+      }
+      
+      // Handle quiz message
+      if (data.type === 'quiz') {
+        console.log('[QuizRoom] ========== QUIZ RECEIVED FROM SUBSCRIPTION ==========');
+        handleQuiz(data);
+      }
+      
+      // Handle timer message
+      if (data.type === 'timer') {
+        handleTimer(data);
+      }
+    });
 
     const handleChat = (data: any) => {
       setChatMessages(prev => [...prev, {
@@ -42,39 +72,69 @@ const QuizRoom: React.FC = () => {
     };
 
     const handleQuiz = (data: any) => {
-      setCurrentQuiz(data.quiz);
+      console.log('[QuizRoom] ========== QUIZ RECEIVED ==========');
+      console.log('[QuizRoom] Raw data:', JSON.stringify(data, null, 2));
+      // Server sends quiz data in 'data' field
+      const quizData = data.data || data;
+      console.log('[QuizRoom] Extracted quiz data:', JSON.stringify(quizData, null, 2));
+      console.log('[QuizRoom] Quiz type:', quizData.type);
+      console.log('[QuizRoom] Quiz question:', quizData.question);
+      console.log('[QuizRoom] Quiz options:', quizData.options);
+      console.log('[QuizRoom] Quiz options type:', typeof quizData.options);
+      console.log('[QuizRoom] Quiz options is array:', Array.isArray(quizData.options));
+      if (quizData.options) {
+        console.log('[QuizRoom] Options length:', quizData.options.length);
+        console.log('[QuizRoom] Options content:', quizData.options);
+      }
+      console.log('[QuizRoom] =====================================');
+      setCurrentQuiz(quizData);
       setSelectedAnswer(null);
       setAnswered(false);
-      setTimeLeft(10);
+      // Don't set timeLeft here - wait for timer message from server
     };
 
-    wsService.addMessageHandler('update', handleUpdate);
+    const handleTimer = (data: any) => {
+      console.log('[QuizRoom] Received timer update:', data);
+      // Server sends { data: { timeLeft: X } }
+      const timeValue = data.data?.timeLeft !== undefined ? data.data.timeLeft : data.timeLeft;
+      console.log('[QuizRoom] Time left:', timeValue);
+      setTimeLeft(timeValue);
+      
+      // When timer reaches 0, reset answer state but keep quiz visible
+      if (timeValue === 0) {
+        console.log('[QuizRoom] Timer reached 0, waiting for next quiz...');
+        setSelectedAnswer(null);
+        setAnswered(false);
+      }
+    };
+
     wsService.addMessageHandler('chat', handleChat);
     wsService.addMessageHandler('quiz', handleQuiz);
-    wsService.addMessageHandler('game', handleUpdate);
+    wsService.addMessageHandler('timer', handleTimer);
 
     return () => {
-      wsService.removeMessageHandler('update', handleUpdate);
+      if (gameSubscription) gameSubscription.unsubscribe();
       wsService.removeMessageHandler('chat', handleChat);
       wsService.removeMessageHandler('quiz', handleQuiz);
-      wsService.removeMessageHandler('game', handleUpdate);
+      wsService.removeMessageHandler('timer', handleTimer);
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [roomId]);
 
-  useEffect(() => {
-    if (room?.game_status === 'playing' && timeLeft > 0) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft(prev => Math.max(0, prev - 1));
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+  // Remove client-side timer - now managed by server
+  // useEffect(() => {
+  //   if (room?.status === 'PLAYING' && timeLeft > 0) {
+  //     timerRef.current = setInterval(() => {
+  //       setTimeLeft(prev => Math.max(0, prev - 1));
+  //     }, 1000);
+  //   } else if (timerRef.current) {
+  //     clearInterval(timerRef.current);
+  //   }
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [room?.game_status, timeLeft]);
+  //   return () => {
+  //     if (timerRef.current) clearInterval(timerRef.current);
+  //   };
+  // }, [room?.status, timeLeft]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -83,9 +143,31 @@ const QuizRoom: React.FC = () => {
   const loadRoom = async () => {
     try {
       if (!roomId) return;
-      const rooms = await apiService.getGameRooms(roomId);
-      if (rooms.length > 0) {
-        setRoom(rooms[0]);
+      const gameRoom = await apiService.getGameRoom(roomId);
+      if (gameRoom) {
+        setRoom(gameRoom);
+        // Set initial timeLeft when room is loaded
+        setTimeLeft(gameRoom.roundTimeLimit);
+        
+        // Auto-rejoin if not in players list (e.g., after refresh)
+        const isInRoom = gameRoom.players.some(p => p.username === username);
+        if (!isInRoom) {
+          console.log('[QuizRoom] Player not in room, auto-rejoining...');
+          try {
+            await apiService.joinGameRoom(roomId, username);
+            // Reload room to get updated player list
+            const updatedRoom = await apiService.getGameRoom(roomId);
+            if (updatedRoom) {
+              setRoom(updatedRoom);
+            }
+          } catch (joinError) {
+            console.error('[QuizRoom] Failed to auto-rejoin:', joinError);
+          }
+        }
+      } else {
+        console.error('[QuizRoom] Room not found:', roomId);
+        alert('게임방을 찾을 수 없습니다.');
+        navigate('/room-list');
       }
     } catch (error) {
       console.error('Failed to load room:', error);
@@ -93,7 +175,7 @@ const QuizRoom: React.FC = () => {
   };
 
   const handleStartGame = async () => {
-    if (!roomId || room?.drawer_user !== username) return;
+    if (!roomId || room?.hostUsername !== username) return;
     try {
       await apiService.startGame(roomId);
       loadRoom();
@@ -104,26 +186,38 @@ const QuizRoom: React.FC = () => {
 
   const handleAnswerSelect = (answerIndex: number) => {
     if (answered || !roomId || !currentQuiz) return;
-    
     setSelectedAnswer(answerIndex);
+  };
+
+  const handleSubmitAnswer = () => {
+    if (answered || selectedAnswer === null || !roomId || !currentQuiz) return;
+    
     setAnswered(true);
 
     // Send answer to WebSocket
     wsService.sendMessage(roomId, 'answer', {
       username: username,
-      answer: answerIndex,
+      answer: selectedAnswer,
       quiz_id: (currentQuiz as any)._id
     });
 
     // Add system message
     setChatMessages(prev => [...prev, {
       username: t.gameRoom.system,
-      text: `${username}님이 답을 선택했습니다.`,
+      text: `${username}님이 답을 제출했습니다.`,
       type: 'system'
     }]);
   };
 
-  const handleLeaveRoom = () => {
+  const handleLeaveRoom = async () => {
+    if (!roomId) return;
+    
+    try {
+      await apiService.leaveGameRoom(roomId, username);
+    } catch (error) {
+      console.error('[QuizRoom] Failed to leave room:', error);
+    }
+    
     navigate('/rooms');
   };
 
@@ -131,9 +225,9 @@ const QuizRoom: React.FC = () => {
     return <div style={styles.loading}>{t.gameRoom.loading}</div>;
   }
 
-  const isHost = room.drawer_user === username;
+  const isHost = room.hostUsername === username;
   const sortedPlayers = [...room.players].sort((a, b) => b.score - a.score);
-  const isOXQuiz = room.game_type === 'ox';
+  const isOXQuiz = room.gameType === 'OX';
 
   return (
     <div style={styles.container}>
@@ -141,7 +235,7 @@ const QuizRoom: React.FC = () => {
       <div style={styles.header}>
         <div>
           <h2 style={styles.title}>
-            {isOXQuiz ? '⭕❌ OX 퀴즈' : '📚 일반 상식 퀴즈'}
+            {isOXQuiz ? '⭕❌ OX 퀴즈' : '📚 4지선다 상식퀴즈'}
           </h2>
           <p style={styles.subtitle}>
             {isHost ? '👑 호스트' : '👤 플레이어'} - {username}
@@ -156,11 +250,13 @@ const QuizRoom: React.FC = () => {
       <div style={styles.gameInfo}>
         <div style={styles.infoBox}>
           <span style={styles.infoLabel}>{t.gameRoom.round}</span>
-          <span style={styles.infoValue}>{room.round_number}/{room.max_rounds}</span>
+          <span style={styles.infoValue}>
+            {room.status === 'WAITING' ? `0/${room.totalRounds}` : `${room.currentRound}/${room.totalRounds}`}
+          </span>
         </div>
         <div style={styles.infoBox}>
           <span style={styles.infoLabel}>{t.gameRoom.timeLeft}</span>
-          <span style={styles.infoValue}>{timeLeft}{t.gameRoom.seconds}</span>
+          <span style={styles.infoValue}>{timeLeft ?? room.roundTimeLimit}{t.gameRoom.seconds}</span>
         </div>
         <div style={styles.infoBox}>
           <span style={styles.infoLabel}>👥 플레이어</span>
@@ -171,7 +267,7 @@ const QuizRoom: React.FC = () => {
       <div style={styles.mainContent}>
         {/* Left: Quiz Area */}
         <div style={styles.leftPanel}>
-          {room.game_status === 'waiting' ? (
+          {room.status === 'WAITING' ? (
             <div style={styles.waitingArea}>
               <h3 style={styles.waitingTitle}>대기 중...</h3>
               <p style={styles.waitingText}>호스트가 게임을 시작할 때까지 기다려주세요</p>
@@ -185,7 +281,7 @@ const QuizRoom: React.FC = () => {
                 </button>
               )}
             </div>
-          ) : room.game_status === 'finished' ? (
+          ) : room.status === 'FINISHED' ? (
             <div style={styles.finishedArea}>
               <h3 style={styles.finishedTitle}>🏆 게임 종료!</h3>
               <div style={styles.finalRanking}>
@@ -239,22 +335,40 @@ const QuizRoom: React.FC = () => {
                 </div>
               ) : (
                 <div style={styles.generalAnswers}>
-                  {(currentQuiz as GeneralQuiz).options?.map((option, index) => (
-                    <button
-                      key={index}
-                      style={{
-                        ...styles.generalButton,
-                        ...(selectedAnswer === index ? styles.selectedGeneral : {}),
-                        ...(answered ? styles.disabledButton : {})
-                      }}
-                      onClick={() => handleAnswerSelect(index)}
-                      disabled={answered}
-                    >
-                      <span style={styles.optionNumber}>{index + 1}</span>
-                      <span style={styles.optionText}>{option}</span>
-                    </button>
-                  ))}
+                  {currentQuiz && (currentQuiz as any).options && Array.isArray((currentQuiz as any).options) ? (
+                    (currentQuiz as any).options.map((option: string, index: number) => (
+                      <button
+                        key={index}
+                        style={{
+                          ...styles.generalButton,
+                          ...(selectedAnswer === index ? styles.selectedGeneral : {}),
+                          ...(answered ? styles.disabledButton : {})
+                        }}
+                        onClick={() => handleAnswerSelect(index)}
+                        disabled={answered}
+                      >
+                        <span style={styles.optionNumber}>{index + 1}</span>
+                        <span style={styles.optionText}>{option}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div style={styles.noOptions}>
+                      <p>선택지를 불러오는 중...</p>
+                      <p style={{fontSize: '12px', color: '#999'}}>
+                        {JSON.stringify(currentQuiz)}
+                      </p>
+                    </div>
+                  )}
                 </div>
+              )}
+
+              {!answered && selectedAnswer !== null && (
+                <button
+                  style={styles.submitButton}
+                  onClick={handleSubmitAnswer}
+                >
+                  정답 제출하기
+                </button>
               )}
 
               {answered && (
@@ -280,7 +394,7 @@ const QuizRoom: React.FC = () => {
                 <div key={player.username} style={styles.playerCard}>
                   <div style={styles.playerInfo}>
                     <span style={styles.playerName}>
-                      {player.username === room.drawer_user && '👑 '}
+                      {player.username === room.hostUsername && '👑 '}
                       {player.username}
                     </span>
                   </div>
@@ -583,6 +697,18 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   optionText: {
     flex: 1,
+  },
+  submitButton: {
+    marginTop: '20px',
+    padding: '15px',
+    background: '#667eea',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '18px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.3s',
   },
   answeredMessage: {
     padding: '15px',

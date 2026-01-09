@@ -15,13 +15,10 @@ import (
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error) {
 	// GraphQL input -> Service DTO
 	dto := service.CreateUserDTO{
-		Username:    input.Username,
-		DisplayName: input.DisplayName,
-		Email:       "",
-		AvatarURL:   "",
-	}
-	if input.Email != nil {
-		dto.Email = *input.Email
+		Nickname:  input.Nickname,
+		AvatarURL: "",
+		Level:     0,
+		Credit:    0,
 	}
 	if input.AvatarURL != nil {
 		dto.AvatarURL = *input.AvatarURL
@@ -34,39 +31,48 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 
 	// Domain model -> GraphQL model
 	return &model.User{
-		ID:          fmt.Sprintf("%d", created.ID),
-		Username:    created.Username,
-		DisplayName: created.DisplayName,
-		Email:       &created.Email,
-		AvatarURL:   &created.AvatarURL,
-		CreatedAt:   created.CreatedAt,
-		UpdatedAt:   created.UpdatedAt,
+		ID:        created.ID.Hex(),
+		Nickname:  created.Nickname,
+		AvatarURL: &created.AvatarURL,
+		Level:     int32(created.Level),
+		Credit:    int32(created.Credit),
+		HanCoin:   int32(created.HanCoin),
+		CreatedAt: created.CreatedAt,
+		UpdatedAt: created.UpdatedAt,
 	}, nil
 }
 
 // UpdateUser is the resolver for the updateUser field.
-func (r *mutationResolver) UpdateUser(ctx context.Context, username string, input model.UpdateUserInput) (*model.User, error) {
+func (r *mutationResolver) UpdateUser(ctx context.Context, nickname string, input model.UpdateUserInput) (*model.User, error) {
 	// GraphQL input -> Service DTO
 	dto := service.UpdateUserDTO{
-		DisplayName: input.DisplayName,
-		Email:       input.Email,
-		AvatarURL:   input.AvatarURL,
+		AvatarURL: input.AvatarURL,
 	}
+	if input.Level != nil {
+		level := int(*input.Level)
+		dto.Level = &level
+	}
+	if input.Credit != nil {
+		credit := int(*input.Credit)
+		dto.Credit = &credit
+	}
+	// HanCoin은 외부 재화로 이 게임에서 업데이트하지 않음
 
-	updated, err := r.UserService.UpdateUser(ctx, username, dto)
+	updated, err := r.UserService.UpdateUser(ctx, nickname, dto)
 	if err != nil {
 		return nil, err
 	}
 
 	// Domain model -> GraphQL model
 	return &model.User{
-		ID:          fmt.Sprintf("%d", updated.ID),
-		Username:    updated.Username,
-		DisplayName: updated.DisplayName,
-		Email:       &updated.Email,
-		AvatarURL:   &updated.AvatarURL,
-		CreatedAt:   updated.CreatedAt,
-		UpdatedAt:   updated.UpdatedAt,
+		ID:        updated.ID.Hex(),
+		Nickname:  updated.Nickname,
+		AvatarURL: &updated.AvatarURL,
+		Level:     int32(updated.Level),
+		Credit:    int32(updated.Credit),
+		HanCoin:   int32(updated.HanCoin),
+		CreatedAt: updated.CreatedAt,
+		UpdatedAt: updated.UpdatedAt,
 	}, nil
 }
 
@@ -75,20 +81,21 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, username string, inpu
 // ========================================
 
 // User is the resolver for the user field.
-func (r *queryResolver) User(ctx context.Context, username string) (*model.User, error) {
-	user, err := r.UserService.GetUser(ctx, username)
+func (r *queryResolver) User(ctx context.Context, nickname string) (*model.User, error) {
+	user, err := r.UserService.GetUser(ctx, nickname)
 	if err != nil {
 		return nil, err
 	}
 
 	return &model.User{
-		ID:          fmt.Sprintf("%d", user.ID),
-		Username:    user.Username,
-		DisplayName: user.DisplayName,
-		Email:       &user.Email,
-		AvatarURL:   &user.AvatarURL,
-		CreatedAt:   user.CreatedAt,
-		UpdatedAt:   user.UpdatedAt,
+		ID:        user.ID.Hex(),
+		Nickname:  user.Nickname,
+		AvatarURL: &user.AvatarURL,
+		Level:     int32(user.Level),
+		Credit:    int32(user.Credit),
+		HanCoin:   int32(user.HanCoin),
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
 	}, nil
 }
 
@@ -102,20 +109,21 @@ func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
 	result := make([]*model.User, len(users))
 	for i, u := range users {
 		result[i] = &model.User{
-			ID:          fmt.Sprintf("%d", u.ID),
-			Username:    u.Username,
-			DisplayName: u.DisplayName,
-			Email:       &u.Email,
-			AvatarURL:   &u.AvatarURL,
-			CreatedAt:   u.CreatedAt,
-			UpdatedAt:   u.UpdatedAt,
+			ID:        u.ID.Hex(),
+			Nickname:  u.Nickname,
+			AvatarURL: &u.AvatarURL,
+			Level:     int32(u.Level),
+			Credit:    int32(u.Credit),
+			HanCoin:   int32(u.HanCoin),
+			CreatedAt: u.CreatedAt,
+			UpdatedAt: u.UpdatedAt,
 		}
 	}
 	return result, nil
 }
 
 // DeleteUser is the resolver for the deleteUser field.
-func (r *mutationResolver) DeleteUser(ctx context.Context, username string) (bool, error) {
+func (r *mutationResolver) DeleteUser(ctx context.Context, nickname string) (bool, error) {
 	// TODO: Implement delete user logic
 	// This would require adding DeleteUser to UserService
 	return false, fmt.Errorf("not implemented yet")

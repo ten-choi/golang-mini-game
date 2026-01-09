@@ -8,25 +8,27 @@ import (
 
 // CreateUserDTO represents data for creating a new user
 type CreateUserDTO struct {
-	Username    string
-	DisplayName string
-	Email       string // Empty string if not provided
-	AvatarURL   string // Empty string if not provided
+	Nickname  string
+	AvatarURL string // Empty string if not provided
+	Level     int    // Default 0
+	Credit    int    // Default 0
+	// HanCoin은 외부 재화로 이 게임에서 관리하지 않음
 }
 
 // UpdateUserDTO represents data for updating a user
 type UpdateUserDTO struct {
-	DisplayName *string
-	Email       *string
-	AvatarURL   *string
+	AvatarURL *string
+	Level     *int
+	Credit    *int
+	// HanCoin은 외부 재화로 이 게임에서 업데이트하지 않음
 }
 
 // UserService defines the interface for user business logic
 type UserService interface {
-	GetUser(ctx context.Context, username string) (*models.User, error)
+	GetUser(ctx context.Context, nickname string) (*models.User, error)
 	GetAllUsers(ctx context.Context) ([]*models.User, error)
 	CreateUser(ctx context.Context, dto CreateUserDTO) (*models.User, error)
-	UpdateUser(ctx context.Context, username string, dto UpdateUserDTO) (*models.User, error)
+	UpdateUser(ctx context.Context, nickname string, dto UpdateUserDTO) (*models.User, error)
 }
 
 type userService struct {
@@ -38,8 +40,8 @@ func NewUserService(repo repository.UserRepository) UserService {
 	return &userService{repo: repo}
 }
 
-func (s *userService) GetUser(ctx context.Context, username string) (*models.User, error) {
-	return s.repo.GetByUsername(ctx, username)
+func (s *userService) GetUser(ctx context.Context, nickname string) (*models.User, error) {
+	return s.repo.GetByNickname(ctx, nickname)
 }
 
 func (s *userService) GetAllUsers(ctx context.Context) ([]*models.User, error) {
@@ -48,14 +50,15 @@ func (s *userService) GetAllUsers(ctx context.Context) ([]*models.User, error) {
 
 func (s *userService) CreateUser(ctx context.Context, dto CreateUserDTO) (*models.User, error) {
 	user := &models.User{
-		Username:    dto.Username,
-		DisplayName: dto.DisplayName,
-		Email:       dto.Email,
-		AvatarURL:   dto.AvatarURL,
+		Nickname:  dto.Nickname,
+		AvatarURL: dto.AvatarURL,
+		Level:     dto.Level,
+		Credit:    dto.Credit,
+		HanCoin:   0, // 외부 재화로 항상 0으로 초기화
 	}
 	return s.repo.Create(ctx, user)
 }
 
-func (s *userService) UpdateUser(ctx context.Context, username string, dto UpdateUserDTO) (*models.User, error) {
-	return s.repo.Update(ctx, username, dto.DisplayName, dto.Email, dto.AvatarURL)
+func (s *userService) UpdateUser(ctx context.Context, nickname string, dto UpdateUserDTO) (*models.User, error) {
+	return s.repo.Update(ctx, nickname, dto.AvatarURL, dto.Level, dto.Credit, nil) // HanCoin은 외부에서 관리
 }

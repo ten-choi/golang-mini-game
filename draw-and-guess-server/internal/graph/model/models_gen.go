@@ -38,6 +38,8 @@ type CreateGameRoomInput struct {
 	MaxPlayers int32 `json:"maxPlayers"`
 	// 총 라운드 수 (1-20, 권장: 3-10)
 	TotalRounds int32 `json:"totalRounds"`
+	// 라운드당 제한 시간 (초 단위, 10-300초, 기본값: 30초)
+	RoundTimeLimit *int32 `json:"roundTimeLimit,omitempty"`
 	// 방장 사용자명 (게임방 생성자)
 	HostUsername string `json:"hostUsername"`
 	// 비공개 방 여부 (true: 비밀번호 필요, false: 누구나 입장 가능)
@@ -48,12 +50,8 @@ type CreateGameRoomInput struct {
 
 // 새 사용자 계정 생성을 위한 입력 데이터
 type CreateUserInput struct {
-	// 고유 사용자명 (3-20자, 영문/숫자/언더스코어만 허용)
-	Username string `json:"username"`
-	// 게임 내 표시 이름 (1-50자)
-	DisplayName string `json:"displayName"`
-	// 이메일 주소 (선택사항, 유효한 형식 필요)
-	Email *string `json:"email,omitempty"`
+	// 고유 닉네임 (3-20자)
+	Nickname string `json:"nickname"`
 	// 프로필 이미지 URL (선택사항)
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
@@ -116,6 +114,8 @@ type GameRoom struct {
 	CurrentRound int32 `json:"currentRound"`
 	// 총 라운드 수 (기본값: 5)
 	TotalRounds int32 `json:"totalRounds"`
+	// 라운드당 제한 시간 (초 단위, 기본값: 30초)
+	RoundTimeLimit int32 `json:"roundTimeLimit"`
 	// 게임방 내 플레이어 목록
 	Players []*Player `json:"players"`
 	// 최대 플레이어 수 (2-10명)
@@ -130,6 +130,14 @@ type GameRoom struct {
 	Password *string `json:"password,omitempty"`
 	// 게임방 생성 시각
 	CreatedAt time.Time `json:"createdAt"`
+	// 끝말잇기 마지막 단어
+	WordchainLastWord string `json:"wordchainLastWord,omitempty"`
+	// 끝말잇기 현재 턴 플레이어
+	CurrentTurnUsername string `json:"currentTurnUsername,omitempty"`
+	// 끝말잇기 사용된 단어 목록 (중복 체크용)
+	WordchainUsedWords []string `json:"wordchainUsedWords,omitempty"`
+	// 끝말잇기 현재 턴 시작 시간
+	WordchainTurnStartTime *time.Time `json:"wordchainTurnStartTime,omitempty"`
 }
 
 // 4지선다 퀴즈를 나타냅니다.
@@ -186,6 +194,8 @@ type Invitation struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
+// 데이터 변경을 위한 뮤테이션입니다.
+// 서버 상태를 변경하는 모든 작업은 mutation을 통해 수행됩니다.
 type Mutation struct {
 }
 
@@ -246,9 +256,23 @@ type PlayerStats struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+// 데이터 조회를 위한 쿼리입니다.
+// 읽기 전용 작업이며 서버 상태를 변경하지 않습니다.
 type Query struct {
 }
 
+// 실시간 데이터 업데이트를 위한 구독입니다.
+// WebSocket 연결을 통해 서버에서 클라이언트로 이벤트를 푸시합니다.
+//
+// **연결 방법:**
+// 1. WebSocket 엔드포인트 연결: ws://server/graphql
+// 2. GraphQL Subscription 시작
+// 3. 이벤트 수신 대기
+//
+// **주의사항:**
+// - 각 구독은 별도의 WebSocket 연결 필요
+// - 불필요한 구독은 해제하여 리소스 절약
+// - 연결 끊김 시 자동 재연결 구현 권장
 type Subscription struct {
 }
 
@@ -261,6 +285,8 @@ type UpdateGameRoomInput struct {
 	MaxPlayers *int32 `json:"maxPlayers,omitempty"`
 	// 새로운 총 라운드 수
 	TotalRounds *int32 `json:"totalRounds,omitempty"`
+	// 새로운 라운드당 제한 시간 (초 단위, 10-300초)
+	RoundTimeLimit *int32 `json:"roundTimeLimit,omitempty"`
 	// 비공개 설정 변경 (true로 변경 시 password 필수)
 	IsPrivate *bool `json:"isPrivate,omitempty"`
 	// 새로운 비밀번호 (빈 문자열로 비밀번호 제거 가능)
@@ -269,27 +295,33 @@ type UpdateGameRoomInput struct {
 
 // 사용자 프로필 업데이트를 위한 입력 데이터 (모든 필드 선택사항)
 type UpdateUserInput struct {
-	// 새로운 표시 이름 (1-50자)
-	DisplayName *string `json:"displayName,omitempty"`
-	// 새로운 이메일 주소
-	Email *string `json:"email,omitempty"`
 	// 새로운 프로필 이미지 URL
 	AvatarURL *string `json:"avatarUrl,omitempty"`
+	// 새로운 레벨
+	Level *int32 `json:"level,omitempty"`
+	// 새로운 일반 재화
+	Credit *int32 `json:"credit,omitempty"`
+	// 새로운 프리미엄 재화 (외부 관리, 업데이트 불가)
+	HanCoin *int32 `json:"hanCoin,omitempty"`
 }
 
 // 게임 플레이어 계정을 나타냅니다.
-// Username은 고유하며 주요 식별자로 사용됩니다.
+// Nickname은 고유하며 주요 식별자로 사용됩니다.
 type User struct {
-	// 고유 식별자 (Snowflake ID)
+	// 고유 식별자 (MongoDB ObjectID)
 	ID string `json:"id"`
-	// 고유 사용자명 (3-20자, 로그인 ID)
-	Username string `json:"username"`
-	// 게임 내 표시 이름 (중복 가능)
-	DisplayName string `json:"displayName"`
-	// 선택적 이메일 주소
-	Email *string `json:"email,omitempty"`
-	// 선택적 프로필 이미지 URL
+	// 고유 닉네임 (3-20자, 주요 식별자)
+	Nickname string `json:"nickname"`
+	// 프로필 이미지 URL
 	AvatarURL *string `json:"avatarUrl,omitempty"`
+	// 플레이어 레벨
+	Level int32 `json:"level"`
+	// 일반 재화 (게임 플레이로 획득)
+	Credit int32 `json:"credit"`
+	// 프리미엄 재화 (외부 시스템 관리)
+	HanCoin int32 `json:"hanCoin"`
+	// 소속 길드 ID (선택사항)
+	GuildID *string `json:"guildId,omitempty"`
 	// 계정 생성 시각
 	CreatedAt time.Time `json:"createdAt"`
 	// 마지막 업데이트 시각
@@ -462,17 +494,20 @@ const (
 	GameTypeQa GameType = "QA"
 	// 끝말잇기 게임 (일본어 히라가나/카타카나 단어 연결)
 	GameTypeWordchain GameType = "WORDCHAIN"
+	// 그림 맞추기 게임 (그림을 그리고 정답 맞추기)
+	GameTypeDrawing GameType = "DRAWING"
 )
 
 var AllGameType = []GameType{
 	GameTypeOx,
 	GameTypeQa,
 	GameTypeWordchain,
+	GameTypeDrawing,
 }
 
 func (e GameType) IsValid() bool {
 	switch e {
-	case GameTypeOx, GameTypeQa, GameTypeWordchain:
+	case GameTypeOx, GameTypeQa, GameTypeWordchain, GameTypeDrawing:
 		return true
 	}
 	return false

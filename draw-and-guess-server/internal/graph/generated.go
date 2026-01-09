@@ -82,19 +82,20 @@ type ComplexityRoot struct {
 	}
 
 	GameRoom struct {
-		CreatedAt    func(childComplexity int) int
-		CurrentRound func(childComplexity int) int
-		GameType     func(childComplexity int) int
-		HostUsername func(childComplexity int) int
-		ID           func(childComplexity int) int
-		IsPrivate    func(childComplexity int) int
-		MaxPlayers   func(childComplexity int) int
-		Name         func(childComplexity int) int
-		Password     func(childComplexity int) int
-		Players      func(childComplexity int) int
-		Status       func(childComplexity int) int
-		TotalRounds  func(childComplexity int) int
-		UsedQuizIds  func(childComplexity int) int
+		CreatedAt      func(childComplexity int) int
+		CurrentRound   func(childComplexity int) int
+		GameType       func(childComplexity int) int
+		HostUsername   func(childComplexity int) int
+		ID             func(childComplexity int) int
+		IsPrivate      func(childComplexity int) int
+		MaxPlayers     func(childComplexity int) int
+		Name           func(childComplexity int) int
+		Password       func(childComplexity int) int
+		Players        func(childComplexity int) int
+		RoundTimeLimit func(childComplexity int) int
+		Status         func(childComplexity int) int
+		TotalRounds    func(childComplexity int) int
+		UsedQuizIds    func(childComplexity int) int
 	}
 
 	GeneralQuiz struct {
@@ -130,7 +131,7 @@ type ComplexityRoot struct {
 		CreateGameRoom func(childComplexity int, input model.CreateGameRoomInput) int
 		CreateUser     func(childComplexity int, input model.CreateUserInput) int
 		DeleteGameRoom func(childComplexity int, roomID string) int
-		DeleteUser     func(childComplexity int, username string) int
+		DeleteUser     func(childComplexity int, nickname string) int
 		EndGame        func(childComplexity int, roomID string) int
 		InviteUser     func(childComplexity int, roomID string, inviteeUsername string) int
 		JoinGameRoom   func(childComplexity int, roomID string, username string, password *string) int
@@ -143,7 +144,7 @@ type ComplexityRoot struct {
 		SubmitAnswer   func(childComplexity int, roomID string, username string, answer string) int
 		TransferHost   func(childComplexity int, roomID string, newHostUsername string) int
 		UpdateGameRoom func(childComplexity int, roomID string, input model.UpdateGameRoomInput) int
-		UpdateUser     func(childComplexity int, username string, input model.UpdateUserInput) int
+		UpdateUser     func(childComplexity int, nickname string, input model.UpdateUserInput) int
 	}
 
 	OXQuiz struct {
@@ -186,7 +187,7 @@ type ComplexityRoot struct {
 		RandomOXQuiz          func(childComplexity int, roomID *string) int
 		RandomQAQuiz          func(childComplexity int, roomID *string) int
 		RandomWordchainPrompt func(childComplexity int) int
-		User                  func(childComplexity int, username string) int
+		User                  func(childComplexity int, nickname string) int
 		Users                 func(childComplexity int) int
 	}
 
@@ -208,13 +209,15 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
-		AvatarURL   func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
-		DisplayName func(childComplexity int) int
-		Email       func(childComplexity int) int
-		ID          func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
-		Username    func(childComplexity int) int
+		AvatarURL func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		Credit    func(childComplexity int) int
+		GuildID   func(childComplexity int) int
+		HanCoin   func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Level     func(childComplexity int) int
+		Nickname  func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	WordchainPrompt struct {
@@ -225,8 +228,8 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
-	UpdateUser(ctx context.Context, username string, input model.UpdateUserInput) (*model.User, error)
-	DeleteUser(ctx context.Context, username string) (bool, error)
+	UpdateUser(ctx context.Context, nickname string, input model.UpdateUserInput) (*model.User, error)
+	DeleteUser(ctx context.Context, nickname string) (bool, error)
 	CreateGameRoom(ctx context.Context, input model.CreateGameRoomInput) (*model.GameRoom, error)
 	UpdateGameRoom(ctx context.Context, roomID string, input model.UpdateGameRoomInput) (*model.GameRoom, error)
 	JoinGameRoom(ctx context.Context, roomID string, username string, password *string) (*model.GameRoom, error)
@@ -244,7 +247,7 @@ type MutationResolver interface {
 	SendChat(ctx context.Context, roomID string, username string, message string) (*model.ChatMessage, error)
 }
 type QueryResolver interface {
-	User(ctx context.Context, username string) (*model.User, error)
+	User(ctx context.Context, nickname string) (*model.User, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	GameRoom(ctx context.Context, id string) (*model.GameRoom, error)
 	GameRooms(ctx context.Context, gameType *model.GameType) ([]*model.GameRoom, error)
@@ -476,6 +479,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.GameRoom.Players(childComplexity), true
+	case "GameRoom.roundTimeLimit":
+		if e.complexity.GameRoom.RoundTimeLimit == nil {
+			break
+		}
+
+		return e.complexity.GameRoom.RoundTimeLimit(childComplexity), true
 	case "GameRoom.status":
 		if e.complexity.GameRoom.Status == nil {
 			break
@@ -683,7 +692,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DeleteUser(childComplexity, args["username"].(string)), true
+		return e.complexity.Mutation.DeleteUser(childComplexity, args["nickname"].(string)), true
 	case "Mutation.endGame":
 		if e.complexity.Mutation.EndGame == nil {
 			break
@@ -826,7 +835,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UpdateUser(childComplexity, args["username"].(string), args["input"].(model.UpdateUserInput)), true
+		return e.complexity.Mutation.UpdateUser(childComplexity, args["nickname"].(string), args["input"].(model.UpdateUserInput)), true
 
 	case "OXQuiz.answer":
 		if e.complexity.OXQuiz.Answer == nil {
@@ -1056,7 +1065,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.User(childComplexity, args["username"].(string)), true
+		return e.complexity.Query.User(childComplexity, args["nickname"].(string)), true
 	case "Query.users":
 		if e.complexity.Query.Users == nil {
 			break
@@ -1221,36 +1230,48 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.User.CreatedAt(childComplexity), true
-	case "User.displayName":
-		if e.complexity.User.DisplayName == nil {
+	case "User.credit":
+		if e.complexity.User.Credit == nil {
 			break
 		}
 
-		return e.complexity.User.DisplayName(childComplexity), true
-	case "User.email":
-		if e.complexity.User.Email == nil {
+		return e.complexity.User.Credit(childComplexity), true
+	case "User.guildId":
+		if e.complexity.User.GuildID == nil {
 			break
 		}
 
-		return e.complexity.User.Email(childComplexity), true
+		return e.complexity.User.GuildID(childComplexity), true
+	case "User.hanCoin":
+		if e.complexity.User.HanCoin == nil {
+			break
+		}
+
+		return e.complexity.User.HanCoin(childComplexity), true
 	case "User.id":
 		if e.complexity.User.ID == nil {
 			break
 		}
 
 		return e.complexity.User.ID(childComplexity), true
+	case "User.level":
+		if e.complexity.User.Level == nil {
+			break
+		}
+
+		return e.complexity.User.Level(childComplexity), true
+	case "User.nickname":
+		if e.complexity.User.Nickname == nil {
+			break
+		}
+
+		return e.complexity.User.Nickname(childComplexity), true
 	case "User.updatedAt":
 		if e.complexity.User.UpdatedAt == nil {
 			break
 		}
 
 		return e.complexity.User.UpdatedAt(childComplexity), true
-	case "User.username":
-		if e.complexity.User.Username == nil {
-			break
-		}
-
-		return e.complexity.User.Username(childComplexity), true
 
 	case "WordchainPrompt.hint":
 		if e.complexity.WordchainPrompt.Hint == nil {
@@ -1457,11 +1478,11 @@ func (ec *executionContext) field_Mutation_deleteGameRoom_args(ctx context.Conte
 func (ec *executionContext) field_Mutation_deleteUser_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "username", ec.unmarshalNString2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "nickname", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["username"] = arg0
+	args["nickname"] = arg0
 	return args, nil
 }
 
@@ -1660,11 +1681,11 @@ func (ec *executionContext) field_Mutation_updateGameRoom_args(ctx context.Conte
 func (ec *executionContext) field_Mutation_updateUser_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "username", ec.unmarshalNString2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "nickname", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["username"] = arg0
+	args["nickname"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateUserInput2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUpdateUserInput)
 	if err != nil {
 		return nil, err
@@ -1774,11 +1795,11 @@ func (ec *executionContext) field_Query_randomQAQuiz_args(ctx context.Context, r
 func (ec *executionContext) field_Query_user_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "username", ec.unmarshalNString2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "nickname", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["username"] = arg0
+	args["nickname"] = arg0
 	return args, nil
 }
 
@@ -2720,6 +2741,35 @@ func (ec *executionContext) fieldContext_GameRoom_totalRounds(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _GameRoom_roundTimeLimit(ctx context.Context, field graphql.CollectedField, obj *model.GameRoom) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameRoom_roundTimeLimit,
+		func(ctx context.Context) (any, error) {
+			return obj.RoundTimeLimit, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameRoom_roundTimeLimit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameRoom",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _GameRoom_players(ctx context.Context, field graphql.CollectedField, obj *model.GameRoom) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3375,6 +3425,8 @@ func (ec *executionContext) fieldContext_Invitation_room(_ context.Context, fiel
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -3451,14 +3503,18 @@ func (ec *executionContext) fieldContext_Invitation_inviter(_ context.Context, f
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "username":
-				return ec.fieldContext_User_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_User_displayName(ctx, field)
-			case "email":
-				return ec.fieldContext_User_email(ctx, field)
+			case "nickname":
+				return ec.fieldContext_User_nickname(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
+			case "level":
+				return ec.fieldContext_User_level(ctx, field)
+			case "credit":
+				return ec.fieldContext_User_credit(ctx, field)
+			case "hanCoin":
+				return ec.fieldContext_User_hanCoin(ctx, field)
+			case "guildId":
+				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_User_createdAt(ctx, field)
 			case "updatedAt":
@@ -3525,14 +3581,18 @@ func (ec *executionContext) fieldContext_Invitation_invitee(_ context.Context, f
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "username":
-				return ec.fieldContext_User_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_User_displayName(ctx, field)
-			case "email":
-				return ec.fieldContext_User_email(ctx, field)
+			case "nickname":
+				return ec.fieldContext_User_nickname(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
+			case "level":
+				return ec.fieldContext_User_level(ctx, field)
+			case "credit":
+				return ec.fieldContext_User_credit(ctx, field)
+			case "hanCoin":
+				return ec.fieldContext_User_hanCoin(ctx, field)
+			case "guildId":
+				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_User_createdAt(ctx, field)
 			case "updatedAt":
@@ -3658,14 +3718,18 @@ func (ec *executionContext) fieldContext_Mutation_createUser(ctx context.Context
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "username":
-				return ec.fieldContext_User_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_User_displayName(ctx, field)
-			case "email":
-				return ec.fieldContext_User_email(ctx, field)
+			case "nickname":
+				return ec.fieldContext_User_nickname(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
+			case "level":
+				return ec.fieldContext_User_level(ctx, field)
+			case "credit":
+				return ec.fieldContext_User_credit(ctx, field)
+			case "hanCoin":
+				return ec.fieldContext_User_hanCoin(ctx, field)
+			case "guildId":
+				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_User_createdAt(ctx, field)
 			case "updatedAt":
@@ -3696,7 +3760,7 @@ func (ec *executionContext) _Mutation_updateUser(ctx context.Context, field grap
 		ec.fieldContext_Mutation_updateUser,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().UpdateUser(ctx, fc.Args["username"].(string), fc.Args["input"].(model.UpdateUserInput))
+			return ec.resolvers.Mutation().UpdateUser(ctx, fc.Args["nickname"].(string), fc.Args["input"].(model.UpdateUserInput))
 		},
 		nil,
 		ec.marshalNUser2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUser,
@@ -3715,14 +3779,18 @@ func (ec *executionContext) fieldContext_Mutation_updateUser(ctx context.Context
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "username":
-				return ec.fieldContext_User_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_User_displayName(ctx, field)
-			case "email":
-				return ec.fieldContext_User_email(ctx, field)
+			case "nickname":
+				return ec.fieldContext_User_nickname(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
+			case "level":
+				return ec.fieldContext_User_level(ctx, field)
+			case "credit":
+				return ec.fieldContext_User_credit(ctx, field)
+			case "hanCoin":
+				return ec.fieldContext_User_hanCoin(ctx, field)
+			case "guildId":
+				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_User_createdAt(ctx, field)
 			case "updatedAt":
@@ -3753,7 +3821,7 @@ func (ec *executionContext) _Mutation_deleteUser(ctx context.Context, field grap
 		ec.fieldContext_Mutation_deleteUser,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().DeleteUser(ctx, fc.Args["username"].(string))
+			return ec.resolvers.Mutation().DeleteUser(ctx, fc.Args["nickname"].(string))
 		},
 		nil,
 		ec.marshalNBoolean2bool,
@@ -3823,6 +3891,8 @@ func (ec *executionContext) fieldContext_Mutation_createGameRoom(ctx context.Con
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -3892,6 +3962,8 @@ func (ec *executionContext) fieldContext_Mutation_updateGameRoom(ctx context.Con
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -3961,6 +4033,8 @@ func (ec *executionContext) fieldContext_Mutation_joinGameRoom(ctx context.Conte
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -4030,6 +4104,8 @@ func (ec *executionContext) fieldContext_Mutation_leaveGameRoom(ctx context.Cont
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -4140,6 +4216,8 @@ func (ec *executionContext) fieldContext_Mutation_transferHost(ctx context.Conte
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -4313,6 +4391,8 @@ func (ec *executionContext) fieldContext_Mutation_acceptInvite(ctx context.Conte
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -4423,6 +4503,8 @@ func (ec *executionContext) fieldContext_Mutation_startGame(ctx context.Context,
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -4492,6 +4574,8 @@ func (ec *executionContext) fieldContext_Mutation_startRound(ctx context.Context
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -4602,6 +4686,8 @@ func (ec *executionContext) fieldContext_Mutation_endGame(ctx context.Context, f
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -5306,7 +5392,7 @@ func (ec *executionContext) _Query_user(ctx context.Context, field graphql.Colle
 		ec.fieldContext_Query_user,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().User(ctx, fc.Args["username"].(string))
+			return ec.resolvers.Query().User(ctx, fc.Args["nickname"].(string))
 		},
 		nil,
 		ec.marshalOUser2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUser,
@@ -5325,14 +5411,18 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "username":
-				return ec.fieldContext_User_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_User_displayName(ctx, field)
-			case "email":
-				return ec.fieldContext_User_email(ctx, field)
+			case "nickname":
+				return ec.fieldContext_User_nickname(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
+			case "level":
+				return ec.fieldContext_User_level(ctx, field)
+			case "credit":
+				return ec.fieldContext_User_credit(ctx, field)
+			case "hanCoin":
+				return ec.fieldContext_User_hanCoin(ctx, field)
+			case "guildId":
+				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_User_createdAt(ctx, field)
 			case "updatedAt":
@@ -5381,14 +5471,18 @@ func (ec *executionContext) fieldContext_Query_users(_ context.Context, field gr
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "username":
-				return ec.fieldContext_User_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_User_displayName(ctx, field)
-			case "email":
-				return ec.fieldContext_User_email(ctx, field)
+			case "nickname":
+				return ec.fieldContext_User_nickname(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
+			case "level":
+				return ec.fieldContext_User_level(ctx, field)
+			case "credit":
+				return ec.fieldContext_User_credit(ctx, field)
+			case "hanCoin":
+				return ec.fieldContext_User_hanCoin(ctx, field)
+			case "guildId":
+				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_User_createdAt(ctx, field)
 			case "updatedAt":
@@ -5437,6 +5531,8 @@ func (ec *executionContext) fieldContext_Query_gameRoom(ctx context.Context, fie
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -5506,6 +5602,8 @@ func (ec *executionContext) fieldContext_Query_gameRooms(ctx context.Context, fi
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -6043,6 +6141,8 @@ func (ec *executionContext) fieldContext_Subscription_lobbyUpdated(_ context.Con
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -6100,6 +6200,8 @@ func (ec *executionContext) fieldContext_Subscription_gameRoomsUpdated(_ context
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -6158,6 +6260,8 @@ func (ec *executionContext) fieldContext_Subscription_gameRoomUpdated(ctx contex
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -6431,6 +6535,8 @@ func (ec *executionContext) fieldContext_Subscription_gameStarted(ctx context.Co
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -6500,6 +6606,8 @@ func (ec *executionContext) fieldContext_Subscription_roundStarted(ctx context.C
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -6569,6 +6677,8 @@ func (ec *executionContext) fieldContext_Subscription_roundEnded(ctx context.Con
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -6638,6 +6748,8 @@ func (ec *executionContext) fieldContext_Subscription_gameEnded(ctx context.Cont
 				return ec.fieldContext_GameRoom_currentRound(ctx, field)
 			case "totalRounds":
 				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
 			case "players":
 				return ec.fieldContext_GameRoom_players(ctx, field)
 			case "maxPlayers":
@@ -6858,14 +6970,14 @@ func (ec *executionContext) fieldContext_User_id(_ context.Context, field graphq
 	return fc, nil
 }
 
-func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_nickname(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_User_username,
+		ec.fieldContext_User_nickname,
 		func(ctx context.Context) (any, error) {
-			return obj.Username, nil
+			return obj.Nickname, nil
 		},
 		nil,
 		ec.marshalNString2string,
@@ -6874,65 +6986,7 @@ func (ec *executionContext) _User_username(ctx context.Context, field graphql.Co
 	)
 }
 
-func (ec *executionContext) fieldContext_User_username(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "User",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _User_displayName(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_User_displayName,
-		func(ctx context.Context) (any, error) {
-			return obj.DisplayName, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_User_displayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "User",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_User_email,
-		func(ctx context.Context) (any, error) {
-			return obj.Email, nil
-		},
-		nil,
-		ec.marshalOString2ᚖstring,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_User_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_User_nickname(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "User",
 		Field:      field,
@@ -6969,6 +7023,122 @@ func (ec *executionContext) fieldContext_User_avatarUrl(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _User_level(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_User_level,
+		func(ctx context.Context) (any, error) {
+			return obj.Level, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_User_level(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _User_credit(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_User_credit,
+		func(ctx context.Context) (any, error) {
+			return obj.Credit, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_User_credit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _User_hanCoin(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_User_hanCoin,
+		func(ctx context.Context) (any, error) {
+			return obj.HanCoin, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_User_hanCoin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _User_guildId(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_User_guildId,
+		func(ctx context.Context) (any, error) {
+			return obj.GuildID, nil
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_User_guildId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -8543,7 +8713,7 @@ func (ec *executionContext) unmarshalInputCreateGameRoomInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "gameType", "maxPlayers", "totalRounds", "hostUsername", "isPrivate", "password"}
+	fieldsInOrder := [...]string{"name", "gameType", "maxPlayers", "totalRounds", "roundTimeLimit", "hostUsername", "isPrivate", "password"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -8578,6 +8748,13 @@ func (ec *executionContext) unmarshalInputCreateGameRoomInput(ctx context.Contex
 				return it, err
 			}
 			it.TotalRounds = data
+		case "roundTimeLimit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roundTimeLimit"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RoundTimeLimit = data
 		case "hostUsername":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hostUsername"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -8612,34 +8789,20 @@ func (ec *executionContext) unmarshalInputCreateUserInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"username", "displayName", "email", "avatarUrl"}
+	fieldsInOrder := [...]string{"nickname", "avatarUrl"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "username":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
+		case "nickname":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nickname"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Username = data
-		case "displayName":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("displayName"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.DisplayName = data
-		case "email":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Email = data
+			it.Nickname = data
 		case "avatarUrl":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatarUrl"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -8660,7 +8823,7 @@ func (ec *executionContext) unmarshalInputUpdateGameRoomInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "maxPlayers", "totalRounds", "isPrivate", "password"}
+	fieldsInOrder := [...]string{"name", "maxPlayers", "totalRounds", "roundTimeLimit", "isPrivate", "password"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -8688,6 +8851,13 @@ func (ec *executionContext) unmarshalInputUpdateGameRoomInput(ctx context.Contex
 				return it, err
 			}
 			it.TotalRounds = data
+		case "roundTimeLimit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roundTimeLimit"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RoundTimeLimit = data
 		case "isPrivate":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isPrivate"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -8715,27 +8885,13 @@ func (ec *executionContext) unmarshalInputUpdateUserInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"displayName", "email", "avatarUrl"}
+	fieldsInOrder := [...]string{"avatarUrl", "level", "credit", "hanCoin"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "displayName":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("displayName"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.DisplayName = data
-		case "email":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Email = data
 		case "avatarUrl":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatarUrl"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -8743,6 +8899,27 @@ func (ec *executionContext) unmarshalInputUpdateUserInput(ctx context.Context, o
 				return it, err
 			}
 			it.AvatarURL = data
+		case "level":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("level"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Level = data
+		case "credit":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("credit"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Credit = data
+		case "hanCoin":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hanCoin"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HanCoin = data
 		}
 	}
 
@@ -9022,6 +9199,11 @@ func (ec *executionContext) _GameRoom(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "totalRounds":
 			out.Values[i] = ec._GameRoom_totalRounds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "roundTimeLimit":
+			out.Values[i] = ec._GameRoom_roundTimeLimit(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -9966,20 +10148,30 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "username":
-			out.Values[i] = ec._User_username(ctx, field, obj)
+		case "nickname":
+			out.Values[i] = ec._User_nickname(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "displayName":
-			out.Values[i] = ec._User_displayName(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "email":
-			out.Values[i] = ec._User_email(ctx, field, obj)
 		case "avatarUrl":
 			out.Values[i] = ec._User_avatarUrl(ctx, field, obj)
+		case "level":
+			out.Values[i] = ec._User_level(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "credit":
+			out.Values[i] = ec._User_credit(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hanCoin":
+			out.Values[i] = ec._User_hanCoin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "guildId":
+			out.Values[i] = ec._User_guildId(ctx, field, obj)
 		case "createdAt":
 			out.Values[i] = ec._User_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

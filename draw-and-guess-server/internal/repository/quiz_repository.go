@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/models"
@@ -45,7 +46,10 @@ func (r *quizRepository) IsValidWord(ctx context.Context, word string) (bool, er
 
 // GetRandomOXQuiz returns a random OX quiz, excluding already used quiz IDs
 func (r *quizRepository) GetRandomOXQuiz(ctx context.Context, excludedIds []string) (*models.OXQuiz, error) {
-	filter := bson.M{"is_active": true}
+	filter := bson.M{
+		"type":      "OX",
+		"is_active": true,
+	}
 
 	// Exclude already used IDs
 	if len(excludedIds) > 0 {
@@ -87,7 +91,11 @@ func (r *quizRepository) GetRandomOXQuiz(ctx context.Context, excludedIds []stri
 
 // GetRandomQAQuiz returns a random QA (general) quiz, excluding already used quiz IDs
 func (r *quizRepository) GetRandomQAQuiz(ctx context.Context, excludedIds []string) (*models.GeneralQuiz, error) {
-	filter := bson.M{"is_active": true}
+	log.Printf("[QuizRepo] Getting random QA quiz, excluded IDs: %v", excludedIds)
+	filter := bson.M{
+		"type":      "QA",
+		"is_active": true,
+	}
 
 	// Exclude already used IDs
 	if len(excludedIds) > 0 {
@@ -116,11 +124,13 @@ func (r *quizRepository) GetRandomQAQuiz(ctx context.Context, excludedIds []stri
 
 	cursor, err := r.qaQuizzesCollection.Aggregate(ctx, pipeline)
 	if err != nil {
+		log.Printf("[QuizRepo] Error aggregating QA quizzes: %v", err)
 		return nil, common.NewInternalError("failed to get QA quiz", err)
 	}
 	defer cursor.Close(ctx)
 
 	if !cursor.Next(ctx) {
+		log.Printf("[QuizRepo] No QA quizzes found in database")
 		return nil, common.NewNotFoundError("no QA quizzes found")
 	}
 
@@ -129,5 +139,6 @@ func (r *quizRepository) GetRandomQAQuiz(ctx context.Context, excludedIds []stri
 		return nil, common.NewInternalError("failed to decode QA quiz", err)
 	}
 
+	log.Printf("[QuizRepo] Found QA quiz ID: %v, Question: %s", quiz.ID, quiz.Question)
 	return &quiz, nil
 }

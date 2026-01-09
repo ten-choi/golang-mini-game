@@ -1,0 +1,20 @@
+2026/01/14 11:33:14 [INFO] Starting Draw & Guess Game Server...
+2026/01/14 11:33:14 [INFO] ✓ Snowflake ID generator initialized
+2026/01/14 11:33:14 [INFO] ✓ Word dictionary loaded (174709 words)
+2026/01/14 11:33:14 [INFO] ✓ Connected to Valkey
+2026/01/14 11:33:15 [INFO] ✓ Connected to MongoDB
+2026/01/14 11:33:15 [INFO] ✓ Database schema initialized
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /health                   --> draw-and-guess-server/internal/handlers.HealthCheck (6 handlers)
+[GIN-debug] GET    /ws/lobby                 --> draw-and-guess-server/internal/websocket.HandleLobbyWebSocket (6 handlers)
+[GIN-debug] GET    /ws/rooms/:id             --> draw-and-guess-server/internal/websocket.HandleRoomWebSocket (6 handlers)
+[GIN-debug] POST   /graphql                  --> draw-and-guess-server/internal/routes.setupGraphQLRoutes.WrapH.func1 (6 handlers)
+[GIN-debug] GET    /graphql                  --> draw-and-guess-server/internal/routes.setupGraphQLRoutes.WrapH.func2 (6 handlers)
+[GIN-debug] GET    /playground               --> draw-and-guess-server/internal/routes.setupGraphQLRoutes.WrapH.func3 (6 handlers)
+[GIN-debug] GET    /sandbox                  --> draw-and-guess-server/internal/routes.setupGraphQLRoutes.WrapH.func4 (6 handlers)
+2026/01/14 11:33:15 [INFO] 🚀 Server started on 0.0.0.0:8080
+2026/01/14 11:33:15 [INFO] GraphQL Playground: http://localhost:8080/graphql
+2026/01/14 11:33:15 [ERROR] Server failed to start: listen tcp 0.0.0.0:8080: bind: Only one usage of each socket address (protocol/network address/port) is normally permitted.

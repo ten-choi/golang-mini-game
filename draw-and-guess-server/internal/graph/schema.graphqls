@@ -9,19 +9,23 @@ scalar Time
 
 """
 게임 플레이어 계정을 나타냅니다.
-Username은 고유하며 주요 식별자로 사용됩니다.
+Nickname은 고유하며 주요 식별자로 사용됩니다.
 """
 type User {
-  "고유 식별자 (Snowflake ID)"
+  "고유 식별자 (MongoDB ObjectID)"
   id: ID!
-  "고유 사용자명 (3-20자, 로그인 ID)"
-  username: String!
-  "게임 내 표시 이름 (중복 가능)"
-  displayName: String!
-  "선택적 이메일 주소"
-  email: String
-  "선택적 프로필 이미지 URL"
+  "고유 닉네임 (3-20자, 주요 식별자)"
+  nickname: String!
+  "프로필 이미지 URL"
   avatarUrl: String
+  "플레이어 레벨"
+  level: Int!
+  "일반 재화 (게임 플레이로 획득)"
+  credit: Int!
+  "프리미엄 재화 (외부 시스템 관리)"
+  hanCoin: Int!
+  "소속 길드 ID (선택사항)"
+  guildId: ID
   "계정 생성 시각"
   createdAt: Time!
   "마지막 업데이트 시각"
@@ -30,24 +34,22 @@ type User {
 
 """새 사용자 계정 생성을 위한 입력 데이터"""
 input CreateUserInput {
-  "고유 사용자명 (3-20자, 영문/숫자/언더스코어만 허용)"
-  username: String!
-  "게임 내 표시 이름 (1-50자)"
-  displayName: String!
-  "이메일 주소 (선택사항, 유효한 형식 필요)"
-  email: String
+  "고유 닉네임 (3-20자)"
+  nickname: String!
   "프로필 이미지 URL (선택사항)"
   avatarUrl: String
 }
 
 """사용자 프로필 업데이트를 위한 입력 데이터 (모든 필드 선택사항)"""
 input UpdateUserInput {
-  "새로운 표시 이름 (1-50자)"
-  displayName: String
-  "새로운 이메일 주소"
-  email: String
   "새로운 프로필 이미지 URL"
   avatarUrl: String
+  "새로운 레벨"
+  level: Int
+  "새로운 일반 재화"
+  credit: Int
+  "새로운 프리미엄 재화 (외부 관리, 업데이트 불가)"
+  hanCoin: Int
 }
 
 # ============================================
@@ -65,6 +67,8 @@ enum GameType {
   QA
   "끝말잇기 게임 (일본어 히라가나/카타카나 단어 연결)"
   WORDCHAIN
+  "그림 맞추기 게임 (그림을 그리고 정답 맞추기)"
+  DRAWING
 }
 
 """
@@ -112,6 +116,8 @@ type GameRoom {
   currentRound: Int!
   "총 라운드 수 (기본값: 5)"
   totalRounds: Int!
+  "라운드당 제한 시간 (초 단위, 기본값: 30초)"
+  roundTimeLimit: Int!
   "게임방 내 플레이어 목록"
   players: [Player!]!
   "최대 플레이어 수 (2-10명)"
@@ -141,6 +147,8 @@ input CreateGameRoomInput {
   maxPlayers: Int!
   "총 라운드 수 (1-20, 권장: 3-10)"
   totalRounds: Int!
+  "라운드당 제한 시간 (초 단위, 10-300초, 기본값: 30초)"
+  roundTimeLimit: Int
   "방장 사용자명 (게임방 생성자)"
   hostUsername: String!
   "비공개 방 여부 (true: 비밀번호 필요, false: 누구나 입장 가능)"
@@ -160,6 +168,8 @@ input UpdateGameRoomInput {
   maxPlayers: Int
   "새로운 총 라운드 수"
   totalRounds: Int
+  "새로운 라운드당 제한 시간 (초 단위, 10-300초)"
+  roundTimeLimit: Int
   "비공개 설정 변경 (true로 변경 시 password 필수)"
   isPrivate: Boolean
   "새로운 비밀번호 (빈 문자열로 비밀번호 제거 가능)"
@@ -452,16 +462,17 @@ type Query {
   **예제:**
   ```graphql
   query {
-    user(username: "player123") {
+    user(nickname: "player123") {
       id
-      username
-      displayName
+      nickname
       avatarUrl
+      level
+      credit
     }
   }
   ```
   """
-  user(username: String!): User
+  user(nickname: String!): User
   
   """
   모든 사용자 목록을 조회합니다.
@@ -482,8 +493,8 @@ type Query {
   ```graphql
   query {
     users {
-      username
-      displayName
+      nickname
+      level
     }
   }
   ```
@@ -850,13 +861,13 @@ type Mutation {
   ```graphql
   mutation {
     createUser(input: {
-      username: "newplayer123"
-      displayName: "새로운 플레이어"
-      email: "player@example.com"
+      nickname: "newplayer123"
+      avatarUrl: "https://example.com/avatar.jpg"
     }) {
       id
-      username
-      displayName
+      nickname
+      level
+      credit
       createdAt
     }
   }
@@ -872,35 +883,37 @@ type Mutation {
   - 설정 페이지
   
   **매개변수:**
-  - username: 수정할 사용자의 username (변경 불가)
+  - nickname: 수정할 사용자의 nickname (변경 불가)
   - input: 수정할 정보 (모든 필드 선택사항)
   
   **반환값:**
   - 수정된 사용자 정보
   
   **주의사항:**
-  - username은 변경 불가
+  - nickname은 변경 불가
   - 본인 계정만 수정 가능 (인증 필요)
   
   **예제:**
   ```graphql
   mutation {
     updateUser(
-      username: "player123"
+      nickname: "player123"
       input: {
-        displayName: "변경된 이름"
         avatarUrl: "https://example.com/avatar.jpg"
+        level: 5
+        credit: 1000
       }
     ) {
-      username
-      displayName
+      nickname
       avatarUrl
+      level
+      credit
       updatedAt
     }
   }
   ```
   """
-  updateUser(username: String!, input: UpdateUserInput!): User!
+  updateUser(nickname: String!, input: UpdateUserInput!): User!
   
   """
   사용자 계정을 삭제합니다.
@@ -910,7 +923,7 @@ type Mutation {
   - 관리자 계정 삭제
   
   **매개변수:**
-  - username: 삭제할 사용자명
+  - nickname: 삭제할 사용자 닉네임
   
   **반환값:**
   - true: 삭제 성공
@@ -924,11 +937,11 @@ type Mutation {
   **예제:**
   ```graphql
   mutation {
-    deleteUser(username: "player123")
+    deleteUser(nickname: "player123")
   }
   ```
   """
-  deleteUser(username: String!): Boolean!
+  deleteUser(nickname: String!): Boolean!
   
   # ===== Game Room Mutations =====
   

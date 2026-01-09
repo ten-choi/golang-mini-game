@@ -2,14 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { wsService } from '../services/websocket';
-import { GameRoom } from '../types';
+import { GameRoom, GameType } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 
 const RoomList: React.FC = () => {
   const [rooms, setRooms] = useState<GameRoom[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedGameType, setSelectedGameType] = useState<GameType>('WORDCHAIN');
+  const [maxPlayers, setMaxPlayers] = useState(4);
+  const [totalRounds, setTotalRounds] = useState(3);
+  const [roundTimeLimit, setRoundTimeLimit] = useState(15);
+  const [creatingRoom, setCreatingRoom] = useState(false);
+  const [lobbyChatMessages, setLobbyChatMessages] = useState<Array<{playerName: string, message: string}>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const username = sessionStorage.getItem('username') || '';
 
   useEffect(() => {
     loadRooms();
@@ -22,9 +32,32 @@ const RoomList: React.FC = () => {
 
     // lobby 채널 구독하여 방 목록 업데이트 수신
     const subscription = wsService.subscribe('lobby', (data) => {
-      console.log('Lobby update received:', data);
-      if (data.type === 'room_list_update') {
-        loadRooms(); // 방 목록 새로고침
+      console.log('[RoomList] Lobby update received:', data);
+      
+      // 서버에서 보낸 lobby_update 메시지 처리
+      if (data.type === 'lobby_update' || data.type === 'room_list_update') {
+        if (data.data && Array.isArray(data.data)) {
+          console.log('[RoomList] Updating rooms from WebSocket:', data.data.length, 'rooms');
+          setRooms(data.data);
+        } else {
+          // 데이터가 없으면 API에서 다시 로드
+          loadRooms();
+        }
+      }
+      
+      // 로비 채팅 히스토리 수신
+      if (data.type === 'LOBBY_CHAT_HISTORY' && data.messages) {
+        console.log('[RoomList] Received chat history:', data.messages.length, 'messages');
+        setLobbyChatMessages(data.messages.map((msg: any) => ({
+          playerName: msg.playerName,
+          message: msg.message
+        })));
+      }
+      
+      // 로비 채팅 메시지 처리
+      if (data.type === 'LOBBY_CHAT' && data.payload) {
+        const { playerName, message } = data.payload;
+        setLobbyChatMessages(prev => [...prev, { playerName, message }]);
       }
     });
 
@@ -33,10 +66,15 @@ const RoomList: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [lobbyChatMessages]);
+
   const loadRooms = async () => {
     try {
       const roomList = await apiService.getGameRooms();
-      setRooms(roomList.filter((room) => room.is_active));
+      console.log('[RoomList] Loaded rooms:', roomList);
+      setRooms(roomList);
     } catch (error) {
       console.error('Failed to load rooms:', error);
     } finally {
@@ -53,8 +91,8 @@ const RoomList: React.FC = () => {
     }
 
     try {
-      await apiService.joinGameRoom(room.uuid, username);
-      navigate(`/game/${room.uuid}`);
+      await apiService.joinGameRoom(room.id, username);
+      navigate(`/game/${room.id}`);
     } catch (error) {
       console.error('Failed to join room:', error);
       alert('Failed to join room');
@@ -64,6 +102,81 @@ const RoomList: React.FC = () => {
   const handleRefresh = () => {
     setLoading(true);
     loadRooms();
+  };
+
+  const handleCreateRoom = async () => {
+    if (!username) {
+      alert('사용자 이름이 없습니다.');
+      navigate('/');
+      return;
+    }
+
+    setCreatingRoom(true);
+    try {
+      const result = await apiService.createGameRoom({
+        name: `${username}의 게임방`,
+        gameType: selectedGameType,
+        maxPlayers: maxPlayers,
+        totalRounds: totalRounds,
+        roundTimeLimit: roundTimeLimit,
+        hostUsername: username,
+        isPrivate: false
+      });
+      setShowCreateModal(false);
+      navigate(`/game/${result.id}`);
+    } catch (error) {
+      console.error('Failed to create room:', error);
+      alert(`방 생성에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setCreatingRoom(false);
+    }
+  };
+
+  const gameModes = [
+    {
+      type: 'WORDCHAIN' as GameType,
+      title: '🔤 끝말잇기',
+      description: '일본어 단어로 끝말잇기',
+      color: '#FF6B6B',
+    },
+    {
+      type: 'OX' as GameType,
+      title: '⭕❌ OX 퀴즈',
+      description: '참/거짓 판단 게임',
+      color: '#4ECDC4',
+    },
+    {
+      type: 'QA' as GameType,
+      title: '📚 일반 상식',
+      description: '4지선다 퀴즈',
+      color: '#95E1D3',
+    },
+    {
+      type: 'DRAWING' as GameType,
+      title: '🎨 그림 맞추기',
+      description: '그림으로 표현하기',
+      color: '#F38181',
+    },
+  ];
+
+  const handleSendLobbyChat = () => {
+    if (!chatInput.trim() || !username) return;
+
+    // WebSocket을 통해 직접 lobby_chat 메시지 전송
+    if (wsService['ws'] && wsService['ws'].readyState === WebSocket.OPEN) {
+      wsService['ws'].send(JSON.stringify({
+        type: 'lobby_chat',
+        channel: 'lobby',
+        data: {
+          playerId: username,
+          playerName: username,
+          message: chatInput.trim()
+        }
+      }));
+      console.log('[RoomList] Sent lobby chat:', chatInput.trim());
+    }
+
+    setChatInput('');
   };
 
   if (loading) {
@@ -76,78 +189,202 @@ const RoomList: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <div style={styles.content}>
-        <div style={styles.header}>
-          <button onClick={() => navigate('/')} style={styles.backButton}>
-            ← {t.roomList.backToHome}
-          </button>
-          <h1 style={styles.title}>{t.roomList.availableRooms}</h1>
-          <button onClick={handleRefresh} style={styles.refreshButton}>
-            🔄
-          </button>
+      <div style={styles.mainLayout}>
+        {/* Left: Room List */}
+        <div style={styles.content}>
+          <div style={styles.header}>
+            <button onClick={() => navigate('/')} style={styles.backButton}>
+              ← {t.roomList.backToHome}
+            </button>
+            <h1 style={styles.title}>{t.roomList.availableRooms}</h1>
+            <button onClick={() => setShowCreateModal(true)} style={styles.createButton}>
+              ➕ 방 만들기
+            </button>
+          </div>
+
+          {rooms.length === 0 ? (
+            <div style={styles.emptyMessage}>
+              {t.roomList.noRooms}
+            </div>
+          ) : (
+            <div style={styles.roomList}>
+              {rooms.map((room) => (
+                <div key={room.id} style={styles.roomCard}>
+                  <div style={styles.roomInfo}>
+                    <div style={styles.roomHeader}>
+                      <div style={styles.roomTitle}>
+                        👑 호스트: {room.hostUsername}
+                      </div>
+                      <div style={{
+                        ...styles.gameTypeBadge,
+                        background: room.gameType === 'WORDCHAIN' ? '#FF6B6B' : room.gameType === 'OX' ? '#4ECDC4' : room.gameType === 'QA' ? '#95E1D3' : '#F38181'
+                      }}>
+                        {room.gameType === 'WORDCHAIN' ? '🔤 끝말잇기' : room.gameType === 'OX' ? '⭕❌ OX' : room.gameType === 'QA' ? '📚 상식' : '🎨 그림'}
+                      </div>
+                    </div>
+                    <div style={styles.roomStats}>
+                      <span>👥 {room.players.length}/{room.maxPlayers}</span>
+                      {room.status === 'PLAYING' && (
+                        <>
+                          <span style={styles.separator}>•</span>
+                          <span>🎮 {t.roomList.round} {room.currentRound}/{room.totalRounds}</span>
+                        </>
+                      )}
+                    </div>
+                    <div style={styles.gameStatus}>
+                      {room.status === 'WAITING' && (
+                        <span style={styles.statusWaiting}>{t.roomList.status.waiting}</span>
+                      )}
+                      {room.status === 'PLAYING' && (
+                        <span style={styles.statusPlaying}>{t.roomList.status.playing}</span>
+                      )}
+                      {room.status === 'FINISHED' && (
+                        <span style={styles.statusFinished}>{t.roomList.status.finished}</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleJoinRoom(room)}
+                    style={
+                      room.status === 'PLAYING' || room.status === 'FINISHED'
+                        ? { ...styles.joinButton, ...styles.joinButtonDisabled }
+                        : styles.joinButton
+                    }
+                    disabled={room.status === 'PLAYING' || room.status === 'FINISHED'}
+                  >
+                    {room.status === 'FINISHED'
+                      ? t.roomList.status.finished
+                      : room.status === 'PLAYING'
+                      ? t.roomList.status.playing
+                      : t.roomList.join}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {rooms.length === 0 ? (
-          <div style={styles.emptyMessage}>
-            {t.roomList.noRooms}
-          </div>
-        ) : (
-          <div style={styles.roomList}>
-            {rooms.map((room) => (
-              <div key={room.uuid} style={styles.roomCard}>
-                <div style={styles.roomInfo}>
-                  <div style={styles.roomHeader}>
-                    <div style={styles.roomTitle}>
-                      👑 호스트: {room.drawer_user}
-                    </div>
-                    <div style={{
-                      ...styles.gameTypeBadge,
-                      background: room.game_type === 'guess' ? '#FF6B6B' : room.game_type === 'ox' ? '#4ECDC4' : '#95E1D3'
-                    }}>
-                      {room.game_type === 'guess' ? '🎨 그림' : room.game_type === 'ox' ? '⭕❌ OX' : '📚 상식'}
-                    </div>
-                  </div>
-                  <div style={styles.roomStats}>
-                    <span>👥 {room.players.length}/4</span>
-                    {room.game_status === 'playing' && (
-                      <>
-                        <span style={styles.separator}>•</span>
-                        <span>🎮 {t.roomList.round} {room.round_number}/{room.max_rounds}</span>
-                      </>
-                    )}
-                  </div>
-                  <div style={styles.gameStatus}>
-                    {room.game_status === 'waiting' && (
-                      <span style={styles.statusWaiting}>{t.roomList.status.waiting}</span>
-                    )}
-                    {room.game_status === 'playing' && (
-                      <span style={styles.statusPlaying}>{t.roomList.status.playing}</span>
-                    )}
-                    {room.game_status === 'finished' && (
-                      <span style={styles.statusFinished}>{t.roomList.status.finished}</span>
-                    )}
-                  </div>
+        {/* Right: Lobby Chat */}
+        <div style={styles.lobbyChatContainer}>
+          <h3 style={styles.lobbyChatTitle}>💬 로비 채팅</h3>
+          <div style={styles.lobbyChatMessages}>
+            {lobbyChatMessages.length === 0 ? (
+              <div style={styles.noChatMessage}>채팅이 없습니다</div>
+            ) : (
+              lobbyChatMessages.map((msg, index) => (
+                <div key={index} style={styles.chatMessageItem}>
+                  <span style={styles.chatPlayerName}>{msg.playerName}:</span>
+                  <span style={styles.chatMessageText}>{msg.message}</span>
                 </div>
-                <button
-                  onClick={() => handleJoinRoom(room)}
-                  style={
-                    room.game_status === 'playing' || room.game_status === 'finished'
-                      ? { ...styles.joinButton, ...styles.joinButtonDisabled }
-                      : styles.joinButton
-                  }
-                  disabled={room.game_status === 'playing' || room.game_status === 'finished'}
-                >
-                  {room.game_status === 'finished'
-                    ? t.roomList.status.finished
-                    : room.game_status === 'playing'
-                    ? t.roomList.status.playing
-                    : t.roomList.join}
-                </button>
-              </div>
-            ))}
+              ))
+            )}
+            <div ref={chatEndRef} />
           </div>
-        )}
+          <div style={styles.lobbyChatInputArea}>
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendLobbyChat()}
+              placeholder="메시지를 입력하세요..."
+              style={styles.lobbyChatInput}
+            />
+            <button onClick={handleSendLobbyChat} style={styles.lobbyChatSendButton}>
+              전송
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Create Room Modal */}
+      {showCreateModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowCreateModal(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>🎮 게임 방 만들기</h2>
+              <button style={styles.modalCloseButton} onClick={() => setShowCreateModal(false)}>
+                ✕
+              </button>
+            </div>
+            
+            <p style={styles.modalSubtitle}>플레이할 게임을 선택하세요</p>
+            
+            <div style={styles.gameModeGrid}>
+              {gameModes.map((mode) => (
+                <div
+                  key={mode.type}
+                  style={{
+                    ...styles.gameModeCard,
+                    borderColor: selectedGameType === mode.type ? mode.color : '#ddd',
+                    background: selectedGameType === mode.type ? `${mode.color}15` : 'white',
+                  }}
+                  onClick={() => setSelectedGameType(mode.type)}
+                >
+                  <div style={styles.gameModeTitle}>{mode.title}</div>
+                  <div style={styles.gameModeDescription}>{mode.description}</div>
+                  {selectedGameType === mode.type && (
+                    <div style={styles.selectedCheck}>✓</div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div style={styles.settingsContainer}>
+              <div style={styles.settingRow}>
+                <label style={styles.settingLabel}>👥 최대 인원</label>
+                <select 
+                  style={styles.settingSelect}
+                  value={maxPlayers}
+                  onChange={(e) => setMaxPlayers(Number(e.target.value))}
+                >
+                  {[2, 3, 4, 5, 6, 7, 8].map(num => (
+                    <option key={num} value={num}>{num}명</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={styles.settingRow}>
+                <label style={styles.settingLabel}>🎯 라운드 수</label>
+                <select 
+                  style={styles.settingSelect}
+                  value={totalRounds}
+                  onChange={(e) => setTotalRounds(Number(e.target.value))}
+                >
+                  {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
+                    <option key={num} value={num}>{num}라운드</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={styles.settingRow}>
+                <label style={styles.settingLabel}>⏱️ 문제당 시간</label>
+                <select 
+                  style={styles.settingSelect}
+                  value={roundTimeLimit}
+                  onChange={(e) => setRoundTimeLimit(Number(e.target.value))}
+                >
+                  {[5, 10, 15, 20, 25, 30].map(sec => (
+                    <option key={sec} value={sec}>{sec}초</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={styles.modalFooter}>
+              <button style={styles.cancelButton} onClick={() => setShowCreateModal(false)}>
+                취소
+              </button>
+              <button 
+                style={styles.confirmButton} 
+                onClick={handleCreateRoom}
+                disabled={creatingRoom}
+              >
+                {creatingRoom ? '생성 중...' : '방 만들기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -158,9 +395,14 @@ const styles: { [key: string]: React.CSSProperties } = {
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     padding: '10px',
   },
-  content: {
-    maxWidth: '700px',
+  mainLayout: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 350px',
+    gap: '10px',
+    maxWidth: '1400px',
     margin: '0 auto',
+  },
+  content: {
     background: 'white',
     borderRadius: '12px',
     padding: 'clamp(15px, 4vw, 20px)',
@@ -190,6 +432,16 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: 'clamp(12px, 2.5vw, 14px)',
+  },
+  createButton: {
+    padding: 'clamp(6px, 1.5vw, 8px) clamp(12px, 3vw, 16px)',
+    background: '#667eea',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: 'clamp(12px, 2.5vw, 14px)',
+    fontWeight: 'bold',
   },
   refreshButton: {
     padding: 'clamp(6px, 1.5vw, 8px) clamp(12px, 3vw, 16px)',
@@ -306,6 +558,217 @@ const styles: { [key: string]: React.CSSProperties } = {
   joinButtonDisabled: {
     background: '#cbd5e0',
     cursor: 'not-allowed',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.7)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    background: 'white',
+    borderRadius: '16px',
+    padding: '24px',
+    maxWidth: '500px',
+    width: '90%',
+    maxHeight: '80vh',
+    overflowY: 'auto',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: '24px',
+    color: '#333',
+  },
+  modalCloseButton: {
+    background: 'none',
+    border: 'none',
+    fontSize: '24px',
+    cursor: 'pointer',
+    color: '#999',
+    padding: '0',
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSubtitle: {
+    margin: '0 0 20px 0',
+    fontSize: '14px',
+    color: '#666',
+  },
+  gameModeGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '12px',
+    marginBottom: '24px',
+  },
+  gameModeCard: {
+    padding: '16px',
+    borderRadius: '12px',
+    border: '3px solid',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    position: 'relative',
+  },
+  gameModeTitle: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    marginBottom: '4px',
+    color: '#333',
+  },
+  gameModeDescription: {
+    fontSize: '12px',
+    color: '#666',
+  },
+  selectedCheck: {
+    position: 'absolute',
+    top: '8px',
+    right: '8px',
+    background: '#48bb78',
+    color: 'white',
+    borderRadius: '50%',
+    width: '24px',
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    fontWeight: 'bold',
+  },
+  modalFooter: {
+    display: 'flex',
+    gap: '12px',
+    justifyContent: 'flex-end',
+  },
+  cancelButton: {
+    padding: '12px 24px',
+    background: '#e2e8f0',
+    color: '#333',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold',
+  },
+  confirmButton: {
+    padding: '12px 24px',
+    background: '#667eea',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 'bold',
+  },
+  settingsContainer: {
+    marginBottom: '20px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  settingRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px',
+    background: '#f7fafc',
+    borderRadius: '8px',
+  },
+  settingLabel: {
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  settingSelect: {
+    padding: '8px 12px',
+    fontSize: '14px',
+    border: '2px solid #e2e8f0',
+    borderRadius: '6px',
+    background: 'white',
+    cursor: 'pointer',
+    minWidth: '100px',
+  },
+  lobbyChatContainer: {
+    background: 'white',
+    borderRadius: '12px',
+    padding: '15px',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+    display: 'flex',
+    flexDirection: 'column',
+    height: 'calc(100vh - 20px)',
+  },
+  lobbyChatTitle: {
+    margin: '0 0 15px 0',
+    fontSize: '18px',
+    color: '#333',
+    borderBottom: '2px solid #667eea',
+    paddingBottom: '10px',
+  },
+  lobbyChatMessages: {
+    flex: 1,
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    marginBottom: '15px',
+    padding: '10px',
+    background: '#f7fafc',
+    borderRadius: '8px',
+  },
+  noChatMessage: {
+    textAlign: 'center',
+    color: '#999',
+    fontSize: '14px',
+    padding: '20px',
+  },
+  chatMessageItem: {
+    padding: '8px',
+    background: 'white',
+    borderRadius: '6px',
+    fontSize: '14px',
+  },
+  chatPlayerName: {
+    fontWeight: 'bold',
+    color: '#667eea',
+    marginRight: '8px',
+  },
+  chatMessageText: {
+    color: '#333',
+  },
+  lobbyChatInputArea: {
+    display: 'flex',
+    gap: '8px',
+  },
+  lobbyChatInput: {
+    flex: 1,
+    padding: '10px',
+    fontSize: '14px',
+    border: '2px solid #e2e8f0',
+    borderRadius: '8px',
+  },
+  lobbyChatSendButton: {
+    padding: '10px 20px',
+    background: '#667eea',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '14px',
   },
 };
 
