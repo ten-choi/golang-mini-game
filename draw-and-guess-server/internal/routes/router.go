@@ -83,11 +83,21 @@ func setupGraphQLRoutes(api *gin.RouterGroup) {
 		KeepAlivePingInterval: 10 * time.Second,
 	})
 
-	// GraphQL endpoint - handles all HTTP methods and WebSocket upgrades
+	// GraphQL endpoint - POST for queries/mutations, WebSocket handled separately
 	api.POST("/graphql", gin.WrapH(srv))
-	api.GET("/graphql", gin.WrapH(srv)) // WebSocket upgrades happen on GET
 
-	// Playground UIs
-	api.GET("/playground", gin.WrapH(playground.Handler("GraphQL Playground", "/graphql")))
-	api.GET("/sandbox", gin.WrapH(playground.ApolloSandboxHandler("Apollo Sandbox", "/graphql")))
+	// GET /graphql shows Apollo Sandbox UI (best interface)
+	api.GET("/graphql", func(c *gin.Context) {
+		// Check if it's a WebSocket upgrade request
+		if c.GetHeader("Upgrade") == "websocket" {
+			gin.WrapH(srv)(c)
+			return
+		}
+		// Otherwise show Apollo Sandbox UI
+		playground.ApolloSandboxHandler("Apollo Sandbox", "/graphql")(c.Writer, c.Request)
+	})
+
+	// Alternative Playground UIs
+	// api.GET("/playground", gin.WrapH(playground.Handler("GraphQL Playground", "/graphql")))
+	// api.GET("/sandbox", gin.WrapH(playground.ApolloSandboxHandler("Apollo Sandbox", "/graphql")))
 }
