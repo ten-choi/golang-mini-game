@@ -8,10 +8,11 @@ import (
 )
 
 var (
-	MongoURI   string
-	MongoDB    string
-	ValkeyAddr string
-	ServerPort string
+	MongoURI       string
+	MongoDB        string
+	ValkeyAddr     string
+	ValkeyPassword string
+	ServerPort     string
 )
 
 func Init() {
@@ -26,6 +27,7 @@ func Init() {
 	MongoURI = getEnv("MONGO_URI", "mongodb://localhost:27017")
 	MongoDB = getEnv("MONGO_DB", "draw_and_guess_db")
 	ValkeyAddr = getEnv("VALKEY_ADDR", "localhost:6379")
+	ValkeyPassword = getEnv("VALKEY_PASSWORD", "")
 	ServerPort = getEnv("SERVER_PORT", "8080")
 
 	// Validate essential configurations

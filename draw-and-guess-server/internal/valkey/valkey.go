@@ -18,8 +18,8 @@ var Client *redis.Client
 func Connect() error {
 	Client = redis.NewClient(&redis.Options{
 		Addr:         config.ValkeyAddr,
-		Password:     "", // No password by default
-		DB:           0,  // Use default DB
+		Password:     config.ValkeyPassword, // Use password from config
+		DB:           0,                     // Use default DB
 		DialTimeout:  5 * time.Second,
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 3 * time.Second,
