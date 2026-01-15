@@ -18,7 +18,7 @@ type UserRepository interface {
 	GetByNickname(ctx context.Context, nickname string) (*models.User, error)
 	GetAll(ctx context.Context) ([]*models.User, error)
 	Create(ctx context.Context, user *models.User) (*models.User, error)
-	Update(ctx context.Context, nickname string, avatarURL *string, level, credit, hanCoin *int) (*models.User, error) // hanCoin은 외부 재화 (nil 전달)
+	Update(ctx context.Context, nickname string, avatarURL *string, level, credit *int) (*models.User, error)
 }
 
 type userRepository struct {
@@ -79,7 +79,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) (*models
 	return user, nil
 }
 
-func (r *userRepository) Update(ctx context.Context, nickname string, avatarURL *string, level, credit, hanCoin *int) (*models.User, error) {
+func (r *userRepository) Update(ctx context.Context, nickname string, avatarURL *string, level, credit *int) (*models.User, error) {
 	update := bson.M{
 		"$set": bson.M{
 			"updated_at": time.Now(),
@@ -95,9 +95,6 @@ func (r *userRepository) Update(ctx context.Context, nickname string, avatarURL 
 	}
 	if credit != nil {
 		setFields["credit"] = *credit
-	}
-	if hanCoin != nil {
-		setFields["han_coin"] = *hanCoin
 	}
 
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)

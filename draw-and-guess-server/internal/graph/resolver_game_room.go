@@ -236,18 +236,62 @@ func (r *queryResolver) GameRoom(ctx context.Context, id string) (*model.GameRoo
 }
 
 // GameRooms is the resolver for the gameRooms field.
-func (r *queryResolver) GameRooms(ctx context.Context, gameType *model.GameType) ([]*model.GameRoom, error) {
+func (r *queryResolver) GameRooms(ctx context.Context, gameType *model.GameType, status *model.GameStatus, includePrivate *bool, hasSpace *bool, limit *int32, sortBy *string) ([]*model.GameRoom, error) {
 	roomMutex.RLock()
 	defer roomMutex.RUnlock()
 
 	result := []*model.GameRoom{}
 	for _, room := range gameRooms {
-		if gameType == nil || room.GameType == *gameType {
-			result = append(result, room)
+		// Filter by game type
+		if gameType != nil && room.GameType != *gameType {
+			continue
+		}
+
+		// Filter by status
+		if status != nil && room.Status != *status {
+			continue
+		}
+
+		// Filter by private rooms
+		if includePrivate == nil || !*includePrivate {
+			if room.IsPrivate {
+				continue
+			}
+		}
+
+		// Filter by available space
+		if hasSpace != nil && *hasSpace {
+			if len(room.Players) >= int(room.MaxPlayers) {
+				continue
+			}
+		}
+
+		result = append(result, room)
+
+		// Apply limit
+		if limit != nil && len(result) >= int(*limit) {
+			break
 		}
 	}
 
 	return result, nil
+}
+
+// MyCurrentRoom is the resolver for the myCurrentRoom field.
+func (r *queryResolver) MyCurrentRoom(ctx context.Context, username string) (*model.GameRoom, error) {
+	roomMutex.RLock()
+	defer roomMutex.RUnlock()
+
+	// Find room where username is a player
+	for _, room := range gameRooms {
+		for _, player := range room.Players {
+			if player.Username == username {
+				return room, nil
+			}
+		}
+	}
+
+	return nil, nil // Not in any room
 }
 
 // ========================================
@@ -309,9 +353,10 @@ func startWordchainGame(roomID string) {
 	dict := dictionary.GetInstance()
 	initialWord := dict.GetRandomWord()
 
-	room.WordchainLastWord = initialWord
+	room.WordchainLastWord = &initialWord
 	if len(room.Players) > 0 {
-		room.CurrentTurnUsername = room.Players[0].Username
+		firstUsername := room.Players[0].Username
+		room.CurrentTurnUsername = &firstUsername
 	}
 
 	// Initialize used words array with initial word
@@ -433,13 +478,13 @@ func (r *mutationResolver) TransferHost(ctx context.Context, roomID string, newH
 }
 
 // SetReady is the resolver for the setReady field.
-func (r *mutationResolver) SetReady(ctx context.Context, roomID string, username string, ready bool) (bool, error) {
+func (r *mutationResolver) SetReady(ctx context.Context, roomID string, username string, ready bool) (*model.GameRoom, error) {
 	roomMutex.Lock()
 	defer roomMutex.Unlock()
 
 	room, exists := gameRooms[roomID]
 	if !exists {
-		return false, fmt.Errorf("room not found")
+		return nil, fmt.Errorf("room not found")
 	}
 
 	// Find player and update ready status
@@ -453,11 +498,11 @@ func (r *mutationResolver) SetReady(ctx context.Context, roomID string, username
 				GetPubSub().PublishPlayerReadyUpdated(roomID, room.Players[i])
 			}()
 
-			return true, nil
+			return room, nil
 		}
 	}
 
-	return false, fmt.Errorf("player not found in room")
+	return nil, fmt.Errorf("player not found in room")
 }
 
 // StartRound is the resolver for the startRound field.
@@ -486,13 +531,13 @@ func (r *mutationResolver) StartRound(ctx context.Context, roomID string) (*mode
 }
 
 // SubmitAnswer is the resolver for the submitAnswer field.
-func (r *mutationResolver) SubmitAnswer(ctx context.Context, roomID string, username string, answer string) (bool, error) {
+func (r *mutationResolver) SubmitAnswer(ctx context.Context, roomID string, username string, answer string) (*model.AnswerResult, error) {
 	roomMutex.Lock()
 	defer roomMutex.Unlock()
 
 	room, exists := gameRooms[roomID]
 	if !exists {
-		return false, fmt.Errorf("room not found")
+		return nil, fmt.Errorf("room not found")
 	}
 
 	// Find player
@@ -504,13 +549,20 @@ func (r *mutationResolver) SubmitAnswer(ctx context.Context, roomID string, user
 		}
 	}
 	if player == nil {
-		return false, fmt.Errorf("player not found in room")
+		return nil, fmt.Errorf("player not found in room")
 	}
 
 	// TODO: Validate answer and update score
 	// This is a placeholder - actual logic depends on game type
+	emptyStr := ""
+	result := &model.AnswerResult{
+		IsCorrect:     false,
+		EarnedScore:   0,
+		TotalScore:    player.Score,
+		CorrectAnswer: &emptyStr,
+	}
 
-	return true, nil
+	return result, nil
 }
 
 // EndGame is the resolver for the endGame field.
@@ -686,6 +738,32 @@ func (r *subscriptionResolver) Error(ctx context.Context, roomID string) (<-chan
 	go func() {
 		<-ctx.Done()
 		GetPubSub().UnsubscribeFromError(roomID, subscriberID)
+	}()
+
+	return ch, nil
+}
+
+// MyEvents is the resolver for the myEvents field.
+func (r *subscriptionResolver) MyEvents(ctx context.Context, username string) (<-chan *model.GameEvent, error) {
+	subscriberID := uuid.New().String()
+	ch := GetPubSub().SubscribeToGameEvent("", subscriberID) // Empty roomID for user-specific events
+
+	go func() {
+		<-ctx.Done()
+		GetPubSub().UnsubscribeFromGameEvent("", subscriberID)
+	}()
+
+	return ch, nil
+}
+
+// PlayerConnectionStatus is the resolver for the playerConnectionStatus field.
+func (r *subscriptionResolver) PlayerConnectionStatus(ctx context.Context, roomID string) (<-chan *model.PlayerConnection, error) {
+	// TODO: Implement player connection status subscription
+	ch := make(chan *model.PlayerConnection)
+
+	go func() {
+		<-ctx.Done()
+		close(ch)
 	}()
 
 	return ch, nil

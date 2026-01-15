@@ -10,6 +10,23 @@ import (
 	"time"
 )
 
+// 답변 제출 결과를 나타냅니다.
+// Apollo Client에서 Optimistic UI와 즉각적인 피드백을 위해 사용됩니다.
+type AnswerResult struct {
+	// 제출 성공 여부
+	Success bool `json:"success"`
+	// 정답 여부 (제출자에게만 전달)
+	IsCorrect bool `json:"isCorrect"`
+	// 획득한 점수 (정답 시 100점)
+	EarnedScore int32 `json:"earnedScore"`
+	// 현재 총 점수
+	TotalScore int32 `json:"totalScore"`
+	// 정답 (라운드 종료 후에만 제공되지만, 즉시 피드백용)
+	CorrectAnswer *string `json:"correctAnswer,omitempty"`
+	// 설명 (선택사항)
+	Explanation *string `json:"explanation,omitempty"`
+}
+
 // 게임방 채팅 메시지입니다.
 // WebSocket을 통해 실시간으로 전달됩니다.
 type ChatMessage struct {
@@ -130,13 +147,13 @@ type GameRoom struct {
 	Password *string `json:"password,omitempty"`
 	// 게임방 생성 시각
 	CreatedAt time.Time `json:"createdAt"`
-	// 끝말잇기 마지막 단어
-	WordchainLastWord string `json:"wordchainLastWord,omitempty"`
-	// 끝말잇기 현재 턴 플레이어
-	CurrentTurnUsername string `json:"currentTurnUsername,omitempty"`
-	// 끝말잇기 사용된 단어 목록 (중복 체크용)
+	// 끝말잇기 게임 - 마지막 단어
+	WordchainLastWord *string `json:"wordchainLastWord,omitempty"`
+	// 끝말잇기 게임 - 사용된 단어 목록
 	WordchainUsedWords []string `json:"wordchainUsedWords,omitempty"`
-	// 끝말잇기 현재 턴 시작 시간
+	// 끝말잇기 게임 - 현재 턴 플레이어
+	CurrentTurnUsername *string `json:"currentTurnUsername,omitempty"`
+	// 끝말잇기 게임 - 턴 시작 시간
 	WordchainTurnStartTime *time.Time `json:"wordchainTurnStartTime,omitempty"`
 }
 
@@ -237,6 +254,19 @@ type Player struct {
 	IsReady bool `json:"isReady"`
 }
 
+// 플레이어의 연결 상태 정보입니다.
+// 실시간 온라인/오프라인 표시에 사용됩니다.
+type PlayerConnection struct {
+	// 플레이어 사용자명
+	Username string `json:"username"`
+	// 연결 상태 (true: 온라인, false: 오프라인)
+	IsConnected bool `json:"isConnected"`
+	// 마지막 접속 시각
+	LastSeen time.Time `json:"lastSeen"`
+	// 핑 (밀리초, 네트워크 지연시간)
+	Ping *int32 `json:"ping,omitempty"`
+}
+
 // 플레이어의 게임 타입별 통계 정보입니다.
 // 리더보드 및 프로필 화면에서 사용됩니다.
 type PlayerStats struct {
@@ -301,8 +331,6 @@ type UpdateUserInput struct {
 	Level *int32 `json:"level,omitempty"`
 	// 새로운 일반 재화
 	Credit *int32 `json:"credit,omitempty"`
-	// 새로운 프리미엄 재화 (외부 관리, 업데이트 불가)
-	HanCoin *int32 `json:"hanCoin,omitempty"`
 }
 
 // 게임 플레이어 계정을 나타냅니다.
@@ -318,8 +346,6 @@ type User struct {
 	Level int32 `json:"level"`
 	// 일반 재화 (게임 플레이로 획득)
 	Credit int32 `json:"credit"`
-	// 프리미엄 재화 (외부 시스템 관리)
-	HanCoin int32 `json:"hanCoin"`
 	// 소속 길드 ID (선택사항)
 	GuildID *string `json:"guildId,omitempty"`
 	// 계정 생성 시각

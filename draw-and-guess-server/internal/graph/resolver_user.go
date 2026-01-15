@@ -36,7 +36,6 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 		AvatarURL: &created.AvatarURL,
 		Level:     int32(created.Level),
 		Credit:    int32(created.Credit),
-		HanCoin:   int32(created.HanCoin),
 		CreatedAt: created.CreatedAt,
 		UpdatedAt: created.UpdatedAt,
 	}, nil
@@ -56,7 +55,6 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, nickname string, inpu
 		credit := int(*input.Credit)
 		dto.Credit = &credit
 	}
-	// HanCoin은 외부 재화로 이 게임에서 업데이트하지 않음
 
 	updated, err := r.UserService.UpdateUser(ctx, nickname, dto)
 	if err != nil {
@@ -70,7 +68,6 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, nickname string, inpu
 		AvatarURL: &updated.AvatarURL,
 		Level:     int32(updated.Level),
 		Credit:    int32(updated.Credit),
-		HanCoin:   int32(updated.HanCoin),
 		CreatedAt: updated.CreatedAt,
 		UpdatedAt: updated.UpdatedAt,
 	}, nil
@@ -93,33 +90,84 @@ func (r *queryResolver) User(ctx context.Context, nickname string) (*model.User,
 		AvatarURL: &user.AvatarURL,
 		Level:     int32(user.Level),
 		Credit:    int32(user.Credit),
-		HanCoin:   int32(user.HanCoin),
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 	}, nil
 }
 
 // Users is the resolver for the users field.
-func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
+func (r *queryResolver) Users(ctx context.Context, limit *int32, offset *int32, search *string, minLevel *int32) ([]*model.User, error) {
+	// TODO: Implement filtering with limit, offset, search, and minLevel
 	users, err := r.UserService.GetAllUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]*model.User, len(users))
-	for i, u := range users {
-		result[i] = &model.User{
+	result := make([]*model.User, 0)
+	for _, u := range users {
+		// Apply filters
+		if minLevel != nil && int32(u.Level) < *minLevel {
+			continue
+		}
+		if search != nil && len(*search) > 0 {
+			// Simple case-insensitive search in nickname
+			if !contains(u.Nickname, *search) {
+				continue
+			}
+		}
+
+		result = append(result, &model.User{
 			ID:        u.ID.Hex(),
 			Nickname:  u.Nickname,
 			AvatarURL: &u.AvatarURL,
 			Level:     int32(u.Level),
 			Credit:    int32(u.Credit),
-			HanCoin:   int32(u.HanCoin),
 			CreatedAt: u.CreatedAt,
 			UpdatedAt: u.UpdatedAt,
+		})
+
+		// Apply limit
+		if limit != nil && len(result) >= int(*limit) {
+			break
 		}
 	}
+
+	// Apply offset
+	if offset != nil && int(*offset) < len(result) {
+		result = result[*offset:]
+	}
+
 	return result, nil
+}
+
+// Helper function for case-insensitive string contains
+func contains(str, substr string) bool {
+	return len(str) >= len(substr) && (str == substr ||
+		len(substr) == 0 ||
+		indexIgnoreCase(str, substr) >= 0)
+}
+
+func indexIgnoreCase(str, substr string) int {
+	str = toLower(str)
+	substr = toLower(substr)
+	for i := 0; i <= len(str)-len(substr); i++ {
+		if str[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+func toLower(s string) string {
+	result := make([]rune, len(s))
+	for i, r := range s {
+		if r >= 'A' && r <= 'Z' {
+			result[i] = r + 32
+		} else {
+			result[i] = r
+		}
+	}
+	return string(result)
 }
 
 // DeleteUser is the resolver for the deleteUser field.

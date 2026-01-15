@@ -18,29 +18,76 @@ export const graphqlClient = new GraphQLClient(GRAPHQL_ENDPOINT, {
 });
 
 // ============================================
+// GraphQL Fragments (for code reuse & Apollo Cache)
+// ============================================
+
+export const USER_FIELDS = `
+  fragment UserFields on User {
+    id
+    nickname
+    avatarUrl
+    level
+    credit
+    guildId
+    createdAt
+    updatedAt
+  }
+`;
+
+export const PLAYER_FIELDS = `
+  fragment PlayerFields on Player {
+    username
+    displayName
+    score
+    isReady
+  }
+`;
+
+export const GAME_ROOM_FIELDS = `
+  fragment GameRoomFields on GameRoom {
+    id
+    name
+    gameType
+    status
+    currentRound
+    totalRounds
+    roundTimeLimit
+    maxPlayers
+    hostUsername
+    isPrivate
+    createdAt
+  }
+`;
+
+export const GAME_ROOM_DETAIL_FIELDS = `
+  fragment GameRoomDetailFields on GameRoom {
+    ...GameRoomFields
+    usedQuizIds
+    players {
+      ...PlayerFields
+    }
+  }
+  ${GAME_ROOM_FIELDS}
+  ${PLAYER_FIELDS}
+`;
+
+// ============================================
 // GraphQL Queries
 // ============================================
 
 // User Queries
 export const GET_USER = `
+  ${USER_FIELDS}
   query GetUser($nickname: String!) {
     user(nickname: $nickname) {
-      id
-      nickname
-      avatarUrl
-      level
-      credit
-      hanCoin
-      guildId
-      createdAt
-      updatedAt
+      ...UserFields
     }
   }
 `;
 
 export const GET_USERS = `
-  query GetUsers {
-    users {
+  query GetUsers($limit: Int, $offset: Int, $search: String, $minLevel: Int) {
+    users(limit: $limit, offset: $offset, search: $search, minLevel: $minLevel) {
       id
       nickname
       avatarUrl
@@ -53,50 +100,96 @@ export const GET_USERS = `
 
 // Game Room Queries
 export const GET_GAME_ROOMS = `
-  query GetGameRooms($gameType: GameType) {
-    gameRooms(gameType: $gameType) {
-      id
-      name
-      gameType
-      status
-      currentRound
-      totalRounds
-      roundTimeLimit
-      maxPlayers
-      hostUsername
-      isPrivate
+  ${GAME_ROOM_FIELDS}
+  ${PLAYER_FIELDS}
+  query GetGameRooms(
+    $gameType: GameType
+    $status: GameStatus
+    $includePrivate: Boolean
+    $hasSpace: Boolean
+    $limit: Int
+    $sortBy: String
+  ) {
+    gameRooms(
+      gameType: $gameType
+      status: $status
+      includePrivate: $includePrivate
+      hasSpace: $hasSpace
+      limit: $limit
+      sortBy: $sortBy
+    ) {
+      ...GameRoomFields
       players {
-        username
-        displayName
-        score
-        isReady
+        ...PlayerFields
       }
-      createdAt
     }
   }
 `;
 
 export const GET_GAME_ROOM = `
+  ${GAME_ROOM_DETAIL_FIELDS}
   query GetGameRoom($id: ID!) {
     gameRoom(id: $id) {
+      ...GameRoomDetailFields
+    }
+  }
+`;
+
+export const GET_MY_CURRENT_ROOM = `
+  ${GAME_ROOM_DETAIL_FIELDS}
+  query GetMyCurrentRoom($username: String!) {
+    myCurrentRoom(username: $username) {
+      ...GameRoomDetailFields
+    }
+  }
+`;
+
+// Invitation Queries
+export const GET_MY_INVITATIONS = `
+  query GetMyInvitations($userId: ID!, $status: InviteStatus) {
+    myInvitations(userId: $userId, status: $status) {
       id
-      name
-      gameType
       status
-      currentRound
-      totalRounds
-      roundTimeLimit
-      maxPlayers
-      hostUsername
-      isPrivate
-      usedQuizIds
-      players {
-        username
-        displayName
-        score
-        isReady
-      }
       createdAt
+      expiresAt
+      room {
+        id
+        name
+        gameType
+        maxPlayers
+        players {
+          username
+        }
+      }
+      inviter {
+        nickname
+        avatarUrl
+      }
+    }
+  }
+`;
+
+export const GET_INVITATION = `
+  query GetInvitation($id: ID!) {
+    invitation(id: $id) {
+      id
+      status
+      createdAt
+      expiresAt
+      room {
+        id
+        name
+        gameType
+        status
+        players {
+          username
+          displayName
+        }
+      }
+      inviter {
+        nickname
+        avatarUrl
+      }
     }
   }
 `;
@@ -196,7 +289,6 @@ export const CREATE_USER = `
       avatarUrl
       level
       credit
-      hanCoin
       createdAt
       updatedAt
     }
@@ -211,7 +303,6 @@ export const UPDATE_USER = `
       avatarUrl
       level
       credit
-      hanCoin
       updatedAt
     }
   }
@@ -295,14 +386,13 @@ export const LEAVE_GAME_ROOM = `
 `;
 
 export const READY_PLAYER = `
-  mutation ReadyPlayer($roomId: ID!, $username: String!) {
-    readyPlayer(roomId: $roomId, username: $username) {
+  ${PLAYER_FIELDS}
+  mutation SetReady($roomId: ID!, $username: String!, $ready: Boolean!) {
+    setReady(roomId: $roomId, username: $username, ready: $ready) {
       id
+      status
       players {
-        username
-        displayName
-        score
-        isReady
+        ...PlayerFields
       }
     }
   }
@@ -321,9 +411,12 @@ export const START_GAME = `
 export const SUBMIT_ANSWER = `
   mutation SubmitAnswer($roomId: ID!, $username: String!, $answer: String!) {
     submitAnswer(roomId: $roomId, username: $username, answer: $answer) {
+      success
       isCorrect
-      score
-      message
+      earnedScore
+      totalScore
+      correctAnswer
+      explanation
     }
   }
 `;
@@ -354,6 +447,51 @@ export const DELETE_GAME_ROOM = `
 `;
 
 // Invitation Mutations
+export const INVITE_USER = `
+  mutation InviteUser($roomId: ID!, $inviteeUsername: String!) {
+    inviteUser(roomId: $roomId, inviteeUsername: $inviteeUsername) {
+      id
+      status
+      createdAt
+      expiresAt
+      invitee {
+        nickname
+        avatarUrl
+      }
+    }
+  }
+`;
+
+export const INVITE_USERS = `
+  mutation InviteUsers($roomId: ID!, $inviteeUsernames: [String!]!) {
+    inviteUsers(roomId: $roomId, inviteeUsernames: $inviteeUsernames) {
+      id
+      status
+      createdAt
+      expiresAt
+      invitee {
+        nickname
+        avatarUrl
+      }
+    }
+  }
+`;
+
+export const ACCEPT_INVITE = `
+  ${GAME_ROOM_DETAIL_FIELDS}
+  mutation AcceptInvite($invitationId: ID!) {
+    acceptInvite(invitationId: $invitationId) {
+      ...GameRoomDetailFields
+    }
+  }
+`;
+
+export const REJECT_INVITE = `
+  mutation RejectInvite($invitationId: ID!) {
+    rejectInvite(invitationId: $invitationId)
+  }
+`;
+
 export const SEND_INVITATION = `
   mutation SendInvitation($roomId: ID!, $inviterId: ID!, $inviteeId: ID!) {
     sendInvitation(roomId: $roomId, inviterId: $inviterId, inviteeId: $inviteeId) {
@@ -400,8 +538,15 @@ export const TRANSFER_HOST = `
 `;
 
 export const SET_READY = `
+  ${PLAYER_FIELDS}
   mutation SetReady($roomId: ID!, $username: String!, $ready: Boolean!) {
-    setReady(roomId: $roomId, username: $username, ready: $ready)
+    setReady(roomId: $roomId, username: $username, ready: $ready) {
+      id
+      status
+      players {
+        ...PlayerFields
+      }
+    }
   }
 `;
 

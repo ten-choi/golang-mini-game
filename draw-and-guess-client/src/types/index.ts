@@ -65,7 +65,6 @@ export interface User {
   avatarUrl?: string;
   level: number;
   credit: number;
-  hanCoin: number;
   guildId?: string;
   createdAt: string;
   updatedAt: string;

@@ -358,7 +358,7 @@ func UpdateWordchainState(roomID string, word string, username string) {
 	}
 
 	// Update last word
-	room.WordchainLastWord = word
+	room.WordchainLastWord = &word
 
 	// Add word to used words list
 	if room.WordchainUsedWords == nil {
@@ -408,7 +408,7 @@ func CheckWordchainTurn(roomID string, username string) bool {
 		return false
 	}
 
-	return room.CurrentTurnUsername == username
+	return room.CurrentTurnUsername != nil && *room.CurrentTurnUsername == username
 }
 
 // MoveToNextTurn moves to the next player's turn
@@ -424,7 +424,7 @@ func MoveToNextTurn(roomID string) {
 	// Find current player index
 	currentIndex := -1
 	for i, player := range room.Players {
-		if player.Username == room.CurrentTurnUsername {
+		if room.CurrentTurnUsername != nil && player.Username == *room.CurrentTurnUsername {
 			currentIndex = i
 			break
 		}
@@ -432,7 +432,8 @@ func MoveToNextTurn(roomID string) {
 
 	// Move to next player (circular)
 	nextIndex := (currentIndex + 1) % len(room.Players)
-	room.CurrentTurnUsername = room.Players[nextIndex].Username
+	nextUsername := room.Players[nextIndex].Username
+	room.CurrentTurnUsername = &nextUsername
 
 	log.Printf("[Wordchain] Turn moved to: %s (index: %d)", room.CurrentTurnUsername, nextIndex)
 
@@ -466,8 +467,9 @@ func EndWordchainRound(roomID string, reason string) {
 		room.Status = model.GameStatusWaiting
 		room.CurrentRound = 0
 		room.WordchainUsedWords = []string{}
-		room.WordchainLastWord = ""
-		room.CurrentTurnUsername = ""
+		emptyStr := ""
+		room.WordchainLastWord = &emptyStr
+		room.CurrentTurnUsername = &emptyStr
 		room.WordchainTurnStartTime = nil
 
 		// Keep players but reset their ready status
@@ -489,8 +491,9 @@ func EndWordchainRound(roomID string, reason string) {
 	// Start next round
 	room.CurrentRound++
 	room.WordchainUsedWords = []string{} // Reset used words
-	room.WordchainLastWord = ""          // Will be set by new round start
-	room.CurrentTurnUsername = ""        // Will be set by new round start
+	emptyStr2 := ""
+	room.WordchainLastWord = &emptyStr2   // Will be set by new round start
+	room.CurrentTurnUsername = &emptyStr2 // Will be set by new round start
 	roomMutex.Unlock()
 
 	log.Printf("[Wordchain] Starting round %d", room.CurrentRound)
@@ -515,9 +518,10 @@ func startWordchainRound(roomID string) {
 	dict := dictionary.GetInstance()
 	initialWord := dict.GetRandomWord()
 
-	room.WordchainLastWord = initialWord
+	room.WordchainLastWord = &initialWord
 	if len(room.Players) > 0 {
-		room.CurrentTurnUsername = room.Players[0].Username
+		firstUsername := room.Players[0].Username
+		room.CurrentTurnUsername = &firstUsername
 	}
 
 	// Initialize with initial word

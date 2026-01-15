@@ -49,6 +49,15 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	AnswerResult struct {
+		CorrectAnswer func(childComplexity int) int
+		EarnedScore   func(childComplexity int) int
+		Explanation   func(childComplexity int) int
+		IsCorrect     func(childComplexity int) int
+		Success       func(childComplexity int) int
+		TotalScore    func(childComplexity int) int
+	}
+
 	ChatMessage struct {
 		DisplayName func(childComplexity int) int
 		ID          func(childComplexity int) int
@@ -82,20 +91,24 @@ type ComplexityRoot struct {
 	}
 
 	GameRoom struct {
-		CreatedAt      func(childComplexity int) int
-		CurrentRound   func(childComplexity int) int
-		GameType       func(childComplexity int) int
-		HostUsername   func(childComplexity int) int
-		ID             func(childComplexity int) int
-		IsPrivate      func(childComplexity int) int
-		MaxPlayers     func(childComplexity int) int
-		Name           func(childComplexity int) int
-		Password       func(childComplexity int) int
-		Players        func(childComplexity int) int
-		RoundTimeLimit func(childComplexity int) int
-		Status         func(childComplexity int) int
-		TotalRounds    func(childComplexity int) int
-		UsedQuizIds    func(childComplexity int) int
+		CreatedAt              func(childComplexity int) int
+		CurrentRound           func(childComplexity int) int
+		CurrentTurnUsername    func(childComplexity int) int
+		GameType               func(childComplexity int) int
+		HostUsername           func(childComplexity int) int
+		ID                     func(childComplexity int) int
+		IsPrivate              func(childComplexity int) int
+		MaxPlayers             func(childComplexity int) int
+		Name                   func(childComplexity int) int
+		Password               func(childComplexity int) int
+		Players                func(childComplexity int) int
+		RoundTimeLimit         func(childComplexity int) int
+		Status                 func(childComplexity int) int
+		TotalRounds            func(childComplexity int) int
+		UsedQuizIds            func(childComplexity int) int
+		WordchainLastWord      func(childComplexity int) int
+		WordchainTurnStartTime func(childComplexity int) int
+		WordchainUsedWords     func(childComplexity int) int
 	}
 
 	GeneralQuiz struct {
@@ -134,6 +147,7 @@ type ComplexityRoot struct {
 		DeleteUser     func(childComplexity int, nickname string) int
 		EndGame        func(childComplexity int, roomID string) int
 		InviteUser     func(childComplexity int, roomID string, inviteeUsername string) int
+		InviteUsers    func(childComplexity int, roomID string, inviteeUsernames []string) int
 		JoinGameRoom   func(childComplexity int, roomID string, username string, password *string) int
 		LeaveGameRoom  func(childComplexity int, roomID string, username string) int
 		RejectInvite   func(childComplexity int, invitationID string) int
@@ -167,6 +181,13 @@ type ComplexityRoot struct {
 		Username    func(childComplexity int) int
 	}
 
+	PlayerConnection struct {
+		IsConnected func(childComplexity int) int
+		LastSeen    func(childComplexity int) int
+		Ping        func(childComplexity int) int
+		Username    func(childComplexity int) int
+	}
+
 	PlayerStats struct {
 		CreatedAt  func(childComplexity int) int
 		GameType   func(childComplexity int) int
@@ -180,32 +201,38 @@ type ComplexityRoot struct {
 	Query struct {
 		GameConfig            func(childComplexity int) int
 		GameRoom              func(childComplexity int, id string) int
-		GameRooms             func(childComplexity int, gameType *model.GameType) int
+		GameRooms             func(childComplexity int, gameType *model.GameType, status *model.GameStatus, includePrivate *bool, hasSpace *bool, limit *int32, sortBy *string) int
+		Invitation            func(childComplexity int, id string) int
 		IsValidWord           func(childComplexity int, word string) int
 		Leaderboard           func(childComplexity int, gameType string, limit *int32) int
+		MyCurrentRoom         func(childComplexity int, username string) int
+		MyInvitations         func(childComplexity int, userID string, status *model.InviteStatus) int
 		PlayerStats           func(childComplexity int, username string, gameType *string) int
 		RandomOXQuiz          func(childComplexity int, roomID *string) int
 		RandomQAQuiz          func(childComplexity int, roomID *string) int
 		RandomWordchainPrompt func(childComplexity int) int
 		User                  func(childComplexity int, nickname string) int
-		Users                 func(childComplexity int) int
+		Users                 func(childComplexity int, limit *int32, offset *int32, search *string, minLevel *int32) int
 	}
 
 	Subscription struct {
-		ChatMessage        func(childComplexity int, roomID string) int
-		Error              func(childComplexity int, roomID string) int
-		GameEnded          func(childComplexity int, roomID string) int
-		GameEvent          func(childComplexity int, roomID string) int
-		GameRoomUpdated    func(childComplexity int, roomID string) int
-		GameRoomsUpdated   func(childComplexity int) int
-		GameStarted        func(childComplexity int, roomID string) int
-		HostChanged        func(childComplexity int, roomID string) int
-		LobbyUpdated       func(childComplexity int) int
-		PlayerJoined       func(childComplexity int, roomID string) int
-		PlayerLeft         func(childComplexity int, roomID string) int
-		PlayerReadyUpdated func(childComplexity int, roomID string) int
-		RoundEnded         func(childComplexity int, roomID string) int
-		RoundStarted       func(childComplexity int, roomID string) int
+		ChatMessage            func(childComplexity int, roomID string) int
+		Error                  func(childComplexity int, roomID string) int
+		GameEnded              func(childComplexity int, roomID string) int
+		GameEvent              func(childComplexity int, roomID string) int
+		GameRoomUpdated        func(childComplexity int, roomID string) int
+		GameRoomsUpdated       func(childComplexity int) int
+		GameStarted            func(childComplexity int, roomID string) int
+		HostChanged            func(childComplexity int, roomID string) int
+		InvitationReceived     func(childComplexity int, userID string) int
+		LobbyUpdated           func(childComplexity int) int
+		MyEvents               func(childComplexity int, username string) int
+		PlayerConnectionStatus func(childComplexity int, roomID string) int
+		PlayerJoined           func(childComplexity int, roomID string) int
+		PlayerLeft             func(childComplexity int, roomID string) int
+		PlayerReadyUpdated     func(childComplexity int, roomID string) int
+		RoundEnded             func(childComplexity int, roomID string) int
+		RoundStarted           func(childComplexity int, roomID string) int
 	}
 
 	User struct {
@@ -213,7 +240,6 @@ type ComplexityRoot struct {
 		CreatedAt func(childComplexity int) int
 		Credit    func(childComplexity int) int
 		GuildID   func(childComplexity int) int
-		HanCoin   func(childComplexity int) int
 		ID        func(childComplexity int) int
 		Level     func(childComplexity int) int
 		Nickname  func(childComplexity int) int
@@ -236,23 +262,27 @@ type MutationResolver interface {
 	LeaveGameRoom(ctx context.Context, roomID string, username string) (*model.GameRoom, error)
 	DeleteGameRoom(ctx context.Context, roomID string) (bool, error)
 	TransferHost(ctx context.Context, roomID string, newHostUsername string) (*model.GameRoom, error)
-	SetReady(ctx context.Context, roomID string, username string, ready bool) (bool, error)
+	SetReady(ctx context.Context, roomID string, username string, ready bool) (*model.GameRoom, error)
 	InviteUser(ctx context.Context, roomID string, inviteeUsername string) (*model.Invitation, error)
+	InviteUsers(ctx context.Context, roomID string, inviteeUsernames []string) ([]*model.Invitation, error)
 	AcceptInvite(ctx context.Context, invitationID string) (*model.GameRoom, error)
 	RejectInvite(ctx context.Context, invitationID string) (bool, error)
 	StartGame(ctx context.Context, roomID string) (*model.GameRoom, error)
 	StartRound(ctx context.Context, roomID string) (*model.GameRoom, error)
-	SubmitAnswer(ctx context.Context, roomID string, username string, answer string) (bool, error)
+	SubmitAnswer(ctx context.Context, roomID string, username string, answer string) (*model.AnswerResult, error)
 	EndGame(ctx context.Context, roomID string) (*model.GameRoom, error)
 	SendChat(ctx context.Context, roomID string, username string, message string) (*model.ChatMessage, error)
 }
 type QueryResolver interface {
 	User(ctx context.Context, nickname string) (*model.User, error)
-	Users(ctx context.Context) ([]*model.User, error)
+	Users(ctx context.Context, limit *int32, offset *int32, search *string, minLevel *int32) ([]*model.User, error)
 	GameRoom(ctx context.Context, id string) (*model.GameRoom, error)
-	GameRooms(ctx context.Context, gameType *model.GameType) ([]*model.GameRoom, error)
+	GameRooms(ctx context.Context, gameType *model.GameType, status *model.GameStatus, includePrivate *bool, hasSpace *bool, limit *int32, sortBy *string) ([]*model.GameRoom, error)
+	MyCurrentRoom(ctx context.Context, username string) (*model.GameRoom, error)
 	RandomOXQuiz(ctx context.Context, roomID *string) (*model.OXQuiz, error)
 	RandomQAQuiz(ctx context.Context, roomID *string) (*model.GeneralQuiz, error)
+	MyInvitations(ctx context.Context, userID string, status *model.InviteStatus) ([]*model.Invitation, error)
+	Invitation(ctx context.Context, id string) (*model.Invitation, error)
 	PlayerStats(ctx context.Context, username string, gameType *string) ([]*model.PlayerStats, error)
 	Leaderboard(ctx context.Context, gameType string, limit *int32) ([]*model.PlayerStats, error)
 	GameConfig(ctx context.Context) (*model.GameConfig, error)
@@ -274,6 +304,9 @@ type SubscriptionResolver interface {
 	ChatMessage(ctx context.Context, roomID string) (<-chan *model.ChatMessage, error)
 	GameEvent(ctx context.Context, roomID string) (<-chan *model.GameEvent, error)
 	Error(ctx context.Context, roomID string) (<-chan *model.ErrorEvent, error)
+	MyEvents(ctx context.Context, username string) (<-chan *model.GameEvent, error)
+	InvitationReceived(ctx context.Context, userID string) (<-chan *model.Invitation, error)
+	PlayerConnectionStatus(ctx context.Context, roomID string) (<-chan *model.PlayerConnection, error)
 }
 
 type executableSchema struct {
@@ -294,6 +327,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := executionContext{nil, e, 0, 0, nil}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "AnswerResult.correctAnswer":
+		if e.complexity.AnswerResult.CorrectAnswer == nil {
+			break
+		}
+
+		return e.complexity.AnswerResult.CorrectAnswer(childComplexity), true
+	case "AnswerResult.earnedScore":
+		if e.complexity.AnswerResult.EarnedScore == nil {
+			break
+		}
+
+		return e.complexity.AnswerResult.EarnedScore(childComplexity), true
+	case "AnswerResult.explanation":
+		if e.complexity.AnswerResult.Explanation == nil {
+			break
+		}
+
+		return e.complexity.AnswerResult.Explanation(childComplexity), true
+	case "AnswerResult.isCorrect":
+		if e.complexity.AnswerResult.IsCorrect == nil {
+			break
+		}
+
+		return e.complexity.AnswerResult.IsCorrect(childComplexity), true
+	case "AnswerResult.success":
+		if e.complexity.AnswerResult.Success == nil {
+			break
+		}
+
+		return e.complexity.AnswerResult.Success(childComplexity), true
+	case "AnswerResult.totalScore":
+		if e.complexity.AnswerResult.TotalScore == nil {
+			break
+		}
+
+		return e.complexity.AnswerResult.TotalScore(childComplexity), true
 
 	case "ChatMessage.displayName":
 		if e.complexity.ChatMessage.DisplayName == nil {
@@ -431,6 +501,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.GameRoom.CurrentRound(childComplexity), true
+	case "GameRoom.currentTurnUsername":
+		if e.complexity.GameRoom.CurrentTurnUsername == nil {
+			break
+		}
+
+		return e.complexity.GameRoom.CurrentTurnUsername(childComplexity), true
 	case "GameRoom.gameType":
 		if e.complexity.GameRoom.GameType == nil {
 			break
@@ -503,6 +579,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.GameRoom.UsedQuizIds(childComplexity), true
+	case "GameRoom.wordchainLastWord":
+		if e.complexity.GameRoom.WordchainLastWord == nil {
+			break
+		}
+
+		return e.complexity.GameRoom.WordchainLastWord(childComplexity), true
+	case "GameRoom.wordchainTurnStartTime":
+		if e.complexity.GameRoom.WordchainTurnStartTime == nil {
+			break
+		}
+
+		return e.complexity.GameRoom.WordchainTurnStartTime(childComplexity), true
+	case "GameRoom.wordchainUsedWords":
+		if e.complexity.GameRoom.WordchainUsedWords == nil {
+			break
+		}
+
+		return e.complexity.GameRoom.WordchainUsedWords(childComplexity), true
 
 	case "GeneralQuiz.answer":
 		if e.complexity.GeneralQuiz.Answer == nil {
@@ -715,6 +809,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.InviteUser(childComplexity, args["roomId"].(string), args["inviteeUsername"].(string)), true
+	case "Mutation.inviteUsers":
+		if e.complexity.Mutation.InviteUsers == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_inviteUsers_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.InviteUsers(childComplexity, args["roomId"].(string), args["inviteeUsernames"].([]string)), true
 	case "Mutation.joinGameRoom":
 		if e.complexity.Mutation.JoinGameRoom == nil {
 			break
@@ -923,6 +1028,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Player.Username(childComplexity), true
 
+	case "PlayerConnection.isConnected":
+		if e.complexity.PlayerConnection.IsConnected == nil {
+			break
+		}
+
+		return e.complexity.PlayerConnection.IsConnected(childComplexity), true
+	case "PlayerConnection.lastSeen":
+		if e.complexity.PlayerConnection.LastSeen == nil {
+			break
+		}
+
+		return e.complexity.PlayerConnection.LastSeen(childComplexity), true
+	case "PlayerConnection.ping":
+		if e.complexity.PlayerConnection.Ping == nil {
+			break
+		}
+
+		return e.complexity.PlayerConnection.Ping(childComplexity), true
+	case "PlayerConnection.username":
+		if e.complexity.PlayerConnection.Username == nil {
+			break
+		}
+
+		return e.complexity.PlayerConnection.Username(childComplexity), true
+
 	case "PlayerStats.createdAt":
 		if e.complexity.PlayerStats.CreatedAt == nil {
 			break
@@ -993,7 +1123,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.GameRooms(childComplexity, args["gameType"].(*model.GameType)), true
+		return e.complexity.Query.GameRooms(childComplexity, args["gameType"].(*model.GameType), args["status"].(*model.GameStatus), args["includePrivate"].(*bool), args["hasSpace"].(*bool), args["limit"].(*int32), args["sortBy"].(*string)), true
+	case "Query.invitation":
+		if e.complexity.Query.Invitation == nil {
+			break
+		}
+
+		args, err := ec.field_Query_invitation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Invitation(childComplexity, args["id"].(string)), true
 	case "Query.isValidWord":
 		if e.complexity.Query.IsValidWord == nil {
 			break
@@ -1016,6 +1157,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Leaderboard(childComplexity, args["gameType"].(string), args["limit"].(*int32)), true
+	case "Query.myCurrentRoom":
+		if e.complexity.Query.MyCurrentRoom == nil {
+			break
+		}
+
+		args, err := ec.field_Query_myCurrentRoom_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.MyCurrentRoom(childComplexity, args["username"].(string)), true
+	case "Query.myInvitations":
+		if e.complexity.Query.MyInvitations == nil {
+			break
+		}
+
+		args, err := ec.field_Query_myInvitations_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.MyInvitations(childComplexity, args["userId"].(string), args["status"].(*model.InviteStatus)), true
 	case "Query.playerStats":
 		if e.complexity.Query.PlayerStats == nil {
 			break
@@ -1071,7 +1234,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.complexity.Query.Users(childComplexity), true
+		args, err := ec.field_Query_users_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Users(childComplexity, args["limit"].(*int32), args["offset"].(*int32), args["search"].(*string), args["minLevel"].(*int32)), true
 
 	case "Subscription.chatMessage":
 		if e.complexity.Subscription.ChatMessage == nil {
@@ -1156,12 +1324,45 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Subscription.HostChanged(childComplexity, args["roomId"].(string)), true
+	case "Subscription.invitationReceived":
+		if e.complexity.Subscription.InvitationReceived == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_invitationReceived_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.InvitationReceived(childComplexity, args["userId"].(string)), true
 	case "Subscription.lobbyUpdated":
 		if e.complexity.Subscription.LobbyUpdated == nil {
 			break
 		}
 
 		return e.complexity.Subscription.LobbyUpdated(childComplexity), true
+	case "Subscription.myEvents":
+		if e.complexity.Subscription.MyEvents == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_myEvents_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.MyEvents(childComplexity, args["username"].(string)), true
+	case "Subscription.playerConnectionStatus":
+		if e.complexity.Subscription.PlayerConnectionStatus == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_playerConnectionStatus_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.PlayerConnectionStatus(childComplexity, args["roomId"].(string)), true
 	case "Subscription.playerJoined":
 		if e.complexity.Subscription.PlayerJoined == nil {
 			break
@@ -1242,12 +1443,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.User.GuildID(childComplexity), true
-	case "User.hanCoin":
-		if e.complexity.User.HanCoin == nil {
-			break
-		}
-
-		return e.complexity.User.HanCoin(childComplexity), true
 	case "User.id":
 		if e.complexity.User.ID == nil {
 			break
@@ -1513,6 +1708,22 @@ func (ec *executionContext) field_Mutation_inviteUser_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_inviteUsers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["roomId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "inviteeUsernames", ec.unmarshalNString2ᚕstringᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["inviteeUsernames"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_joinGameRoom_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1724,6 +1935,42 @@ func (ec *executionContext) field_Query_gameRooms_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["gameType"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "status", ec.unmarshalOGameStatus2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameStatus)
+	if err != nil {
+		return nil, err
+	}
+	args["status"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "includePrivate", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["includePrivate"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "hasSpace", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["hasSpace"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "sortBy", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["sortBy"] = arg5
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_invitation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -1751,6 +1998,33 @@ func (ec *executionContext) field_Query_leaderboard_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["limit"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_myCurrentRoom_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "username", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["username"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_myInvitations_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["userId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "status", ec.unmarshalOInviteStatus2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInviteStatus)
+	if err != nil {
+		return nil, err
+	}
+	args["status"] = arg1
 	return args, nil
 }
 
@@ -1800,6 +2074,32 @@ func (ec *executionContext) field_Query_user_args(ctx context.Context, rawArgs m
 		return nil, err
 	}
 	args["nickname"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "search", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["search"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "minLevel", ec.unmarshalOInt2ᚖint32)
+	if err != nil {
+		return nil, err
+	}
+	args["minLevel"] = arg3
 	return args, nil
 }
 
@@ -1870,6 +2170,39 @@ func (ec *executionContext) field_Subscription_gameStarted_args(ctx context.Cont
 }
 
 func (ec *executionContext) field_Subscription_hostChanged_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["roomId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_invitationReceived_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["userId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_myEvents_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "username", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["username"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_playerConnectionStatus_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalNID2string)
@@ -1986,6 +2319,180 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _AnswerResult_success(ctx context.Context, field graphql.CollectedField, obj *model.AnswerResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AnswerResult_success,
+		func(ctx context.Context) (any, error) {
+			return obj.Success, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AnswerResult_success(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnswerResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnswerResult_isCorrect(ctx context.Context, field graphql.CollectedField, obj *model.AnswerResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AnswerResult_isCorrect,
+		func(ctx context.Context) (any, error) {
+			return obj.IsCorrect, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AnswerResult_isCorrect(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnswerResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnswerResult_earnedScore(ctx context.Context, field graphql.CollectedField, obj *model.AnswerResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AnswerResult_earnedScore,
+		func(ctx context.Context) (any, error) {
+			return obj.EarnedScore, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AnswerResult_earnedScore(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnswerResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnswerResult_totalScore(ctx context.Context, field graphql.CollectedField, obj *model.AnswerResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AnswerResult_totalScore,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalScore, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AnswerResult_totalScore(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnswerResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnswerResult_correctAnswer(ctx context.Context, field graphql.CollectedField, obj *model.AnswerResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AnswerResult_correctAnswer,
+		func(ctx context.Context) (any, error) {
+			return obj.CorrectAnswer, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AnswerResult_correctAnswer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnswerResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnswerResult_explanation(ctx context.Context, field graphql.CollectedField, obj *model.AnswerResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AnswerResult_explanation,
+		func(ctx context.Context) (any, error) {
+			return obj.Explanation, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AnswerResult_explanation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnswerResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
 
 func (ec *executionContext) _ChatMessage_id(ctx context.Context, field graphql.CollectedField, obj *model.ChatMessage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
@@ -2983,6 +3490,122 @@ func (ec *executionContext) fieldContext_GameRoom_createdAt(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _GameRoom_wordchainLastWord(ctx context.Context, field graphql.CollectedField, obj *model.GameRoom) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameRoom_wordchainLastWord,
+		func(ctx context.Context) (any, error) {
+			return obj.WordchainLastWord, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameRoom_wordchainLastWord(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameRoom",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GameRoom_wordchainUsedWords(ctx context.Context, field graphql.CollectedField, obj *model.GameRoom) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameRoom_wordchainUsedWords,
+		func(ctx context.Context) (any, error) {
+			return obj.WordchainUsedWords, nil
+		},
+		nil,
+		ec.marshalOString2ᚕstringᚄ,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameRoom_wordchainUsedWords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameRoom",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GameRoom_currentTurnUsername(ctx context.Context, field graphql.CollectedField, obj *model.GameRoom) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameRoom_currentTurnUsername,
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentTurnUsername, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameRoom_currentTurnUsername(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameRoom",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GameRoom_wordchainTurnStartTime(ctx context.Context, field graphql.CollectedField, obj *model.GameRoom) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameRoom_wordchainTurnStartTime,
+		func(ctx context.Context) (any, error) {
+			return obj.WordchainTurnStartTime, nil
+		},
+		nil,
+		ec.marshalOTime2ᚖtimeᚐTime,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameRoom_wordchainTurnStartTime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameRoom",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _GeneralQuiz_id(ctx context.Context, field graphql.CollectedField, obj *model.GeneralQuiz) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3441,6 +4064,14 @@ func (ec *executionContext) fieldContext_Invitation_room(_ context.Context, fiel
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -3511,8 +4142,6 @@ func (ec *executionContext) fieldContext_Invitation_inviter(_ context.Context, f
 				return ec.fieldContext_User_level(ctx, field)
 			case "credit":
 				return ec.fieldContext_User_credit(ctx, field)
-			case "hanCoin":
-				return ec.fieldContext_User_hanCoin(ctx, field)
 			case "guildId":
 				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
@@ -3589,8 +4218,6 @@ func (ec *executionContext) fieldContext_Invitation_invitee(_ context.Context, f
 				return ec.fieldContext_User_level(ctx, field)
 			case "credit":
 				return ec.fieldContext_User_credit(ctx, field)
-			case "hanCoin":
-				return ec.fieldContext_User_hanCoin(ctx, field)
 			case "guildId":
 				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
@@ -3726,8 +4353,6 @@ func (ec *executionContext) fieldContext_Mutation_createUser(ctx context.Context
 				return ec.fieldContext_User_level(ctx, field)
 			case "credit":
 				return ec.fieldContext_User_credit(ctx, field)
-			case "hanCoin":
-				return ec.fieldContext_User_hanCoin(ctx, field)
 			case "guildId":
 				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
@@ -3787,8 +4412,6 @@ func (ec *executionContext) fieldContext_Mutation_updateUser(ctx context.Context
 				return ec.fieldContext_User_level(ctx, field)
 			case "credit":
 				return ec.fieldContext_User_credit(ctx, field)
-			case "hanCoin":
-				return ec.fieldContext_User_hanCoin(ctx, field)
 			case "guildId":
 				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
@@ -3907,6 +4530,14 @@ func (ec *executionContext) fieldContext_Mutation_createGameRoom(ctx context.Con
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -3978,6 +4609,14 @@ func (ec *executionContext) fieldContext_Mutation_updateGameRoom(ctx context.Con
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -4049,6 +4688,14 @@ func (ec *executionContext) fieldContext_Mutation_joinGameRoom(ctx context.Conte
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -4120,6 +4767,14 @@ func (ec *executionContext) fieldContext_Mutation_leaveGameRoom(ctx context.Cont
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -4232,6 +4887,14 @@ func (ec *executionContext) fieldContext_Mutation_transferHost(ctx context.Conte
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -4261,7 +4924,7 @@ func (ec *executionContext) _Mutation_setReady(ctx context.Context, field graphq
 			return ec.resolvers.Mutation().SetReady(ctx, fc.Args["roomId"].(string), fc.Args["username"].(string), fc.Args["ready"].(bool))
 		},
 		nil,
-		ec.marshalNBoolean2bool,
+		ec.marshalNGameRoom2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoom,
 		true,
 		true,
 	)
@@ -4274,7 +4937,45 @@ func (ec *executionContext) fieldContext_Mutation_setReady(ctx context.Context, 
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_GameRoom_id(ctx, field)
+			case "name":
+				return ec.fieldContext_GameRoom_name(ctx, field)
+			case "gameType":
+				return ec.fieldContext_GameRoom_gameType(ctx, field)
+			case "status":
+				return ec.fieldContext_GameRoom_status(ctx, field)
+			case "currentRound":
+				return ec.fieldContext_GameRoom_currentRound(ctx, field)
+			case "totalRounds":
+				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
+			case "players":
+				return ec.fieldContext_GameRoom_players(ctx, field)
+			case "maxPlayers":
+				return ec.fieldContext_GameRoom_maxPlayers(ctx, field)
+			case "hostUsername":
+				return ec.fieldContext_GameRoom_hostUsername(ctx, field)
+			case "usedQuizIds":
+				return ec.fieldContext_GameRoom_usedQuizIds(ctx, field)
+			case "isPrivate":
+				return ec.fieldContext_GameRoom_isPrivate(ctx, field)
+			case "password":
+				return ec.fieldContext_GameRoom_password(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
 	}
 	defer func() {
@@ -4354,6 +5055,69 @@ func (ec *executionContext) fieldContext_Mutation_inviteUser(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_inviteUsers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_inviteUsers,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().InviteUsers(ctx, fc.Args["roomId"].(string), fc.Args["inviteeUsernames"].([]string))
+		},
+		nil,
+		ec.marshalNInvitation2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInvitationᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_inviteUsers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Invitation_id(ctx, field)
+			case "roomId":
+				return ec.fieldContext_Invitation_roomId(ctx, field)
+			case "room":
+				return ec.fieldContext_Invitation_room(ctx, field)
+			case "inviterId":
+				return ec.fieldContext_Invitation_inviterId(ctx, field)
+			case "inviter":
+				return ec.fieldContext_Invitation_inviter(ctx, field)
+			case "inviteeId":
+				return ec.fieldContext_Invitation_inviteeId(ctx, field)
+			case "invitee":
+				return ec.fieldContext_Invitation_invitee(ctx, field)
+			case "status":
+				return ec.fieldContext_Invitation_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Invitation_createdAt(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_Invitation_expiresAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Invitation", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_inviteUsers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_acceptInvite(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -4407,6 +5171,14 @@ func (ec *executionContext) fieldContext_Mutation_acceptInvite(ctx context.Conte
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -4519,6 +5291,14 @@ func (ec *executionContext) fieldContext_Mutation_startGame(ctx context.Context,
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -4590,6 +5370,14 @@ func (ec *executionContext) fieldContext_Mutation_startRound(ctx context.Context
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -4619,7 +5407,7 @@ func (ec *executionContext) _Mutation_submitAnswer(ctx context.Context, field gr
 			return ec.resolvers.Mutation().SubmitAnswer(ctx, fc.Args["roomId"].(string), fc.Args["username"].(string), fc.Args["answer"].(string))
 		},
 		nil,
-		ec.marshalNBoolean2bool,
+		ec.marshalNAnswerResult2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐAnswerResult,
 		true,
 		true,
 	)
@@ -4632,7 +5420,21 @@ func (ec *executionContext) fieldContext_Mutation_submitAnswer(ctx context.Conte
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_AnswerResult_success(ctx, field)
+			case "isCorrect":
+				return ec.fieldContext_AnswerResult_isCorrect(ctx, field)
+			case "earnedScore":
+				return ec.fieldContext_AnswerResult_earnedScore(ctx, field)
+			case "totalScore":
+				return ec.fieldContext_AnswerResult_totalScore(ctx, field)
+			case "correctAnswer":
+				return ec.fieldContext_AnswerResult_correctAnswer(ctx, field)
+			case "explanation":
+				return ec.fieldContext_AnswerResult_explanation(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AnswerResult", field.Name)
 		},
 	}
 	defer func() {
@@ -4702,6 +5504,14 @@ func (ec *executionContext) fieldContext_Mutation_endGame(ctx context.Context, f
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -5181,6 +5991,122 @@ func (ec *executionContext) fieldContext_Player_isReady(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _PlayerConnection_username(ctx context.Context, field graphql.CollectedField, obj *model.PlayerConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlayerConnection_username,
+		func(ctx context.Context) (any, error) {
+			return obj.Username, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlayerConnection_username(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlayerConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlayerConnection_isConnected(ctx context.Context, field graphql.CollectedField, obj *model.PlayerConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlayerConnection_isConnected,
+		func(ctx context.Context) (any, error) {
+			return obj.IsConnected, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlayerConnection_isConnected(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlayerConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlayerConnection_lastSeen(ctx context.Context, field graphql.CollectedField, obj *model.PlayerConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlayerConnection_lastSeen,
+		func(ctx context.Context) (any, error) {
+			return obj.LastSeen, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlayerConnection_lastSeen(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlayerConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlayerConnection_ping(ctx context.Context, field graphql.CollectedField, obj *model.PlayerConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PlayerConnection_ping,
+		func(ctx context.Context) (any, error) {
+			return obj.Ping, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint32,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_PlayerConnection_ping(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlayerConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PlayerStats_username(ctx context.Context, field graphql.CollectedField, obj *model.PlayerStats) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5419,8 +6345,6 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 				return ec.fieldContext_User_level(ctx, field)
 			case "credit":
 				return ec.fieldContext_User_credit(ctx, field)
-			case "hanCoin":
-				return ec.fieldContext_User_hanCoin(ctx, field)
 			case "guildId":
 				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
@@ -5452,7 +6376,8 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 		field,
 		ec.fieldContext_Query_users,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Query().Users(ctx)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().Users(ctx, fc.Args["limit"].(*int32), fc.Args["offset"].(*int32), fc.Args["search"].(*string), fc.Args["minLevel"].(*int32))
 		},
 		nil,
 		ec.marshalNUser2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUserᚄ,
@@ -5461,7 +6386,7 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	)
 }
 
-func (ec *executionContext) fieldContext_Query_users(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_users(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -5479,8 +6404,6 @@ func (ec *executionContext) fieldContext_Query_users(_ context.Context, field gr
 				return ec.fieldContext_User_level(ctx, field)
 			case "credit":
 				return ec.fieldContext_User_credit(ctx, field)
-			case "hanCoin":
-				return ec.fieldContext_User_hanCoin(ctx, field)
 			case "guildId":
 				return ec.fieldContext_User_guildId(ctx, field)
 			case "createdAt":
@@ -5490,6 +6413,17 @@ func (ec *executionContext) fieldContext_Query_users(_ context.Context, field gr
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_users_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -5547,6 +6481,14 @@ func (ec *executionContext) fieldContext_Query_gameRoom(ctx context.Context, fie
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -5573,7 +6515,7 @@ func (ec *executionContext) _Query_gameRooms(ctx context.Context, field graphql.
 		ec.fieldContext_Query_gameRooms,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().GameRooms(ctx, fc.Args["gameType"].(*model.GameType))
+			return ec.resolvers.Query().GameRooms(ctx, fc.Args["gameType"].(*model.GameType), fc.Args["status"].(*model.GameStatus), fc.Args["includePrivate"].(*bool), fc.Args["hasSpace"].(*bool), fc.Args["limit"].(*int32), fc.Args["sortBy"].(*string))
 		},
 		nil,
 		ec.marshalNGameRoom2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoomᚄ,
@@ -5618,6 +6560,14 @@ func (ec *executionContext) fieldContext_Query_gameRooms(ctx context.Context, fi
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -5630,6 +6580,85 @@ func (ec *executionContext) fieldContext_Query_gameRooms(ctx context.Context, fi
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_gameRooms_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_myCurrentRoom(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_myCurrentRoom,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().MyCurrentRoom(ctx, fc.Args["username"].(string))
+		},
+		nil,
+		ec.marshalOGameRoom2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoom,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_myCurrentRoom(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_GameRoom_id(ctx, field)
+			case "name":
+				return ec.fieldContext_GameRoom_name(ctx, field)
+			case "gameType":
+				return ec.fieldContext_GameRoom_gameType(ctx, field)
+			case "status":
+				return ec.fieldContext_GameRoom_status(ctx, field)
+			case "currentRound":
+				return ec.fieldContext_GameRoom_currentRound(ctx, field)
+			case "totalRounds":
+				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
+			case "players":
+				return ec.fieldContext_GameRoom_players(ctx, field)
+			case "maxPlayers":
+				return ec.fieldContext_GameRoom_maxPlayers(ctx, field)
+			case "hostUsername":
+				return ec.fieldContext_GameRoom_hostUsername(ctx, field)
+			case "usedQuizIds":
+				return ec.fieldContext_GameRoom_usedQuizIds(ctx, field)
+			case "isPrivate":
+				return ec.fieldContext_GameRoom_isPrivate(ctx, field)
+			case "password":
+				return ec.fieldContext_GameRoom_password(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_myCurrentRoom_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5760,6 +6789,132 @@ func (ec *executionContext) fieldContext_Query_randomQAQuiz(ctx context.Context,
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_randomQAQuiz_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_myInvitations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_myInvitations,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().MyInvitations(ctx, fc.Args["userId"].(string), fc.Args["status"].(*model.InviteStatus))
+		},
+		nil,
+		ec.marshalNInvitation2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInvitationᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_myInvitations(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Invitation_id(ctx, field)
+			case "roomId":
+				return ec.fieldContext_Invitation_roomId(ctx, field)
+			case "room":
+				return ec.fieldContext_Invitation_room(ctx, field)
+			case "inviterId":
+				return ec.fieldContext_Invitation_inviterId(ctx, field)
+			case "inviter":
+				return ec.fieldContext_Invitation_inviter(ctx, field)
+			case "inviteeId":
+				return ec.fieldContext_Invitation_inviteeId(ctx, field)
+			case "invitee":
+				return ec.fieldContext_Invitation_invitee(ctx, field)
+			case "status":
+				return ec.fieldContext_Invitation_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Invitation_createdAt(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_Invitation_expiresAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Invitation", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_myInvitations_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_invitation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_invitation,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().Invitation(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		ec.marshalOInvitation2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInvitation,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_invitation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Invitation_id(ctx, field)
+			case "roomId":
+				return ec.fieldContext_Invitation_roomId(ctx, field)
+			case "room":
+				return ec.fieldContext_Invitation_room(ctx, field)
+			case "inviterId":
+				return ec.fieldContext_Invitation_inviterId(ctx, field)
+			case "inviter":
+				return ec.fieldContext_Invitation_inviter(ctx, field)
+			case "inviteeId":
+				return ec.fieldContext_Invitation_inviteeId(ctx, field)
+			case "invitee":
+				return ec.fieldContext_Invitation_invitee(ctx, field)
+			case "status":
+				return ec.fieldContext_Invitation_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Invitation_createdAt(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_Invitation_expiresAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Invitation", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_invitation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -6157,6 +7312,14 @@ func (ec *executionContext) fieldContext_Subscription_lobbyUpdated(_ context.Con
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -6216,6 +7379,14 @@ func (ec *executionContext) fieldContext_Subscription_gameRoomsUpdated(_ context
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -6276,6 +7447,14 @@ func (ec *executionContext) fieldContext_Subscription_gameRoomUpdated(ctx contex
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -6551,6 +7730,14 @@ func (ec *executionContext) fieldContext_Subscription_gameStarted(ctx context.Co
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -6622,6 +7809,14 @@ func (ec *executionContext) fieldContext_Subscription_roundStarted(ctx context.C
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -6693,6 +7888,14 @@ func (ec *executionContext) fieldContext_Subscription_roundEnded(ctx context.Con
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -6764,6 +7967,14 @@ func (ec *executionContext) fieldContext_Subscription_gameEnded(ctx context.Cont
 				return ec.fieldContext_GameRoom_password(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUsername":
+				return ec.fieldContext_GameRoom_currentTurnUsername(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
 		},
@@ -6941,6 +8152,175 @@ func (ec *executionContext) fieldContext_Subscription_error(ctx context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_myEvents(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_myEvents,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().MyEvents(ctx, fc.Args["username"].(string))
+		},
+		nil,
+		ec.marshalNGameEvent2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameEvent,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_myEvents(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "type":
+				return ec.fieldContext_GameEvent_type(ctx, field)
+			case "roomId":
+				return ec.fieldContext_GameEvent_roomId(ctx, field)
+			case "username":
+				return ec.fieldContext_GameEvent_username(ctx, field)
+			case "displayName":
+				return ec.fieldContext_GameEvent_displayName(ctx, field)
+			case "data":
+				return ec.fieldContext_GameEvent_data(ctx, field)
+			case "timestamp":
+				return ec.fieldContext_GameEvent_timestamp(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GameEvent", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_myEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_invitationReceived(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_invitationReceived,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().InvitationReceived(ctx, fc.Args["userId"].(string))
+		},
+		nil,
+		ec.marshalNInvitation2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInvitation,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_invitationReceived(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Invitation_id(ctx, field)
+			case "roomId":
+				return ec.fieldContext_Invitation_roomId(ctx, field)
+			case "room":
+				return ec.fieldContext_Invitation_room(ctx, field)
+			case "inviterId":
+				return ec.fieldContext_Invitation_inviterId(ctx, field)
+			case "inviter":
+				return ec.fieldContext_Invitation_inviter(ctx, field)
+			case "inviteeId":
+				return ec.fieldContext_Invitation_inviteeId(ctx, field)
+			case "invitee":
+				return ec.fieldContext_Invitation_invitee(ctx, field)
+			case "status":
+				return ec.fieldContext_Invitation_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Invitation_createdAt(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_Invitation_expiresAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Invitation", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_invitationReceived_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_playerConnectionStatus(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_playerConnectionStatus,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().PlayerConnectionStatus(ctx, fc.Args["roomId"].(string))
+		},
+		nil,
+		ec.marshalNPlayerConnection2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐPlayerConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_playerConnectionStatus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "username":
+				return ec.fieldContext_PlayerConnection_username(ctx, field)
+			case "isConnected":
+				return ec.fieldContext_PlayerConnection_isConnected(ctx, field)
+			case "lastSeen":
+				return ec.fieldContext_PlayerConnection_lastSeen(ctx, field)
+			case "ping":
+				return ec.fieldContext_PlayerConnection_ping(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PlayerConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_playerConnectionStatus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7074,35 +8454,6 @@ func (ec *executionContext) _User_credit(ctx context.Context, field graphql.Coll
 }
 
 func (ec *executionContext) fieldContext_User_credit(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "User",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _User_hanCoin(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_User_hanCoin,
-		func(ctx context.Context) (any, error) {
-			return obj.HanCoin, nil
-		},
-		nil,
-		ec.marshalNInt2int32,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_User_hanCoin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "User",
 		Field:      field,
@@ -8885,7 +10236,7 @@ func (ec *executionContext) unmarshalInputUpdateUserInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"avatarUrl", "level", "credit", "hanCoin"}
+	fieldsInOrder := [...]string{"avatarUrl", "level", "credit"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -8913,13 +10264,6 @@ func (ec *executionContext) unmarshalInputUpdateUserInput(ctx context.Context, o
 				return it, err
 			}
 			it.Credit = data
-		case "hanCoin":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hanCoin"))
-			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.HanCoin = data
 		}
 	}
 
@@ -8933,6 +10277,64 @@ func (ec *executionContext) unmarshalInputUpdateUserInput(ctx context.Context, o
 // endregion ************************** interface.gotpl ***************************
 
 // region    **************************** object.gotpl ****************************
+
+var answerResultImplementors = []string{"AnswerResult"}
+
+func (ec *executionContext) _AnswerResult(ctx context.Context, sel ast.SelectionSet, obj *model.AnswerResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, answerResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnswerResult")
+		case "success":
+			out.Values[i] = ec._AnswerResult_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isCorrect":
+			out.Values[i] = ec._AnswerResult_isCorrect(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "earnedScore":
+			out.Values[i] = ec._AnswerResult_earnedScore(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalScore":
+			out.Values[i] = ec._AnswerResult_totalScore(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "correctAnswer":
+			out.Values[i] = ec._AnswerResult_correctAnswer(ctx, field, obj)
+		case "explanation":
+			out.Values[i] = ec._AnswerResult_explanation(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
 
 var chatMessageImplementors = []string{"ChatMessage"}
 
@@ -9239,6 +10641,14 @@ func (ec *executionContext) _GameRoom(ctx context.Context, sel ast.SelectionSet,
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "wordchainLastWord":
+			out.Values[i] = ec._GameRoom_wordchainLastWord(ctx, field, obj)
+		case "wordchainUsedWords":
+			out.Values[i] = ec._GameRoom_wordchainUsedWords(ctx, field, obj)
+		case "currentTurnUsername":
+			out.Values[i] = ec._GameRoom_currentTurnUsername(ctx, field, obj)
+		case "wordchainTurnStartTime":
+			out.Values[i] = ec._GameRoom_wordchainTurnStartTime(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -9530,6 +10940,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "inviteUsers":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_inviteUsers(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "acceptInvite":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_acceptInvite(ctx, field)
@@ -9737,6 +11154,57 @@ func (ec *executionContext) _Player(ctx context.Context, sel ast.SelectionSet, o
 	return out
 }
 
+var playerConnectionImplementors = []string{"PlayerConnection"}
+
+func (ec *executionContext) _PlayerConnection(ctx context.Context, sel ast.SelectionSet, obj *model.PlayerConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, playerConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PlayerConnection")
+		case "username":
+			out.Values[i] = ec._PlayerConnection_username(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isConnected":
+			out.Values[i] = ec._PlayerConnection_isConnected(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastSeen":
+			out.Values[i] = ec._PlayerConnection_lastSeen(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ping":
+			out.Values[i] = ec._PlayerConnection_ping(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var playerStatsImplementors = []string{"PlayerStats"}
 
 func (ec *executionContext) _PlayerStats(ctx context.Context, sel ast.SelectionSet, obj *model.PlayerStats) graphql.Marshaler {
@@ -9907,6 +11375,25 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "myCurrentRoom":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_myCurrentRoom(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "randomOXQuiz":
 			field := field
 
@@ -9936,6 +11423,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_randomQAQuiz(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "myInvitations":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_myInvitations(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "invitation":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_invitation(ctx, field)
 				return res
 			}
 
@@ -10127,6 +11655,12 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_gameEvent(ctx, fields[0])
 	case "error":
 		return ec._Subscription_error(ctx, fields[0])
+	case "myEvents":
+		return ec._Subscription_myEvents(ctx, fields[0])
+	case "invitationReceived":
+		return ec._Subscription_invitationReceived(ctx, fields[0])
+	case "playerConnectionStatus":
+		return ec._Subscription_playerConnectionStatus(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -10162,11 +11696,6 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "credit":
 			out.Values[i] = ec._User_credit(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "hanCoin":
-			out.Values[i] = ec._User_hanCoin(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -10581,6 +12110,20 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) marshalNAnswerResult2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐAnswerResult(ctx context.Context, sel ast.SelectionSet, v model.AnswerResult) graphql.Marshaler {
+	return ec._AnswerResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAnswerResult2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐAnswerResult(ctx context.Context, sel ast.SelectionSet, v *model.AnswerResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AnswerResult(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -10787,6 +12330,50 @@ func (ec *executionContext) marshalNInvitation2drawᚑandᚑguessᚑserverᚋint
 	return ec._Invitation(ctx, sel, &v)
 }
 
+func (ec *executionContext) marshalNInvitation2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInvitationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Invitation) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNInvitation2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInvitation(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNInvitation2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInvitation(ctx context.Context, sel ast.SelectionSet, v *model.Invitation) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -10863,6 +12450,20 @@ func (ec *executionContext) marshalNPlayer2ᚖdrawᚑandᚑguessᚑserverᚋinte
 		return graphql.Null
 	}
 	return ec._Player(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPlayerConnection2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐPlayerConnection(ctx context.Context, sel ast.SelectionSet, v model.PlayerConnection) graphql.Marshaler {
+	return ec._PlayerConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPlayerConnection2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐPlayerConnection(ctx context.Context, sel ast.SelectionSet, v *model.PlayerConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PlayerConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNPlayerStats2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐPlayerStatsᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.PlayerStats) graphql.Marshaler {
@@ -11353,6 +12954,22 @@ func (ec *executionContext) marshalOGameRoom2ᚖdrawᚑandᚑguessᚑserverᚋin
 	return ec._GameRoom(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalOGameStatus2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameStatus(ctx context.Context, v any) (*model.GameStatus, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.GameStatus)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOGameStatus2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameStatus(ctx context.Context, sel ast.SelectionSet, v *model.GameStatus) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
 func (ec *executionContext) unmarshalOGameType2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameType(ctx context.Context, v any) (*model.GameType, error) {
 	if v == nil {
 		return nil, nil
@@ -11412,11 +13029,70 @@ func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) marshalOInvitation2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInvitation(ctx context.Context, sel ast.SelectionSet, v *model.Invitation) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Invitation(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOInviteStatus2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInviteStatus(ctx context.Context, v any) (*model.InviteStatus, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.InviteStatus)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInviteStatus2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInviteStatus(ctx context.Context, sel ast.SelectionSet, v *model.InviteStatus) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
 func (ec *executionContext) marshalOOXQuiz2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐOXQuiz(ctx context.Context, sel ast.SelectionSet, v *model.OXQuiz) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._OXQuiz(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v any) (*string, error) {
@@ -11434,6 +13110,24 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalString(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalTime(*v)
 	return res
 }
 

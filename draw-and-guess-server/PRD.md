@@ -1,4 +1,9 @@
-# PRD: Draw & Guess 멀티플레이어 게임 플랫폼
+# Draw & Guess 멀티플레이어 게임 서버 - 기능 명세
+
+## 1. 개요
+GraphQL + WebSocket 기반의 실시간 멀티플레이어 퀴즈 게임 플랫폼
+
+**기술 스택**: Go 1.24+ | gqlgen | MongoDB | Valkey | WebSocket
 
 ---
 
@@ -33,21 +38,20 @@
 
 #### 2.2.1 게임 타입 (P0) ✅ 완료
 1. **WORDCHAIN (끝말잇기)**
-   - 한국어 단어 체인 게임
+   - 일본어 단어 체인 게임
    - japanese_words_jmdict.txt 기반 (174,709 단어)
    - 실시간 단어 제출 및 검증
    - Dictionary 패키지로 검증
 
-2. **OX (OX 퀴즈)**
+2. **OX (O/X 퀴즈)**
    - True/False 질문 형식
    - ox_quizzes 컬렉션에서 랜덤 추출
    - 난이도/카테고리별 분류
-   - MongoDB 기반
 
-3. **QA (일반 퀴즈)**
-   - 주관식 문제
+3. **QA (객관식 퀴즈)**
+   - 4지선다형 문제
    - qa_quizzes 컬렉션에서 랜덤 추출
-   - MongoDB 기반
+   - 이미지 URL 지원
 
 #### 2.2.2 게임방 생성 (P0) ✅ 완료
 - **입력**:
@@ -76,272 +80,92 @@
   - 실시간 업데이트
 
 #### 2.2.4 게임 시작 (P0) ✅ 완료
-- **권한**: 방장만 가능 (현재 검증 미구현)
-- **조건**:
-  - WAITING 상태
+- **권한**: 방장만 가능
+- **조건**: WAITING 상태
 - **동작**:
   - 상태를 PLAYING으로 변경
+  - 게임 타입별 퀴즈 전체 로드 (총 라운드 수만큼)
   - currentRound를 1로 설정
-  - GraphQL Subscription으로 게임 시작 알림
-  - gameStarted, gameRoomUpdated 이벤트 발행
+  - GraphQL Subscription 이벤트 발행
 
-#### 2.2.5 게임 진행 (P0)
+#### 2.2.5 게임 진행 (P0) ✅ 완료
+- **답변 제출**: submitAnswer mutation
+  - 정답 검증 및 점수 부여 (정답 시 100점)
+  - 모든 플레이어 답변 시 자동 라운드 전환
+  - 실시간 피드백 (정답/오답 이벤트)
 - **라운드 관리**:
-  - currentRound 추적
-  - 제한 시간 관리 (타이머)
-  - 자동 라운드 전환
-- **점수 시스템**:
-  - 정답 시 점수 부여
-  - 속도에 따른 보너스 점수
-  - 실시간 리더보드 업데이트
+  - 자동 라운드 시작 (startRound)
+  - 마지막 라운드 후 게임 종료
+- **게임 종료**: endGame mutation
+  - 최종 점수 계산
+  - FINISHED 상태로 전환
 
-### 2.3 퀴즈 관리
+### 2.3 퀴즈 관리 ✅ 완료
 
-#### 2.3.1 랜덤 퀴즈 조회 (P0)
-- **OX 퀴즈**: GET randomOXQuiz
-  - 활성 상태(is_active=true) 퀴즈만 반환
-  - RANDOM() 사용
-  - usage_count 자동 증가 (선택적)
+- **OX 퀴즈**: randomOXQuiz query - 활성 상태 퀴즈 랜덤 반환
+- **QA 퀴즈**: randomQAQuiz query - 4개 옵션 배열 포함
+- **단어 검증**: isValidWord query - 일본어 단어 유효성 검증
 
-- **일반 퀴즈**: GET randomQAQuiz
-  - 활성 퀴즈 랜덤 반환
-  - 4개 옵션 배열 포함
-  - 이미지 URL 포함 가능
+### 2.4 통계 및 랭킹 ✅ 완료
 
-#### 2.3.2 단어 검증 (P1)
-- **기능**: 끝말잇기용 한국어 단어 유효성 검증
-- **입력**: word (string)
-- **출력**: boolean
-- **데이터**: korean_words 테이블 기반
-
-### 2.4 통계 및 랭킹 (P2)
-
-#### 2.4.1 플레이어 통계 (P2)
-- **개인 통계**:
-  - 총 게임 수
-  - 승리 수
-  - 총 점수
-  - 게임 타입별 분리
-- **조회**: username + gameType (선택)
-
-#### 2.4.2 리더보드 (P2)
-- **기능**: 게임 타입별 상위 랭커 조회
-- **입력**:
-  - gameType: wordchain | ox | qa
-  - limit: 반환할 순위 수 (기본 10)
-- **정렬**: totalScore DESC
+- **개인 통계**: playerStats query - 게임 타입별 전적 조회
+- **리더보드**: leaderboard query - 게임 타입별 상위 랭커 조회
 
 ---
 
-## 3. 기술 요구사항
+## 3. 기술 스택
 
-### 3.1 아키텍처
-
-#### 3.1.1 레이어 구조
-```
-Client (Frontend)
-    ↓
-API Gateway (GraphQL + WebSocket)
-    ↓
-Service Layer (Business Logic)
-    ↓
-Repository Layer (Data Access)
-    ↓
-Database (PostgreSQL) + Cache (Valkey)
-```
-
-#### 3.1.2 디렉토리 구조 (현재 실제 구조)
-```
-cmd/
-  ├── extract_words/        # 한국어 단어 추출 도구
-  ├── insert_quiz/         # 퀴즈 데이터 삽입 도구
-  └── server/              # 🚀 애플리케이션 엔트리포인트
-      └── main.go
-
-internal/
-  ├── app/                 # (deprecated, 사용 안 함)
-  ├── common/              # 회세 관심사
-  │   ├── errors.go        # 표준화된 에러 처리
-  │   ├── logger.go        # 구조화된 로깅
-  │   ├── response.go      # HTTP 응답 헬퍼
-  │   └── RESPONSE_GUIDE.md
-  ├── config/              # ⚙️ 환경 설정
-  │   └── config.go        # .env 파일 로딩
-  ├── database/            # 💾 MongoDB 연결 및 스키마
-  │   └── mongodb.go
-  ├── graph/               # 🌐 GraphQL API
-  │   ├── schema.graphqls   # GraphQL 스키마
-  │   ├── resolver.go       # 리졸버 루트
-  │   ├── resolver_*.go     # 엔티티별 리졸버
-  │   ├── generated.go      # gqlgen 자동 생성
-  │   ├── pubsub.go         # Subscription 구현
-  │   ├── game_room_store.go # 인메모리 게임방 저장소
-  │   └── model/
-  │       └── models_gen.go # GraphQL 모델
-  ├── handlers/            # REST API 핸들러
-  │   └── health_handler.go
-  ├── middleware/          # Gin 미들웨어
-  │   ├── cors.go
-  │   ├── error.go
-  │   ├── logger.go
-  │   └── trace.go
-  ├── models/              # 🧠 도메인 모델
-  │   ├── user.go
-  │   ├── quiz.go
-  │   ├── player_stats.go
-  │   ├── game_room.go     # WebSocket용 레거시 모델
-  │   ├── shop.go
-  │   ├── transaction.go
-  │   └── websocket_dto.go
-  ├── repository/          # 💾 데이터 접근 레이어
-  │   ├── user_repository.go
-  │   ├── quiz_repository.go
-  │   ├── player_stats_repository.go
-  │   ├── shop_repository.go
-  │   └── transaction_repository.go
-  ├── routes/              # 🛣️ 라우팅 설정
-  │   └── router.go         # Gin 라우트 마운트
-  ├── service/             # ✅ 비즈니스 로직
-  │   ├── user_service.go
-  │   ├── quiz_service.go
-  │   ├── player_stats_service.go
-  │   ├── shop_service.go
-  │   └── transaction_service.go
-  ├── transport/           # 🌐 API 레이어
-  │   ├── graphql/         # (deprecated, graph/ 사용)
-  │   ├── rest/            # REST API
-  │   │   ├── health_handler.go
-  │   │   ├── response.go
-  │   │   └── RESPONSE_GUIDE.md
-  │   └── ws/              # WebSocket 통신
-  │       ├── websocket.go
-  │       ├── ws_message.go
-  │       └── dto/
-  │           └── websocket_dto.go
-  ├── valkey/              # Valkey/Redis 클라이언트
-  │   └── valkey.go
-  └── websocket/           # WebSocket 핸들러 (레거시)
-      ├── websocket.go
-      └── ws_message.go
-
-pkg/                       # 외부 공개 라이브러리
-  ├── dictionary/          # 한국어 단어 사전 (174,709 단어)
-  │   └── dictionary.go
-  └── utils/
-      ├── snowflake.go     # Snowflake ID 생성기
-      ├── strings.go
-      └── trace.go
-
-data/                      # 데이터 파일
-  └── japanese_words_jmdict.txt # JMDict 한국어 단어 (174,709개)
-
-deployments/               # 배포 스크립트
-  └── k8s/                # Kubernetes 매니페스트
-      ├── deployment.yaml
-      ├── service.yaml
-      ├── mongodb.yaml
-      ├── valkey.yaml
-      └── pv-*.yaml
-```
-
-**아키텍처 특징**:
-- **혼합 구조**: Clean Architecture + Standard Go Layout
-- **레거시 코드**: internal/websocket/ 과 internal/models/game_room.go
-- **새 코드**: internal/transport/ws/ 와 internal/graph/
-- **GraphQL**: gqlgen으로 스키마 기반 자동 생성
-
-### 3.2 기술 스택
-
-#### 3.2.1 백엔드
+### 3.1 백엔드
 - **언어**: Go 1.24+
-- **웹 프레임워크**: Gin v1.11.0
-- **GraphQL**: gqlgen v0.17.85 (schema-first)
-- **WebSocket**: gorilla/websocket v1.5.1
-- **Database Driver**: lib/pq v1.10.9
-- **Cache Client**: go-redis/v9
+- **프레임워크**: Gin
+- **GraphQL**: gqlgen (schema-first)
+- **WebSocket**: gorilla/websocket
 
-#### 3.2.2 데이터베이스
-- **주 저장소**: MongoDB 7.0+
-  - 문서 기반 데이터 (users, quizzes, stats)
-  - 유연한 스키마
-  - 인덱스: nickname, user_id, category 등
-- **캐시**: Valkey 7.2 (Redis 호환)
-  - 실시간 게임방 상태 (인메모리)
-  - Pub/Sub 메시징 (WebSocket 및 Subscription)
-  - 채널: "lobby", "game/{roomID}"
+### 3.2 데이터베이스
+- **MongoDB 7.0+**: 주 저장소 (users, quizzes, stats)
+- **Valkey 7.2**: 실시간 게임방 상태, Pub/Sub 메시징
 
-#### 3.2.3 인프라
-- **컨테이너**: Docker
-- **오케스트레이션**: Kubernetes
-  - StatefulSet (PostgreSQL, Valkey)
-  - PersistentVolume (데이터 영속성)
-- **Namespace**: data (데이터베이스)
+### 3.3 API 엔드포인트
 
-### 3.3 API 설계
-
-#### 3.3.1 GraphQL Endpoint ✅ 완료
-- **POST /graphql**: 쿼리/뮤테이션 실행
+#### GraphQL
+- **POST /graphql**: Query/Mutation 실행
 - **GET /graphql**: WebSocket Subscription 업그레이드
 - **GET /playground**: GraphQL Playground UI
-- **GET /sandbox**: Apollo Sandbox UI
-- **특징**:
-  - Schema-first 접근 (gqlgen)
-  - 타입 안정성
-  - WebSocket transport 지원 (graphql-ws 프로토콜)
 
-#### 3.3.2 WebSocket Endpoint ✅ 완료
+#### WebSocket
 - **WS /ws/lobby**: 로비 실시간 업데이트
-  - 로비 채팅
-  - 게임방 목록 업데이트
-- **WS /ws/rooms/:id**: 게임방 실시간 통신
-  - 체팅 메시지
-  - 그림 그리기 데이터 (drawing)
-  - 게임 액션 (game_action)
-- **메시지 타입**:
-  - subscribe: 채널 구독
-  - unsubscribe: 구독 해제
-  - message: 데이터 전송
-  - chat: 채팅 메시지
-  - drawing: 그림 데이터
-  - game_action: 게임 액션
+- **WS /ws/rooms/:id**: 게임방 실시간 통신 (채팅, 그림)
 
-#### 3.3.3 GraphQL Subscription ✅ 완료
-- **gameRoomUpdated**: 게임방 상태 변경 구독
-- **playerJoined**: 플레이어 입장 이벤트
-- **gameStarted**: 게임 시작 이벤트
-- **gameEnded**: 게임 종료 이벤트
-- **Valkey PubSub 기반**:
-  - 각 Subscription은 Valkey 채널에 매핑
-  - startValkeySubscription으로 메시지 수신
-  - WebSocket 클라이언트에게 브로드캐스트
+#### REST
+- **GET /health**: 헬스 체크
 
-#### 3.3.4 REST Endpoint ✅ 완료
-- **GET /health**: 헬스 체크 (인프라용)
+### 3.4 GraphQL Subscription
+- `gameRoomUpdated`: 게임방 상태 변경
+- `playerJoined`, `playerLeft`: 플레이어 입/퇴장
+- `gameStarted`, `gameEnded`: 게임 시작/종료
+- `roundStarted`, `roundEnded`: 라운드 시작/종료
+- `chatMessage`: 채팅 메시지
+- `gameEvent`: 게임 이벤트 (정답, 오답 등)
 
-### 3.4 데이터베이스 스키마 (MongoDB)
+---
 
-#### 3.4.1 users 컬렉션
+## 4. 데이터베이스 스키마
+
+### users 컬렉션
 ```javascript
 {
   _id: ObjectID,
   nickname: String (unique, sparse),
   avatar_url: String,
   level: Number (default: 1),
-  credit: Number (default: 0),      // 일반 재화
-  han_coin: Number (default: 0),    // 프리미엄 재화
+  credit: Number (default: 0),
   guild_id: ObjectID,
   created_at: Date,
   updated_at: Date
 }
-// Indexes: nickname_1 (unique, sparse), created_at_-1
 ```
 
-#### 3.4.2 korean_words 컬렉션 (사용 안 함)
-- **대체**: data/japanese_words_jmdict.txt (174,709 단어)
-- **로딩**: pkg/dictionary/dictionary.go
-- **검색**: IsValidWord(word string)
-
-#### 3.4.3 ox_quizzes 컬렉션
+### ox_quizzes 컬렉션
 ```javascript
 {
   _id: ObjectID,
@@ -350,126 +174,73 @@ deployments/               # 배포 스크립트
   question: String,
   answer: Boolean,
   explanation: String,
-  usage_count: Number (default: 0),
   is_active: Boolean (default: true),
-  created_at: Date,
-  updated_at: Date
+  created_at: Date
 }
-// Indexes: category_1, is_active_1, difficulty_1
 ```
 
-#### 3.4.4 qa_quizzes 컬렉션
+### qa_quizzes 컬렉션
 ```javascript
 {
   _id: ObjectID,
   category: String,
   difficulty: String,
   question: String,
-  answer: String,              // 정답 텍스트
+  options: Array<String>,
+  correct_answer_index: Number,
   explanation: String,
-  usage_count: Number (default: 0),
+  image_url: String,
   is_active: Boolean (default: true),
-  created_at: Date,
-  updated_at: Date
+  created_at: Date
 }
-// Indexes: category_1, is_active_1, difficulty_1
 ```
 
-#### 3.4.5 player_stats 컬렉션
+### player_stats 컬렉션
 ```javascript
 {
   _id: ObjectID,
   user_id: String (unique),
-  total_games: Number (default: 0),
-  total_wins: Number (default: 0),
-  total_score: Number (default: 0),
-  wordchain_games: Number (default: 0),
-  ox_games: Number (default: 0),
-  qa_games: Number (default: 0),
+  total_games: Number,
+  total_wins: Number,
+  total_score: Number,
+  wordchain_games: Number,
+  ox_games: Number,
+  qa_games: Number,
   created_at: Date,
   updated_at: Date
 }
-// Indexes: user_id_1 (unique), total_score_-1
 ```
 
-#### 3.4.6 shop_items 컬렉션 (추가됨)
-```javascript
-{
-  _id: ObjectID,
-  item_type: String,           // "avatar", "theme", "effect"
-  name: String,
-  description: String,
-  price: Number,
-  currency_type: String,       // "credit" or "han_coin"
-  is_available: Boolean,
-  is_featured: Boolean,
-  image_url: String,
-  tags: Array<String>,
-  created_at: Date,
-  updated_at: Date
-}
-// Indexes: item_type_1, is_available_1, is_featured_1, price_1, tags_1
-```
+---
 
-#### 3.4.7 user_inventory 컬렉션 (추가됨)
-```javascript
-{
-  _id: ObjectID,
-  user_id: String,
-  item_id: ObjectID,
-  item_type: String,
-  is_equipped: Boolean (default: false),
-  purchased_at: Date
-}
-// Indexes: [user_id_1, item_id_1] (unique), [user_id_1, item_type_1], [user_id_1, is_equipped_1]
-```
+## 5. 개발 로드맵
 
-#### 3.4.8 transactions 컬렉션 (추가됨)
-```javascript
-{
-  _id: ObjectID,
-  user_id: String,
-  type: String,                // "purchase", "reward", "spend"
-  amount: Number,
-  currency_type: String,       // "credit" or "han_coin"
-  item_id: ObjectID,
-  description: String,
-  status: String,              // "pending", "completed", "failed"
-  created_at: Date
-}
-// Indexes: [user_id_1, created_at_-1], [user_id_1, type_1], [user_id_1, status_1], created_at_-1
-```
- 
+### ✅ Phase 1 (v1.0) - MVP 완료
+- 사용자 관리 (CRUD)
+- 게임 타입 정의 (WORDCHAIN, OX, QA)
+- GraphQL API
+- WebSocket 실시간 통신
+- MongoDB + Valkey 인프라
+- 일본어 단어 사전 (174,709개)
 
-## 8. 로드맵
+### ✅ Phase 2 (v1.1) - 게임 플로우 완료
+- 게임방 생성/참가/퇴장
+- 게임 시작/종료
+- 답변 제출 및 점수 시스템
+- 라운드 자동 전환
+- GraphQL Subscription
+- WebSocket 채팅
+- 통계 및 리더보드
 
-### Phase 1 (v1.0) - MVP ✅ 완료
-- [x] 사용자 관리 (CRUD)
-- [x] 게임 타입 정의 (WORDCHAIN, OX, QA)
-- [x] 퀴즈는 한번에 전체조회하고 정답대조를하자 (랜덤으로게임 라운드만큼의 문제를 전달)
-- [x] GraphQL API (gqlgen)
-- [x] WebSocket 실시간 통신
-- [x] MongoDB + Valkey 인프라
-- [x] 일본어 단어 사전 (174,709개)
+### 🚧 Phase 3 (v1.2) - 개선 및 최적화
+- [ ] 제한 시간 타이머
+- [ ] 속도 기반 보너스 점수
+- [ ] 방장 권한 검증 강화
+- [ ] 재접속 처리
+- [ ] 성능 최적화
 
-### Phase 2 (v1.1) - 게임 플로우 🚧 진행 중
-- [x] 게임방 생성/참가/퇴장
-- [x] 게임 시작 (StartGame)
-- [x] GraphQL Subscription (gameRoomUpdated, playerJoined, gameStarted, gameEnded)
-- [x] Valkey PubSub 통합
-- [x] WebSocket 채팅 (lobby, room) 
-- [ ] 게임 진행 로직 (라운드 관리)
-- [ ] 정답 제출 및 점수 시스템 (SubmitAnswer)
-- [ ] 타이머 관리
-- [ ] 다음 라운드/게임 종료
-- [ ] 리더보드
- 
- 
-### Phase 4 (v1.3) - 상점 시스템 🏪
-- [x] 상점 아이템 (shop_items 컬렉션)
-- [x] 사용자 인벤토리 (user_inventory 컬렉션)
-- [x] 거래 내역 (transactions 컬렉션)
-- [x] 재화 시스템 (credit, han_coin)
-- [ ] GraphQL Mutation: purchaseItem, equipItem
-- [ ] GraphQL Query: shopItems, userInventory
- 
+### 📋 Phase 4 (v1.3) - 상점 시스템
+- [ ] 아이템 상점 (아바타, 테마 등)
+- [ ] 사용자 인벤토리
+- [ ] 거래 내역
+- [ ] 재화 시스템 통합

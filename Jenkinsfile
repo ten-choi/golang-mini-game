@@ -20,60 +20,26 @@ pipeline {
 
         // Docker runtime
         CONTAINER_NAME = "go-server-app"
-        HOST_PORT      = "30080"
+        HOST_PORT      = "80"
         CONTAINER_PORT = "8080"
 
-        // ✅ .env 파일 경로 (Jenkins가 자동 배포)
-        ENV_FILE = "/home/hange-dev-game-ap-0/.env"
-        
-        // ✅ 환경 변수 (docker-compose.yml과 일치)
+        // ✅ 환경 변수 (docker run 시 직접 주입)
         SERVER_PORT = "8080"
         GIN_MODE = "release"
-        MONGO_URI = "mongodb://admin:password@10.33.255.96:27017"
+        MONGO_URI = "mongodb://root:password@10.33.255.96:56061/?authSource=admin"
         MONGO_DB = "draw_and_guess_db"
-        VALKEY_ADDR = "10.33.255.96:6379"
+        VALKEY_ADDR = "10.33.255.96:56062"
         VALKEY_PASSWORD = "game123"
     }
 
     stages {
-        stage('0. Checkout Source') {
+        stage('1. Checkout Source') {
             steps {
-                echo "[0/2] Cloning ${BRANCH} branch..."
+                echo "[1/2] Cloning ${BRANCH} branch..."
                 checkout([$class: 'GitSCM',
                     branches: [[name: "*/${BRANCH}"]],
                     userRemoteConfigs: [[url: "${GIT_URL}", credentialsId: "${GHCR_CRED_ID}"]]
                 ])
-            }
-        }
-
-        stage('1. Deploy .env File (Optional)') {
-            when {
-                expression { env.ENV_FILE != "__NONE__" }
-            }
-            steps {
-                echo "[1/2] Deploying .env file to target host..."
-                sh """
-                    set -e
-                    
-                    # .env 파일 내용 생성
-                    cat > .env.tmp << 'ENVFILE'
-SERVER_PORT=8080
-GIN_MODE=release
-
-MONGO_URI=mongodb://admin:password@10.33.255.96:27017
-MONGO_DB=draw_and_guess_db
-
-VALKEY_ADDR=10.33.255.96:6379
-VALKEY_PASSWORD=game123
-ENVFILE
-
-                    # 서버로 복사
-                    ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${MANAGE_HOST} \\
-                      "ssh -o StrictHostKeyChecking=no ${TARGET_HOST} 'cat > ${ENV_FILE}'" < .env.tmp
-                    
-                    rm -f .env.tmp
-                    echo "✅ .env file deployed to ${ENV_FILE}"
-                """
             }
         }
 
@@ -97,7 +63,6 @@ ENVFILE
                             CONTAINER_NAME="${CONTAINER_NAME}"
                             HOST_PORT="${HOST_PORT}"
                             CONTAINER_PORT="${CONTAINER_PORT}"
-                            ENV_FILE="${ENV_FILE}"
 
                             echo "🔐 Logging into GHCR..."
                             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
@@ -108,35 +73,29 @@ ENVFILE
                             echo "🧹 Removing old container (if exists): \$CONTAINER_NAME"
                             docker rm -f "\$CONTAINER_NAME" >/dev/null 2>&1 || true
 
-                            echo "🚀 Running new container..."
-                            
-                            # .env 파일 사용 방식
-                            if [ "\$ENV_FILE" != "__NONE__" ] && [ -f "\$ENV_FILE" ]; then
-                              echo "✅ Using env-file: \$ENV_FILE"
-                              docker run -d \\
-                                --name "\$CONTAINER_NAME" \\
-                                --restart unless-stopped \\
-                                -p "\$HOST_PORT:\$CONTAINER_PORT" \\
-                                --env-file "\$ENV_FILE" \\
-                                "\$IMAGE_NAME"
-                            else
-                              # 환경 변수 직접 주입 방식
-                              echo "⚠️  No env-file, using direct env vars"
-                              docker run -d \\
-                                --name "\$CONTAINER_NAME" \\
-                                --restart unless-stopped \\
-                                -p "\$HOST_PORT:\$CONTAINER_PORT" \\
-                                -e SERVER_PORT="${SERVER_PORT}" \\
-                                -e GIN_MODE="${GIN_MODE}" \\
-                                -e MONGO_URI="${MONGO_URI}" \\
-                                -e MONGO_DB="${MONGO_DB}" \\
-                                -e VALKEY_ADDR="${VALKEY_ADDR}" \\
-                                -e VALKEY_PASSWORD="${VALKEY_PASSWORD}" \\
-                                "\$IMAGE_NAME"
-                            fi
+                            echo "🚀 Running new container with environment variables..."
+                            docker run -d \\
+                              --name "\$CONTAINER_NAME" \\
+                              --restart unless-stopped \\
+                              -p "\$HOST_PORT:\$CONTAINER_PORT" \\
+                              -e SERVER_PORT="${SERVER_PORT}" \\
+                              -e GIN_MODE="${GIN_MODE}" \\
+                              -e MONGO_URI="${MONGO_URI}" \\
+                              -e MONGO_DB="${MONGO_DB}" \\
+                              -e VALKEY_ADDR="${VALKEY_ADDR}" \\
+                              -e VALKEY_PASSWORD="${VALKEY_PASSWORD}" \\
+                              "\$IMAGE_NAME"
 
                             echo "✅ Container started!"
                             docker ps --filter "name=\$CONTAINER_NAME" --format "table {{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}"
+
+                            # 컨테이너가 실행 중인지 확인
+                            sleep 3
+                            if ! docker ps --filter "name=\$CONTAINER_NAME" --filter "status=running" -q | grep -q .; then
+                              echo "❌ Container not running! Checking logs..."
+                              docker logs "\$CONTAINER_NAME"
+                              exit 1
+                            fi
 
                             echo ""
                             echo "📍 Service URL: http://hange-dev-game-ap-0.coconefk:\$HOST_PORT"
@@ -144,8 +103,13 @@ ENVFILE
                             
                             # 컨테이너 로그 확인
                             echo ""
-                            echo "📋 Container logs (last 20 lines):"
-                            docker logs --tail 20 "\$CONTAINER_NAME"
+                            echo "📋 Container logs (last 50 lines):"
+                            docker logs --tail 50 "\$CONTAINER_NAME"
+                            
+                            # 환경 변수 확인
+                            echo ""
+                            echo "🔍 Container environment:"
+                            docker exec "\$CONTAINER_NAME" env | grep -E "(MONGO|VALKEY|SERVER|GIN)" || true
 EOF
                     """
                 }

@@ -12,7 +12,6 @@ type CreateUserDTO struct {
 	AvatarURL string // Empty string if not provided
 	Level     int    // Default 0
 	Credit    int    // Default 0
-	// HanCoin은 외부 재화로 이 게임에서 관리하지 않음
 }
 
 // UpdateUserDTO represents data for updating a user
@@ -20,7 +19,6 @@ type UpdateUserDTO struct {
 	AvatarURL *string
 	Level     *int
 	Credit    *int
-	// HanCoin은 외부 재화로 이 게임에서 업데이트하지 않음
 }
 
 // UserService defines the interface for user business logic
@@ -54,11 +52,10 @@ func (s *userService) CreateUser(ctx context.Context, dto CreateUserDTO) (*model
 		AvatarURL: dto.AvatarURL,
 		Level:     dto.Level,
 		Credit:    dto.Credit,
-		HanCoin:   0, // 외부 재화로 항상 0으로 초기화
 	}
 	return s.repo.Create(ctx, user)
 }
 
 func (s *userService) UpdateUser(ctx context.Context, nickname string, dto UpdateUserDTO) (*models.User, error) {
-	return s.repo.Update(ctx, nickname, dto.AvatarURL, dto.Level, dto.Credit, nil) // HanCoin은 외부에서 관리
+	return s.repo.Update(ctx, nickname, dto.AvatarURL, dto.Level, dto.Credit)
 }
