@@ -46,10 +46,7 @@ func (r *quizRepository) IsValidWord(ctx context.Context, word string) (bool, er
 
 // GetRandomOXQuiz returns a random OX quiz, excluding already used quiz IDs
 func (r *quizRepository) GetRandomOXQuiz(ctx context.Context, excludedIds []string) (*models.OXQuiz, error) {
-	filter := bson.M{
-		"type":      "OX",
-		"is_active": true,
-	}
+	filter := bson.M{}
 
 	// Exclude already used IDs
 	if len(excludedIds) > 0 {
@@ -92,10 +89,7 @@ func (r *quizRepository) GetRandomOXQuiz(ctx context.Context, excludedIds []stri
 // GetRandomQAQuiz returns a random QA (general) quiz, excluding already used quiz IDs
 func (r *quizRepository) GetRandomQAQuiz(ctx context.Context, excludedIds []string) (*models.GeneralQuiz, error) {
 	log.Printf("[QuizRepo] Getting random QA quiz, excluded IDs: %v", excludedIds)
-	filter := bson.M{
-		"type":      "QA",
-		"is_active": true,
-	}
+	filter := bson.M{}
 
 	// Exclude already used IDs
 	if len(excludedIds) > 0 {

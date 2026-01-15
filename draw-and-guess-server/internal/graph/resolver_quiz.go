@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -106,7 +107,11 @@ func (r *queryResolver) IsValidWord(ctx context.Context, word string) (bool, err
 	return dict.IsValidWord(word), nil
 }
 
-// startQuizGame starts a quiz game and sends the first quiz
+// Pre-loaded quizzes storage (in-memory)
+var preloadedQuizzes = make(map[string][]map[string]interface{})
+var preloadedQuizzesMutex sync.RWMutex
+
+// startQuizGame starts a quiz game and pre-loads all quizzes
 func startQuizGame(ctx context.Context, roomID string, gameType model.GameType, quizService service.QuizService) {
 	log.Printf("[Quiz] ==================== START QUIZ GAME ====================")
 	log.Printf("[Quiz] Room: %s, GameType: %s", roomID, gameType)
@@ -122,47 +127,192 @@ func startQuizGame(ctx context.Context, roomID string, gameType model.GameType, 
 		return
 	}
 
+	// Pre-load all quizzes for all rounds
+	log.Printf("[Quiz] Pre-loading %d quizzes for room %s", room.TotalRounds, roomID)
+	quizzes, err := preloadQuizzes(ctx, roomID, gameType, int(room.TotalRounds), quizService)
+	if err != nil {
+		log.Printf("[Quiz] ERROR: Failed to pre-load quizzes: %v", err)
+		return
+	}
+
+	// Store pre-loaded quizzes
+	preloadedQuizzesMutex.Lock()
+	preloadedQuizzes[roomID] = quizzes
+	preloadedQuizzesMutex.Unlock()
+
+	log.Printf("[Quiz] Successfully pre-loaded %d quizzes", len(quizzes))
 	log.Printf("[Quiz] Room found and playing, sending first quiz...")
-	// Send first quiz
-	sendNextQuiz(ctx, roomID, gameType, quizService)
-	
+
+	// Send first quiz (round 1)
+	sendPreloadedQuiz(roomID, 0) // 0-indexed
+
 	log.Printf("[Quiz] Starting timer for room %s with %d seconds", roomID, room.RoundTimeLimit)
 	// Start timer for the quiz
 	go startQuizTimer(ctx, roomID, gameType, room.RoundTimeLimit, quizService)
 	log.Printf("[Quiz] ==================== QUIZ GAME STARTED ====================")
 }
 
+// preloadQuizzes fetches all quizzes needed for the game at once
+func preloadQuizzes(ctx context.Context, roomID string, gameType model.GameType, totalRounds int, quizService service.QuizService) ([]map[string]interface{}, error) {
+	log.Printf("[Quiz Pre-Loading] Starting to pre-load %d quizzes for room %s (type: %s)", totalRounds, roomID, gameType)
+	quizzes := make([]map[string]interface{}, 0, totalRounds)
+	var excludedIds []string
+
+	// Get excluded quiz IDs from room
+	room, exists := GetGameRoom(roomID)
+	if exists && room.UsedQuizIds != nil {
+		excludedIds = room.UsedQuizIds
+	}
+
+	for i := 0; i < totalRounds; i++ {
+		log.Printf("[Quiz Pre-Loading] Fetching quiz %d/%d...", i+1, totalRounds)
+		var quizData map[string]interface{}
+
+		if gameType == model.GameTypeOx {
+			quiz, err := quizService.GetRandomOXQuiz(ctx, excludedIds)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get OX quiz for round %d: %w", i+1, err)
+			}
+
+			quizID := fmt.Sprintf("%d", quiz.ID)
+			excludedIds = append(excludedIds, quizID)
+
+			quizData = map[string]interface{}{
+				"id":          quizID,
+				"type":        "OX",
+				"category":    quiz.Category,
+				"difficulty":  quiz.Difficulty,
+				"question":    quiz.Question,
+				"answer":      quiz.Answer,
+				"explanation": quiz.Explanation,
+			}
+			log.Printf("[Quiz Pre-Loading] ✓ Round %d: OX quiz loaded (ID: %s, Question: %.50s...)", i+1, quizID, quiz.Question)
+
+		} else if gameType == model.GameTypeQa {
+			quiz, err := quizService.GetRandomQAQuiz(ctx, excludedIds)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get QA quiz for round %d: %w", i+1, err)
+			}
+
+			quizID := fmt.Sprintf("%d", quiz.ID)
+			excludedIds = append(excludedIds, quizID)
+
+			quizData = map[string]interface{}{
+				"id":          quizID,
+				"type":        "QA",
+				"category":    quiz.Category,
+				"difficulty":  quiz.Difficulty,
+				"question":    quiz.Question,
+				"options":     quiz.Options,
+				"answer":      quiz.Answer,
+				"explanation": quiz.Explanation,
+				"imageUrl":    quiz.ImageURL,
+			}
+			log.Printf("[Quiz Pre-Loading] ✓ Round %d: QA quiz loaded (ID: %s, Options: %d, Question: %.50s...)", i+1, quizID, len(quiz.Options), quiz.Question)
+		}
+
+		quizzes = append(quizzes, quizData)
+	}
+
+	log.Printf("[Quiz Pre-Loading] ✓ COMPLETED! Successfully pre-loaded %d quizzes for room %s", len(quizzes), roomID)
+
+	// Update room with all used quiz IDs
+	if exists {
+		room.UsedQuizIds = excludedIds
+		SetGameRoom(roomID, room)
+	}
+
+	return quizzes, nil
+}
+
+// sendPreloadedQuiz sends a pre-loaded quiz to clients
+func sendPreloadedQuiz(roomID string, roundIndex int) {
+	log.Printf("[Quiz Delivery] 📤 Sending pre-loaded quiz for room %s, round %d (index: %d)", roomID, roundIndex+1, roundIndex)
+
+	preloadedQuizzesMutex.RLock()
+	quizzes, exists := preloadedQuizzes[roomID]
+	preloadedQuizzesMutex.RUnlock()
+
+	if !exists {
+		log.Printf("[Quiz Delivery] ❌ ERROR: No pre-loaded quizzes found for room %s", roomID)
+		return
+	}
+
+	if roundIndex >= len(quizzes) {
+		log.Printf("[Quiz Delivery] ❌ ERROR: Round index %d out of range (total quizzes: %d) for room %s", roundIndex, len(quizzes), roomID)
+		return
+	}
+
+	quizData := quizzes[roundIndex]
+
+	log.Printf("[Quiz Delivery] ✓ Quiz found - Type: %s, ID: %s", quizData["type"], quizData["id"])
+	log.Printf("[Quiz Delivery] ✓ Question: %.80s...", quizData["question"])
+
+	// Broadcast quiz to all players via WebSocket
+	message := map[string]interface{}{
+		"type": "quiz",
+		"data": quizData,
+	}
+
+	log.Printf("[Quiz Delivery] 📡 Broadcasting quiz to all players in room %s", roomID)
+
+	// Publish to Valkey for WebSocket distribution
+	jsonData, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("[Quiz] Failed to marshal quiz message: %v", err)
+		return
+	}
+
+	channelName := fmt.Sprintf("game/%s", roomID)
+	err = valkey.Client.Publish(context.Background(), channelName, jsonData).Err()
+	if err != nil {
+		log.Printf("[Quiz] Failed to publish quiz to Valkey: %v", err)
+		return
+	}
+
+	log.Printf("[Quiz] Successfully published quiz to channel: %s", channelName)
+}
+
+// cleanupPreloadedQuizzes removes pre-loaded quizzes when game ends
+func cleanupPreloadedQuizzes(roomID string) {
+	preloadedQuizzesMutex.Lock()
+	delete(preloadedQuizzes, roomID)
+	preloadedQuizzesMutex.Unlock()
+	log.Printf("[Quiz] Cleaned up pre-loaded quizzes for room %s", roomID)
+}
+
 // startQuizTimer manages the countdown timer for a quiz
 func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType, timeLimit int32, quizService service.QuizService) {
 	log.Printf("[Quiz] Starting timer for room %s: %d seconds", roomID, timeLimit)
-	
+
 	channelName := fmt.Sprintf("game/%s", roomID)
-	
+
 	// Send initial time
 	sendTimerUpdate(channelName, int(timeLimit))
-	
+
 	// Countdown
 	for i := int(timeLimit) - 1; i >= 0; i-- {
 		time.Sleep(1 * time.Second)
-		
+
 		// Check if room still exists and is playing
 		room, exists := GetGameRoom(roomID)
 		if !exists || room.Status != model.GameStatusPlaying {
 			log.Printf("[Quiz] Timer stopped for room %s (room ended)", roomID)
 			return
 		}
-		
+
 		sendTimerUpdate(channelName, i)
 	}
-	
+
 	log.Printf("[Quiz] Timer finished for room %s", roomID)
-	
+
 	// Move to next round or end game
 	room, exists := GetGameRoom(roomID)
 	if !exists || room.Status != model.GameStatusPlaying {
+		cleanupPreloadedQuizzes(roomID)
 		return
 	}
-	
+
 	// Increment round
 	if room.CurrentRound >= room.TotalRounds {
 		// Game finished
@@ -170,6 +320,7 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 		room.Status = model.GameStatusFinished
 		SetGameRoom(roomID, room)
 		publishRoomUpdateToWebSocket(roomID, room)
+		cleanupPreloadedQuizzes(roomID)
 	} else {
 		// Next round
 		log.Printf("[Quiz] Moving to next round for room %s (round %d -> %d)", roomID, room.CurrentRound, room.CurrentRound+1)
@@ -177,11 +328,11 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 		roundTimeLimit := room.RoundTimeLimit // Save before updating room
 		SetGameRoom(roomID, room)
 		publishRoomUpdateToWebSocket(roomID, room)
-		
-		// Send next quiz after a short delay
+
+		// Send next pre-loaded quiz after a short delay
 		time.Sleep(2 * time.Second)
-		log.Printf("[Quiz] Sending next quiz for room %s, round %d", roomID, room.CurrentRound)
-		sendNextQuiz(ctx, roomID, gameType, quizService)
+		log.Printf("[Quiz] Sending next pre-loaded quiz for room %s, round %d", roomID, room.CurrentRound)
+		sendPreloadedQuiz(roomID, int(room.CurrentRound)-1) // CurrentRound is 1-indexed
 		go startQuizTimer(ctx, roomID, gameType, roundTimeLimit, quizService)
 	}
 }
@@ -194,13 +345,13 @@ func sendTimerUpdate(channelName string, timeLeft int) {
 			"timeLeft": timeLeft,
 		},
 	}
-	
+
 	jsonData, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("[Quiz] Failed to marshal timer message: %v", err)
 		return
 	}
-	
+
 	err = valkey.Client.Publish(context.Background(), channelName, jsonData).Err()
 	if err != nil {
 		log.Printf("[Quiz] Failed to publish timer to Valkey: %v", err)
@@ -277,7 +428,7 @@ func sendNextQuiz(ctx context.Context, roomID string, gameType model.GameType, q
 			"explanation": quiz.Explanation,
 			"imageUrl":    quiz.ImageURL,
 		}
-		
+
 		log.Printf("[Quiz] Created quiz data with %d options", len(quiz.Options))
 	}
 

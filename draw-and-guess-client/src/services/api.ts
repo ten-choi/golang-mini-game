@@ -319,24 +319,9 @@ export const apiService = {
   },
 
   // ===== Quiz Methods =====
-  
-  async getRandomOXQuiz(roomId?: string): Promise<OXQuiz | null> {
-    try {
-      const data: any = await graphqlClient.request(GET_RANDOM_OX_QUIZ, { roomId });
-      return data.randomOXQuiz;
-    } catch (error) {
-      return handleGraphQLError(error, 'getRandomOXQuiz');
-    }
-  },
-
-  async getRandomQAQuiz(roomId?: string): Promise<GeneralQuiz | null> {
-    try {
-      const data: any = await graphqlClient.request(GET_RANDOM_QA_QUIZ, { roomId });
-      return data.randomQAQuiz;
-    } catch (error) {
-      return handleGraphQLError(error, 'getRandomQAQuiz');
-    }
-  },
+  // Note: Quiz questions are now pre-loaded by server at game start
+  // and pushed automatically via WebSocket each round.
+  // No manual quiz request methods needed - all quiz data comes via WebSocket.
 
   // ===== Player Stats Methods =====
   

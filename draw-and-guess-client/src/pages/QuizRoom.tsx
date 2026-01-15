@@ -72,21 +72,28 @@ const QuizRoom: React.FC = () => {
     };
 
     const handleQuiz = (data: any) => {
-      console.log('[QuizRoom] ========== QUIZ RECEIVED ==========');
-      console.log('[QuizRoom] Raw data:', JSON.stringify(data, null, 2));
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🎯 [QUIZ PRE-LOADED] Quiz received from server');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('📦 Raw data:', JSON.stringify(data, null, 2));
       // Server sends quiz data in 'data' field
       const quizData = data.data || data;
-      console.log('[QuizRoom] Extracted quiz data:', JSON.stringify(quizData, null, 2));
-      console.log('[QuizRoom] Quiz type:', quizData.type);
-      console.log('[QuizRoom] Quiz question:', quizData.question);
-      console.log('[QuizRoom] Quiz options:', quizData.options);
-      console.log('[QuizRoom] Quiz options type:', typeof quizData.options);
-      console.log('[QuizRoom] Quiz options is array:', Array.isArray(quizData.options));
-      if (quizData.options) {
-        console.log('[QuizRoom] Options length:', quizData.options.length);
-        console.log('[QuizRoom] Options content:', quizData.options);
+      console.log('✓ Quiz Type:', quizData.type);
+      console.log('✓ Quiz ID:', quizData.id);
+      console.log('✓ Question:', quizData.question);
+      console.log('✓ Category:', quizData.category);
+      console.log('✓ Difficulty:', quizData.difficulty);
+      if (quizData.type === 'QA') {
+        console.log('✓ Options:', quizData.options);
+        console.log('✓ Options is array:', Array.isArray(quizData.options));
+        if (quizData.options) {
+          console.log('✓ Options count:', quizData.options.length);
+        }
+      } else if (quizData.type === 'OX') {
+        console.log('✓ OX Quiz - Answer format: O (true) or X (false)');
       }
-      console.log('[QuizRoom] =====================================');
+      console.log('💡 NOTE: This quiz was pre-loaded at game start');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       setCurrentQuiz(quizData);
       setSelectedAnswer(null);
       setAnswered(false);
@@ -260,7 +267,7 @@ const QuizRoom: React.FC = () => {
         </div>
         <div style={styles.infoBox}>
           <span style={styles.infoLabel}>👥 플레이어</span>
-          <span style={styles.infoValue}>{room.players.length}/4</span>
+          <span style={styles.infoValue}>{room.players.length}/{room.maxPlayers}</span>
         </div>
       </div>
 
@@ -388,7 +395,7 @@ const QuizRoom: React.FC = () => {
         <div style={styles.rightPanel}>
           {/* Players */}
           <div style={styles.playersSection}>
-            <h3 style={styles.sectionTitle}>👥 플레이어 ({room.players.length}/4)</h3>
+            <h3 style={styles.sectionTitle}>👥 플레이어 ({room.players.length}/{room.maxPlayers})</h3>
             <div style={styles.playersList}>
               {sortedPlayers.map((player) => (
                 <div key={player.username} style={styles.playerCard}>

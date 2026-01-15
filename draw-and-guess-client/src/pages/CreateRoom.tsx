@@ -6,9 +6,11 @@ import { useLanguage } from '../i18n/LanguageContext';
 
 const CreateRoom: React.FC = () => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
   const [username] = useState(sessionStorage.getItem('username') || '');
   const [selectedGameType, setSelectedGameType] = useState<GameType>('WORDCHAIN');
+  const [maxPlayers, setMaxPlayers] = useState(2);
+  const [totalRounds, setTotalRounds] = useState(3);
+  const [roundTimeLimit, setRoundTimeLimit] = useState(15);
   const [loading, setLoading] = useState(false);
 
   React.useEffect(() => {
@@ -81,8 +83,9 @@ const CreateRoom: React.FC = () => {
       const result = await apiService.createGameRoom({
         name: `${username}의 게임방`,
         gameType: selectedGameType,
-        maxPlayers: 4,
-        totalRounds: 3,
+        maxPlayers: maxPlayers,
+        totalRounds: totalRounds,
+        roundTimeLimit: roundTimeLimit,
         hostUsername: username,
         isPrivate: false
       });
@@ -145,15 +148,63 @@ const CreateRoom: React.FC = () => {
           <div style={styles.infoBox}>
             <div style={styles.infoItem}>
               <span style={styles.infoIcon}>👥</span>
-              <span style={styles.infoText}>최대 4명</span>
+              <div style={styles.playerSelector}>
+                <button 
+                  style={styles.playerButton}
+                  onClick={() => setMaxPlayers(Math.max(2, maxPlayers - 1))}
+                  disabled={maxPlayers <= 2}
+                >
+                  -
+                </button>
+                <span style={styles.infoText}>{maxPlayers}명</span>
+                <button 
+                  style={styles.playerButton}
+                  onClick={() => setMaxPlayers(Math.min(4, maxPlayers + 1))}
+                  disabled={maxPlayers >= 4}
+                >
+                  +
+                </button>
+              </div>
             </div>
             <div style={styles.infoItem}>
-              <span style={styles.infoIcon}>🎯</span>
-              <span style={styles.infoText}>3점 승리</span>
+              <span style={styles.infoIcon}>�</span>
+              <div style={styles.playerSelector}>
+                <button 
+                  style={styles.playerButton}
+                  onClick={() => setTotalRounds(Math.max(1, totalRounds - 1))}
+                  disabled={totalRounds <= 1}
+                >
+                  -
+                </button>
+                <span style={styles.infoText}>{totalRounds}라운드</span>
+                <button 
+                  style={styles.playerButton}
+                  onClick={() => setTotalRounds(Math.min(10, totalRounds + 1))}
+                  disabled={totalRounds >= 10}
+                >
+                  +
+                </button>
+              </div>
             </div>
             <div style={styles.infoItem}>
-              <span style={styles.infoIcon}>🎮</span>
-              <span style={styles.infoText}>3라운드</span>
+              <span style={styles.infoIcon}>⏱️</span>
+              <div style={styles.playerSelector}>
+                <button 
+                  style={styles.playerButton}
+                  onClick={() => setRoundTimeLimit(Math.max(10, roundTimeLimit - 5))}
+                  disabled={roundTimeLimit <= 10}
+                >
+                  -
+                </button>
+                <span style={styles.infoText}>{roundTimeLimit}초</span>
+                <button 
+                  style={styles.playerButton}
+                  onClick={() => setRoundTimeLimit(Math.min(60, roundTimeLimit + 5))}
+                  disabled={roundTimeLimit >= 60}
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
 
@@ -304,6 +355,25 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: '16px',
     fontWeight: 'bold',
     color: '#333',
+  },
+  playerSelector: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  playerButton: {
+    width: '30px',
+    height: '30px',
+    borderRadius: '50%',
+    border: '2px solid #667eea',
+    background: 'white',
+    color: '#667eea',
+    fontSize: '18px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   createButton: {
     width: '100%',

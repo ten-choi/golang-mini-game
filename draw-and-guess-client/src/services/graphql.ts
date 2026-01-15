@@ -195,6 +195,9 @@ export const GET_INVITATION = `
 `;
 
 // Quiz Queries
+// NOTE: These queries are kept for debugging/testing purposes only.
+// In production, quizzes are pre-loaded by the server at game start
+// and pushed automatically via WebSocket. No manual quiz requests needed.
 export const GET_RANDOM_OX_QUIZ = `
   query GetRandomOXQuiz($roomId: ID) {
     randomOXQuiz(roomId: $roomId) {

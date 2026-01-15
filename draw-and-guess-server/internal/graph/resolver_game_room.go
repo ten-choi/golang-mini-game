@@ -192,7 +192,18 @@ func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model
 	}()
 
 	// Start game management based on game type
+	log.Printf("[StartGame] ========================================")
 	log.Printf("[StartGame] Room %s game type: %s", roomID, room.GameType)
+	log.Printf("[StartGame] GameType value as string: '%s'", string(room.GameType))
+	log.Printf("[StartGame] GameType length: %d", len(room.GameType))
+	log.Printf("[StartGame] GameTypeOx constant: '%s'", model.GameTypeOx)
+	log.Printf("[StartGame] GameTypeQa constant: '%s'", model.GameTypeQa)
+	log.Printf("[StartGame] GameTypeWordchain constant: '%s'", model.GameTypeWordchain)
+	log.Printf("[StartGame] Is OX? %v", room.GameType == model.GameTypeOx)
+	log.Printf("[StartGame] Is QA? %v", room.GameType == model.GameTypeQa)
+	log.Printf("[StartGame] Is Wordchain? %v", room.GameType == model.GameTypeWordchain)
+	log.Printf("[StartGame] ========================================")
+
 	if room.GameType == model.GameTypeWordchain {
 		log.Printf("[StartGame] Starting wordchain game for room %s", roomID)
 		go startWordchainGame(roomID)
@@ -201,7 +212,7 @@ func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model
 		// Use background context for goroutine
 		go startQuizGame(context.Background(), roomID, room.GameType, r.QuizService)
 	} else {
-		log.Printf("[StartGame] Unknown game type: %s", room.GameType)
+		log.Printf("[StartGame] ERROR: Unknown/unmatched game type: '%s' (len=%d)", room.GameType, len(room.GameType))
 	}
 
 	return room, nil
@@ -210,9 +221,15 @@ func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model
 // DeleteGameRoom is the resolver for the deleteGameRoom field.
 func (r *mutationResolver) DeleteGameRoom(ctx context.Context, roomID string) (bool, error) {
 	roomMutex.Lock()
-	defer roomMutex.Unlock()
-
+	room, exists := gameRooms[roomID]
 	delete(gameRooms, roomID)
+	roomMutex.Unlock()
+
+	// Cleanup pre-loaded quizzes if it's a quiz game
+	if exists && (room.GameType == model.GameTypeOx || room.GameType == model.GameTypeQa) {
+		cleanupPreloadedQuizzes(roomID)
+	}
+
 	go publishLobbyUpdate()
 
 	return true, nil
@@ -576,6 +593,11 @@ func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.G
 	}
 
 	room.Status = model.GameStatusFinished
+
+	// Cleanup pre-loaded quizzes if it's a quiz game
+	if room.GameType == model.GameTypeOx || room.GameType == model.GameTypeQa {
+		go cleanupPreloadedQuizzes(roomID)
+	}
 
 	// Publish update
 	go func() {
