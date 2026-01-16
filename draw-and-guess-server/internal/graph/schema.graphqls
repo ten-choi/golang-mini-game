@@ -36,8 +36,8 @@ type User {
 input CreateUserInput {
   "로그인용 식별자 (3-20자)"
   hangeId: String!
-  "고유 사용자명 (3-20자)"
-  name: String!
+  "고유 사용자명 (3-20자) (선택사항)"
+  name: String
   "프로필 이미지 URL (선택사항)"
   avatarUrl: String
 }

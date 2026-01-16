@@ -69,8 +69,8 @@ type CreateGameRoomInput struct {
 type CreateUserInput struct {
 	// 로그인용 식별자 (3-20자)
 	HangeID string `json:"hangeId"`
-	// 고유 사용자명 (3-20자)
-	Name string `json:"name"`
+	// 고유 사용자명 (3-20자) (선택사항)
+	Name *string `json:"name,omitempty"`
 	// 프로필 이미지 URL (선택사항)
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }

@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/graph"
 	"draw-and-guess-server/internal/valkey"
 	"encoding/json"
@@ -529,7 +530,8 @@ func handleSubscribe(client *Client, channel string) {
 
 	// 로비 채널인지 게임 방 채널인지 구분하여 로그 출력
 	if channel == "lobby" {
-		log.Printf("[Subscribe] 🏠 LOBBY - User '%s' subscribed to lobby", username)
+		logger := common.GetLogger()
+		logger.Info("[Subscribe] 🏠 LOBBY - User '%s' subscribed to lobby", username)
 	} else if len(channel) > 5 && channel[:5] == "game/" {
 		roomID := channel[5:]
 		log.Printf("[Subscribe] 🎮 GAME ROOM - User '%s' subscribed to room: %s", username, roomID)
@@ -547,7 +549,8 @@ func handleUnsubscribe(client *Client, channel string) {
 
 	// 로비 채널인지 게임 방 채널인지 구분하여 로그 출력
 	if channel == "lobby" {
-		log.Printf("[Unsubscribe] 🏠 LOBBY - User '%s' unsubscribed from lobby", username)
+		logger := common.GetLogger()
+		logger.Info("[Unsubscribe] 🏠 LOBBY - User '%s' unsubscribed from lobby", username)
 	} else if len(channel) > 5 && channel[:5] == "game/" {
 		roomID := channel[5:]
 		log.Printf("[Unsubscribe] 🎮 GAME ROOM - User '%s' unsubscribed from room: %s", username, roomID)

@@ -15,8 +15,13 @@ import (
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error) {
 	// GraphQL input -> Service DTO
 	dto := service.CreateUserDTO{
-		HangeId:   input.HangeID,
-		Name:      input.Name,
+		HangeId: input.HangeID,
+		Name: func() string {
+			if input.Name == nil {
+				return input.HangeID
+			}
+			return *input.Name
+		}(),
 		AvatarURL: "",
 		Level:     0,
 		Credit:    0,
