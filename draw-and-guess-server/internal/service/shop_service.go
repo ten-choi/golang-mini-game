@@ -106,8 +106,8 @@ func (s *shopService) PurchaseItem(ctx context.Context, userID, itemID string, q
 		return common.NewInternalError("invalid user ID", err)
 	}
 
-	// Nickname으로 조회해야 하므로 임시로 스킵하거나 수정 필요
-	// user, err := s.userRepo.GetByNickname(ctx, userID) // userID를 nickname으로 사용?
+	// UserName으로 조회해야 하므로 임시로 스킵하거나 수정 필요
+	// user, err := s.userRepo.GetByUserName(ctx, userID) // userID를 username으로 사용?
 	// 여기서는 직접 credit 조회가 필요한데, User 모델에서 ID로 조회하는 메서드 필요
 
 	// 4. 가격 계산

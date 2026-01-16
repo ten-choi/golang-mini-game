@@ -395,7 +395,7 @@ export class WebSocketService {
   /**
    * Handle typed messages from server based on message structure
    */
-  private handleTypedMessage(channel: string, data: any): void {
+  private handleTypedMessage(_channel: string, data: any): void {
     // Detect message type from data structure
     if ('type' in data) {
       const messageType = data.type;

@@ -44,13 +44,13 @@ func GetGameRoom(roomID string) (*model.GameRoom, bool) {
 
 // RemovePlayerFromRoom removes a player from a game room
 // This is called when a WebSocket connection is closed
-func RemovePlayerFromRoom(roomID, username string) {
+func RemovePlayerFromRoom(roomID, Name string) {
 	roomMutex.Lock()
 	defer roomMutex.Unlock()
 
 	room, exists := gameRooms[roomID]
 	if !exists {
-		log.Printf("[RemovePlayerFromRoom] Room %s not found for removing player %s", roomID, username)
+		log.Printf("[RemovePlayerFromRoom] Room %s not found for removing player %s", roomID, Name)
 		return
 	}
 
@@ -58,7 +58,7 @@ func RemovePlayerFromRoom(roomID, username string) {
 	newPlayers := []*model.Player{}
 	var leavingPlayer *model.Player
 	for _, p := range room.Players {
-		if p.Username != username {
+		if p.Name != Name {
 			newPlayers = append(newPlayers, p)
 		} else {
 			leavingPlayer = p
@@ -86,15 +86,15 @@ func RemovePlayerFromRoom(roomID, username string) {
 	}
 
 	// Reassign host if needed
-	if room.HostUsername == username && len(room.Players) > 0 {
-		room.HostUsername = room.Players[0].Username
+	if room.HostUsername == Name && len(room.Players) > 0 {
+		room.HostUsername = room.Players[0].Name
 		log.Printf("[RemovePlayerFromRoom] New host assigned in room %s: %s", roomID, room.HostUsername)
 	}
 
 	gameRooms[roomID] = room
 
 	// Publish events
-	log.Printf("[RemovePlayerFromRoom] Player %s removed from room %s (WebSocket disconnect)", username, roomID)
+	log.Printf("[RemovePlayerFromRoom] Player %s removed from room %s (WebSocket disconnect)", Name, roomID)
 	go func() {
 		GetPubSub().PublishRoomUpdate(room)
 		GetPubSub().PublishPlayerLeft(roomID, leavingPlayer)
@@ -250,15 +250,15 @@ func publishGameEndToWebSocket(roomID string, room *model.GameRoom) {
 
 	// Prepare player scores sorted by score
 	type PlayerScore struct {
-		Username string `json:"username"`
-		Score    int32  `json:"score"`
+		Name  string `json:"name"`
+		Score int32  `json:"score"`
 	}
 
 	scores := make([]PlayerScore, len(room.Players))
 	for i, player := range room.Players {
 		scores[i] = PlayerScore{
-			Username: player.Username,
-			Score:    player.Score,
+			Name:  player.Name,
+			Score: player.Score,
 		}
 	}
 
@@ -347,7 +347,7 @@ func PublishWordchainResult(roomID string, playerName string, word string, corre
 }
 
 // UpdateWordchainState updates the last word and player score after correct answer
-func UpdateWordchainState(roomID string, word string, username string) {
+func UpdateWordchainState(roomID string, word string, Name string) {
 	roomMutex.Lock()
 	defer roomMutex.Unlock()
 
@@ -368,9 +368,9 @@ func UpdateWordchainState(roomID string, word string, username string) {
 
 	// Update player score
 	for i, player := range room.Players {
-		if player.Username == username {
+		if player.Name == Name {
 			room.Players[i].Score += 100
-			log.Printf("Player %s scored 100 points (new score: %d)", username, room.Players[i].Score)
+			log.Printf("Player %s scored 100 points (new score: %d)", Name, room.Players[i].Score)
 			break
 		}
 	}
@@ -399,7 +399,7 @@ func IsWordchainDuplicate(roomID string, word string) bool {
 }
 
 // CheckWordchainTurn checks if it's the given user's turn
-func CheckWordchainTurn(roomID string, username string) bool {
+func CheckWordchainTurn(roomID string, Name string) bool {
 	roomMutex.RLock()
 	defer roomMutex.RUnlock()
 
@@ -408,7 +408,7 @@ func CheckWordchainTurn(roomID string, username string) bool {
 		return false
 	}
 
-	return room.CurrentTurnUsername != nil && *room.CurrentTurnUsername == username
+	return room.CurrentTurnUsername != nil && *room.CurrentTurnUsername == Name
 }
 
 // MoveToNextTurn moves to the next player's turn
@@ -424,7 +424,7 @@ func MoveToNextTurn(roomID string) {
 	// Find current player index
 	currentIndex := -1
 	for i, player := range room.Players {
-		if room.CurrentTurnUsername != nil && player.Username == *room.CurrentTurnUsername {
+		if room.CurrentTurnUsername != nil && player.Name == *room.CurrentTurnUsername {
 			currentIndex = i
 			break
 		}
@@ -432,10 +432,10 @@ func MoveToNextTurn(roomID string) {
 
 	// Move to next player (circular)
 	nextIndex := (currentIndex + 1) % len(room.Players)
-	nextUsername := room.Players[nextIndex].Username
-	room.CurrentTurnUsername = &nextUsername
+	nextUserName := room.Players[nextIndex].Name
+	room.CurrentTurnUsername = &nextUserName
 
-	log.Printf("[Wordchain] Turn moved to: %s (index: %d)", room.CurrentTurnUsername, nextIndex)
+	log.Printf("[Wordchain] Turn moved to: %s (index: %d)", *room.CurrentTurnUsername, nextIndex)
 
 	// Broadcast updated room state with current turn info
 	go publishRoomUpdateToWebSocket(roomID, room)
@@ -520,8 +520,8 @@ func startWordchainRound(roomID string) {
 
 	room.WordchainLastWord = &initialWord
 	if len(room.Players) > 0 {
-		firstUsername := room.Players[0].Username
-		room.CurrentTurnUsername = &firstUsername
+		firstUserName := room.Players[0].Name
+		room.CurrentTurnUsername = &firstUserName
 	}
 
 	// Initialize with initial word

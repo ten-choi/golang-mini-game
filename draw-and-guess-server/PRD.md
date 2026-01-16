@@ -14,14 +14,14 @@ GraphQL + WebSocket 기반의 실시간 멀티플레이어 퀴즈 게임 플랫�
 #### 2.1.1 사용자 생성 (P0) ✅ 완료
 - **기능**: 신규 사용자 계정 생성
 - **입력**:
-  - nickname (필수, 고유값)
+  - UserName (필수, 고유값)
   - avatarUrl (선택)
 - **출력**: 생성된 사용자 정보 + ID
 - **검증**:
-  - nickname sparse 인덱스 (null 허용)
+  - UserName sparse 인덱스 (null 허용)
   - MongoDB unique constraint
 - **에러 처리**:
-  - Duplicate key error: 이미 존재하는 nickname
+  - Duplicate key error: 이미 존재하는 UserName
   - 400 Bad Request: 유효하지 않은 입력
 
 #### 2.1.2 사용자 조회 (P0) ✅ 완료
@@ -30,7 +30,7 @@ GraphQL + WebSocket 기반의 실시간 멀티플레이어 퀴즈 게임 플랫�
 - **출력**: User 객체 또는 배열
 
 #### 2.1.3 사용자 정보 수정 (P1) ✅ 완료
-- **기능**: nickname, avatarUrl 업데이트
+- **기능**: UserName, avatarUrl 업데이트
 - **입력**: ID + 수정할 필드들
 - **검증**: 존재하는 사용자만 수정 가능
 
@@ -59,7 +59,7 @@ GraphQL + WebSocket 기반의 실시간 멀티플레이어 퀴즈 게임 플랫�
   - gameType: WORDCHAIN | OX | QA
   - maxPlayers: 최대 인원 (2-10명)
   - totalRounds: 총 라운드 수 (1 Round = 1 문제)
-  - hostUsername: 방장 username
+  - hostUserName: 방장 UserName
   - isPrivate: 비공개 여부 (선택)
   - password: 비공개방 비밀번호 (선택)
 - **비즈니스 로직**:
@@ -155,7 +155,7 @@ GraphQL + WebSocket 기반의 실시간 멀티플레이어 퀴즈 게임 플랫�
 ```javascript
 {
   _id: ObjectID,
-  nickname: String (unique, sparse),
+  UserName: String (unique, sparse),
   avatar_url: String,
   level: Number (default: 1),
   credit: Number (default: 0),

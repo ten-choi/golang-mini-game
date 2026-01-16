@@ -9,14 +9,14 @@
 #### 2.1.1 사용자 생성 (P0) ✅ 완료
 - **기능**: 신규 사용자 계정 생성
 - **입력**:
-  - nickname (필수, 고유값)
+  - UserName (필수, 고유값)
   - avatarUrl (선택)
 - **출력**: 생성된 사용자 정보 + ID
 - **검증**:
-  - nickname sparse 인덱스 (null 허용)
+  - UserName sparse 인덱스 (null 허용)
   - MongoDB unique constraint
 - **에러 처리**:
-  - Duplicate key error: 이미 존재하는 nickname
+  - Duplicate key error: 이미 존재하는 UserName
   - 400 Bad Request: 유효하지 않은 입력
 
 #### 2.1.2 사용자 조회 (P0) ✅ 완료
@@ -25,7 +25,7 @@
 - **출력**: User 객체 또는 배열
 
 #### 2.1.3 사용자 정보 수정 (P1) ✅ 완료
-- **기능**: nickname, avatarUrl 업데이트
+- **기능**: UserName, avatarUrl 업데이트
 - **입력**: ID + 수정할 필드들
 - **검증**: 존재하는 사용자만 수정 가능
 
@@ -55,7 +55,7 @@
   - gameType: WORDCHAIN | OX | QA
   - maxPlayers: 최대 인원 (2-10명)
   - totalRounds: 총 라운드 수 (1 Round = 1 문제)
-  - hostUsername: 방장 username
+  - hostUserName: 방장 UserName
   - isPrivate: 비공개 여부 (선택)
   - password: 비공개방 비밀번호 (선택)
 - **비즈니스 로직**:
@@ -122,7 +122,7 @@
   - 승리 수
   - 총 점수
   - 게임 타입별 분리
-- **조회**: username + gameType (선택)
+- **조회**: UserName + gameType (선택)
 
 #### 2.4.2 리더보드 (P2)
 - **기능**: 게임 타입별 상위 랭커 조회
@@ -264,7 +264,7 @@ deployments/               # 배포 스크립트
 - **주 저장소**: MongoDB 7.0+
   - 문서 기반 데이터 (users, quizzes, stats)
   - 유연한 스키마
-  - 인덱스: nickname, user_id, category 등
+  - 인덱스: UserName, user_id, category 등
 - **캐시**: Valkey 7.2 (Redis 호환)
   - 실시간 게임방 상태 (인메모리)
   - Pub/Sub 메시징 (WebSocket 및 Subscription)
@@ -324,7 +324,7 @@ deployments/               # 배포 스크립트
 ```javascript
 {
   _id: ObjectID,
-  nickname: String (unique, sparse),
+  UserName: String (unique, sparse),
   avatar_url: String,
   level: Number (default: 1),
   credit: Number (default: 0),      // 일반 재화
@@ -333,7 +333,7 @@ deployments/               # 배포 스크립트
   created_at: Date,
   updated_at: Date
 }
-// Indexes: nickname_1 (unique, sparse), created_at_-1
+// Indexes: username_1 (unique, sparse), created_at_-1
 ```
 
 #### 3.4.2 korean_words 컬렉션 (사용 안 함)

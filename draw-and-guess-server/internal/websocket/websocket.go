@@ -26,7 +26,7 @@ var (
 type Client struct {
 	conn          *websocket.Conn // WebSocket 연결
 	roomID        string          // 클라이언트가 속한 방 ID
-	username      string          // 클라이언트의 사용자명
+	UserName      string          // 클라이언트의 사용자명
 	subscriptions map[string]bool // 구독 중인 채널 목록
 	mu            sync.Mutex      // 구조체 필드 동시성 제어
 }
@@ -237,11 +237,11 @@ func handleWordchainSubmit(roomID string, data interface{}) {
 		return
 	}
 
-	username, _ := wordData["username"].(string)
+	UserName, _ := wordData["UserName"].(string)
 	word, _ := wordData["word"].(string)
 	lastWord, _ := wordData["lastWord"].(string)
 
-	if username == "" || word == "" {
+	if UserName == "" || word == "" {
 		log.Printf("Missing required fields for wordchain submit")
 		return
 	}
@@ -256,7 +256,7 @@ func handleWordchainSubmit(roomID string, data interface{}) {
 		correct = false
 		reason = "이미 사용된 단어입니다. 다른 단어를 입력해주세요."
 		isDuplicate = true
-		log.Printf("[Wordchain] Duplicate word: %s by %s", word, username)
+		log.Printf("[Wordchain] Duplicate word: %s by %s", word, UserName)
 	} else if lastWord == "" {
 		// First word case (no lastWord) - accept any valid word
 		correct = true
@@ -282,27 +282,27 @@ func handleWordchainSubmit(roomID string, data interface{}) {
 		}
 	}
 
-	log.Printf("Wordchain validation: username=%s, word=%s, correct=%v, duplicate=%v", username, word, correct, isDuplicate)
+	log.Printf("Wordchain validation: UserName=%s, word=%s, correct=%v, duplicate=%v", UserName, word, correct, isDuplicate)
 
 	// Check if it's this user's turn
-	isCorrectTurn := graph.CheckWordchainTurn(roomID, username)
+	isCorrectTurn := graph.CheckWordchainTurn(roomID, UserName)
 	if !isCorrectTurn {
 		correct = false
 		reason = "당신의 차례가 아닙니다"
-		log.Printf("[Wordchain] Not %s's turn in room %s", username, roomID)
+		log.Printf("[Wordchain] Not %s's turn in room %s", UserName, roomID)
 	}
 
 	// Publish result to all players via graph package
-	graph.PublishWordchainResult(roomID, username, word, correct, reason)
+	graph.PublishWordchainResult(roomID, UserName, word, correct, reason)
 
 	// If correct, update last word, give points, and move to next player
 	if correct && isCorrectTurn {
-		graph.UpdateWordchainState(roomID, word, username)
+		graph.UpdateWordchainState(roomID, word, UserName)
 		graph.MoveToNextTurn(roomID)
 	} else if isCorrectTurn && !isDuplicate {
 		// If wrong answer (but not duplicate) and correct turn, end round
-		log.Printf("[Wordchain] Wrong answer from %s: %s. Ending round.", username, reason)
-		graph.EndWordchainRound(roomID, fmt.Sprintf("%s님이 오답: %s", username, reason))
+		log.Printf("[Wordchain] Wrong answer from %s: %s. Ending round.", UserName, reason)
+		graph.EndWordchainRound(roomID, fmt.Sprintf("%s님이 오답: %s", UserName, reason))
 	}
 	// If duplicate, don't move turn - let same player try again
 }
@@ -312,9 +312,9 @@ func handleLobbyMessages(client *Client) {
 	// 함수 종료 시 클라이언트 정리
 	defer func() {
 		// 연결 해제 시 자동으로 방에서 플레이어 제거
-		if client.roomID != "" && client.roomID != "lobby" && client.username != "" {
-			log.Printf("Auto-removing player %s from room %s due to WebSocket disconnect", client.username, client.roomID)
-			removePlayerFromRoom(client.roomID, client.username)
+		if client.roomID != "" && client.roomID != "lobby" && client.UserName != "" {
+			log.Printf("Auto-removing player %s from room %s due to WebSocket disconnect", client.UserName, client.roomID)
+			removePlayerFromRoom(client.roomID, client.UserName)
 		}
 
 		mutex.Lock()
@@ -507,6 +507,7 @@ func handleSubscribe(client *Client, channel string) {
 	// 클라이언트의 구독 목록에 추가
 	client.mu.Lock()
 	client.subscriptions[channel] = true
+	username := client.UserName
 	if client.roomID == "" && len(channel) > 0 {
 		// 채널명에서 방 ID 추출 (예: "game/room-uuid" -> "room-uuid")
 		parts := splitChannel(channel)
@@ -522,18 +523,37 @@ func handleSubscribe(client *Client, channel string) {
 		ctx, cancel := context.WithCancel(context.Background())
 		valkeySubscriptions[channel] = cancel
 		go startValkeySubscription(ctx, channel) // 고루틴으로 Valkey 구독 시작
+		log.Printf("[Subscribe] 🆕 Started Valkey subscription for channel: %s", channel)
 	}
 	subMutex.Unlock()
 
-	log.Printf("Client subscribed to channel: %s", channel)
+	// 로비 채널인지 게임 방 채널인지 구분하여 로그 출력
+	if channel == "lobby" {
+		log.Printf("[Subscribe] 🏠 LOBBY - User '%s' subscribed to lobby", username)
+	} else if len(channel) > 5 && channel[:5] == "game/" {
+		roomID := channel[5:]
+		log.Printf("[Subscribe] 🎮 GAME ROOM - User '%s' subscribed to room: %s", username, roomID)
+	} else {
+		log.Printf("[Subscribe] ✅ User '%s' subscribed to channel: %s", username, channel)
+	}
 }
 
 // handleUnsubscribe는 클라이언트의 채널 구독 취소 처리
 func handleUnsubscribe(client *Client, channel string) {
 	client.mu.Lock()
+	username := client.UserName
 	delete(client.subscriptions, channel) // 구독 목록에서 제거
 	client.mu.Unlock()
-	log.Printf("Client unsubscribed from channel: %s", channel)
+
+	// 로비 채널인지 게임 방 채널인지 구분하여 로그 출력
+	if channel == "lobby" {
+		log.Printf("[Unsubscribe] 🏠 LOBBY - User '%s' unsubscribed from lobby", username)
+	} else if len(channel) > 5 && channel[:5] == "game/" {
+		roomID := channel[5:]
+		log.Printf("[Unsubscribe] 🎮 GAME ROOM - User '%s' unsubscribed from room: %s", username, roomID)
+	} else {
+		log.Printf("[Unsubscribe] ❌ User '%s' unsubscribed from channel: %s", username, channel)
+	}
 }
 
 // handlePublish는 Valkey 채널에 메시지 발행
@@ -665,21 +685,21 @@ func handleIdentify(client *Client, data interface{}) {
 		return
 	}
 
-	username, _ := identifyData["username"].(string)
+	UserName, _ := identifyData["UserName"].(string)
 	roomID, _ := identifyData["roomId"].(string)
 
-	if username != "" {
+	if UserName != "" {
 		client.mu.Lock()
-		client.username = username
+		client.UserName = UserName
 		if roomID != "" && roomID != "lobby" {
 			client.roomID = roomID
 		}
 		client.mu.Unlock()
-		log.Printf("Client identified: username=%s, roomId=%s", username, roomID)
+		log.Printf("Client identified: UserName=%s, roomId=%s", UserName, roomID)
 	}
 }
 
 // removePlayerFromRoom는 방에서 플레이어를 제거
-func removePlayerFromRoom(roomID, username string) {
-	graph.RemovePlayerFromRoom(roomID, username)
+func removePlayerFromRoom(roomID, UserName string) {
+	graph.RemovePlayerFromRoom(roomID, UserName)
 }

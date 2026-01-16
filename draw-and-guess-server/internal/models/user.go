@@ -8,7 +8,8 @@ import (
 
 type User struct {
 	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Nickname  string             `json:"nickname" bson:"nickname"`
+	HangeId   string             `json:"hange_id" bson:"hange_id"`
+	Name      string             `json:"name" bson:"name"`
 	AvatarURL string             `json:"avatar_url" bson:"avatar_url"`
 	Level     int                `json:"level" bson:"level"`
 	Credit    int                `json:"credit" bson:"credit"` // 일반 재화 (게임 플레이로 획득)

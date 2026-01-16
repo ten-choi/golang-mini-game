@@ -7,8 +7,7 @@
 
 import { graphqlClient, 
   // Queries
-  GET_GAME_ROOMS, GET_GAME_ROOM, GET_USER, GET_USERS,
-  GET_RANDOM_OX_QUIZ, GET_RANDOM_QA_QUIZ, 
+  GET_GAME_ROOMS, GET_GAME_ROOM, GET_USER_BY_HANGE_ID, GET_USER_BY_NAME, GET_USERS,
   GET_PLAYER_STATS, GET_LEADERBOARD, GET_GAME_CONFIG,
   GET_RANDOM_WORDCHAIN_PROMPT, VALIDATE_WORD,
   // Mutations
@@ -22,17 +21,13 @@ import { graphqlClient,
 import type { 
   GameRoom, 
   User,
-  Player,
   CreateGameRoomInput,
   UpdateGameRoomInput,
   CreateUserInput,
   UpdateUserInput,
-  GeneralQuiz,
-  OXQuiz,
   PlayerStats,
   GameConfig,
-  WordchainPrompt,
-  GraphQLResponse
+  WordchainPrompt
 } from '../types';
 
 // ============================================
@@ -83,17 +78,43 @@ const handleGraphQLError = (error: any, context?: string): never => {
 export const apiService = {
   // ===== User Methods =====
   
-  async getUser(nickname: string): Promise<User | null> {
+  /**
+   * 로그인용: HangeId로 사용자 조회
+   */
+  async getUserByHangeId(hangeId: string): Promise<User | null> {
     try {
-      console.log('[API] Getting user:', nickname);
-      const data: any = await graphqlClient.request(GET_USER, { nickname });
-      console.log('[API] User found:', data.user);
-      return data.user;
+      console.log('[API] Getting user by hangeId:', hangeId);
+      const data: any = await graphqlClient.request(GET_USER_BY_HANGE_ID, { name: hangeId });
+      console.log('[API] User found by hangeId:', data.userByHangeId);
+      return data.userByHangeId;
     } catch (error: any) {
       // 사용자가 없는 경우 null 반환 (에러를 던지지 않음)
-      console.log('[API] User not found or error:', error?.message || error);
+      console.log('[API] User not found by hangeId or error:', error?.message || error);
       return null;
     }
+  },
+
+  /**
+   * 사용자명으로 사용자 조회
+   */
+  async getUserByName(userName: string): Promise<User | null> {
+    try {
+      console.log('[API] Getting user by name:', userName);
+      const data: any = await graphqlClient.request(GET_USER_BY_NAME, { name: userName });
+      console.log('[API] User found by name:', data.userByName);
+      return data.userByName;
+    } catch (error: any) {
+      // 사용자가 없는 경우 null 반환 (에러를 던지지 않음)
+      console.log('[API] User not found by name or error:', error?.message || error);
+      return null;
+    }
+  },
+
+  /**
+   * @deprecated 하위 호환성을 위해 유지. getUserByName 사용 권장
+   */
+  async getUser(userName: string): Promise<User | null> {
+    return this.getUserByName(userName);
   },
 
   async getUsers(): Promise<User[]> {
@@ -108,27 +129,27 @@ export const apiService = {
   async createUser(input: CreateUserInput): Promise<User> {
     try {
       const data: any = await graphqlClient.request(CREATE_USER, { input });
-      console.log('[API] Created user:', data.createUser.nickname);
+      console.log('[API] Created user:', data.createUser.name);
       return data.createUser;
     } catch (error) {
       return handleGraphQLError(error, 'createUser');
     }
   },
 
-  async updateUser(nickname: string, input: UpdateUserInput): Promise<User> {
+  async updateUser(userName: string, input: UpdateUserInput): Promise<User> {
     try {
-      const data: any = await graphqlClient.request(UPDATE_USER, { nickname, input });
-      console.log('[API] Updated user:', nickname);
+      const data: any = await graphqlClient.request(UPDATE_USER, { name: userName, input });
+      console.log('[API] Updated user:', userName);
       return data.updateUser;
     } catch (error) {
       return handleGraphQLError(error, 'updateUser');
     }
   },
 
-  async deleteUser(nickname: string): Promise<boolean> {
+  async deleteUser(userName: string): Promise<boolean> {
     try {
-      const data: any = await graphqlClient.request(DELETE_USER, { nickname });
-      console.log('[API] Deleted user:', nickname);
+      const data: any = await graphqlClient.request(DELETE_USER, { name: userName });
+      console.log('[API] Deleted user:', userName);
       return data.deleteUser;
     } catch (error) {
       return handleGraphQLError(error, 'deleteUser');

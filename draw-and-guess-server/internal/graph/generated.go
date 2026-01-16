@@ -144,7 +144,7 @@ type ComplexityRoot struct {
 		CreateGameRoom func(childComplexity int, input model.CreateGameRoomInput) int
 		CreateUser     func(childComplexity int, input model.CreateUserInput) int
 		DeleteGameRoom func(childComplexity int, roomID string) int
-		DeleteUser     func(childComplexity int, nickname string) int
+		DeleteUser     func(childComplexity int, userName string) int
 		EndGame        func(childComplexity int, roomID string) int
 		InviteUser     func(childComplexity int, roomID string, inviteeUsername string) int
 		InviteUsers    func(childComplexity int, roomID string, inviteeUsernames []string) int
@@ -158,7 +158,7 @@ type ComplexityRoot struct {
 		SubmitAnswer   func(childComplexity int, roomID string, username string, answer string) int
 		TransferHost   func(childComplexity int, roomID string, newHostUsername string) int
 		UpdateGameRoom func(childComplexity int, roomID string, input model.UpdateGameRoomInput) int
-		UpdateUser     func(childComplexity int, nickname string, input model.UpdateUserInput) int
+		UpdateUser     func(childComplexity int, userName string, input model.UpdateUserInput) int
 	}
 
 	OXQuiz struct {
@@ -175,10 +175,9 @@ type ComplexityRoot struct {
 	}
 
 	Player struct {
-		DisplayName func(childComplexity int) int
-		IsReady     func(childComplexity int) int
-		Score       func(childComplexity int) int
-		Username    func(childComplexity int) int
+		IsReady func(childComplexity int) int
+		Name    func(childComplexity int) int
+		Score   func(childComplexity int) int
 	}
 
 	PlayerConnection struct {
@@ -211,7 +210,8 @@ type ComplexityRoot struct {
 		RandomOXQuiz          func(childComplexity int, roomID *string) int
 		RandomQAQuiz          func(childComplexity int, roomID *string) int
 		RandomWordchainPrompt func(childComplexity int) int
-		User                  func(childComplexity int, nickname string) int
+		UserByHangeID         func(childComplexity int, name string) int
+		UserByName            func(childComplexity int, name string) int
 		Users                 func(childComplexity int, limit *int32, offset *int32, search *string, minLevel *int32) int
 	}
 
@@ -240,9 +240,10 @@ type ComplexityRoot struct {
 		CreatedAt func(childComplexity int) int
 		Credit    func(childComplexity int) int
 		GuildID   func(childComplexity int) int
+		HangeID   func(childComplexity int) int
 		ID        func(childComplexity int) int
 		Level     func(childComplexity int) int
-		Nickname  func(childComplexity int) int
+		Name      func(childComplexity int) int
 		UpdatedAt func(childComplexity int) int
 	}
 
@@ -254,8 +255,8 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
-	UpdateUser(ctx context.Context, nickname string, input model.UpdateUserInput) (*model.User, error)
-	DeleteUser(ctx context.Context, nickname string) (bool, error)
+	UpdateUser(ctx context.Context, userName string, input model.UpdateUserInput) (*model.User, error)
+	DeleteUser(ctx context.Context, userName string) (bool, error)
 	CreateGameRoom(ctx context.Context, input model.CreateGameRoomInput) (*model.GameRoom, error)
 	UpdateGameRoom(ctx context.Context, roomID string, input model.UpdateGameRoomInput) (*model.GameRoom, error)
 	JoinGameRoom(ctx context.Context, roomID string, username string, password *string) (*model.GameRoom, error)
@@ -274,7 +275,8 @@ type MutationResolver interface {
 	SendChat(ctx context.Context, roomID string, username string, message string) (*model.ChatMessage, error)
 }
 type QueryResolver interface {
-	User(ctx context.Context, nickname string) (*model.User, error)
+	UserByHangeID(ctx context.Context, name string) (*model.User, error)
+	UserByName(ctx context.Context, name string) (*model.User, error)
 	Users(ctx context.Context, limit *int32, offset *int32, search *string, minLevel *int32) ([]*model.User, error)
 	GameRoom(ctx context.Context, id string) (*model.GameRoom, error)
 	GameRooms(ctx context.Context, gameType *model.GameType, status *model.GameStatus, includePrivate *bool, hasSpace *bool, limit *int32, sortBy *string) ([]*model.GameRoom, error)
@@ -786,7 +788,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DeleteUser(childComplexity, args["nickname"].(string)), true
+		return e.complexity.Mutation.DeleteUser(childComplexity, args["userName"].(string)), true
 	case "Mutation.endGame":
 		if e.complexity.Mutation.EndGame == nil {
 			break
@@ -940,7 +942,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UpdateUser(childComplexity, args["nickname"].(string), args["input"].(model.UpdateUserInput)), true
+		return e.complexity.Mutation.UpdateUser(childComplexity, args["userName"].(string), args["input"].(model.UpdateUserInput)), true
 
 	case "OXQuiz.answer":
 		if e.complexity.OXQuiz.Answer == nil {
@@ -1003,30 +1005,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.OXQuiz.UsageCount(childComplexity), true
 
-	case "Player.displayName":
-		if e.complexity.Player.DisplayName == nil {
-			break
-		}
-
-		return e.complexity.Player.DisplayName(childComplexity), true
 	case "Player.isReady":
 		if e.complexity.Player.IsReady == nil {
 			break
 		}
 
 		return e.complexity.Player.IsReady(childComplexity), true
+	case "Player.name":
+		if e.complexity.Player.Name == nil {
+			break
+		}
+
+		return e.complexity.Player.Name(childComplexity), true
 	case "Player.score":
 		if e.complexity.Player.Score == nil {
 			break
 		}
 
 		return e.complexity.Player.Score(childComplexity), true
-	case "Player.username":
-		if e.complexity.Player.Username == nil {
-			break
-		}
-
-		return e.complexity.Player.Username(childComplexity), true
 
 	case "PlayerConnection.isConnected":
 		if e.complexity.PlayerConnection.IsConnected == nil {
@@ -1218,17 +1214,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.RandomWordchainPrompt(childComplexity), true
-	case "Query.user":
-		if e.complexity.Query.User == nil {
+	case "Query.userByHangeId":
+		if e.complexity.Query.UserByHangeID == nil {
 			break
 		}
 
-		args, err := ec.field_Query_user_args(ctx, rawArgs)
+		args, err := ec.field_Query_userByHangeId_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Query.User(childComplexity, args["nickname"].(string)), true
+		return e.complexity.Query.UserByHangeID(childComplexity, args["name"].(string)), true
+	case "Query.userByName":
+		if e.complexity.Query.UserByName == nil {
+			break
+		}
+
+		args, err := ec.field_Query_userByName_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.UserByName(childComplexity, args["name"].(string)), true
 	case "Query.users":
 		if e.complexity.Query.Users == nil {
 			break
@@ -1443,6 +1450,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.User.GuildID(childComplexity), true
+	case "User.hangeId":
+		if e.complexity.User.HangeID == nil {
+			break
+		}
+
+		return e.complexity.User.HangeID(childComplexity), true
 	case "User.id":
 		if e.complexity.User.ID == nil {
 			break
@@ -1455,12 +1468,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.User.Level(childComplexity), true
-	case "User.nickname":
-		if e.complexity.User.Nickname == nil {
+	case "User.name":
+		if e.complexity.User.Name == nil {
 			break
 		}
 
-		return e.complexity.User.Nickname(childComplexity), true
+		return e.complexity.User.Name(childComplexity), true
 	case "User.updatedAt":
 		if e.complexity.User.UpdatedAt == nil {
 			break
@@ -1673,11 +1686,11 @@ func (ec *executionContext) field_Mutation_deleteGameRoom_args(ctx context.Conte
 func (ec *executionContext) field_Mutation_deleteUser_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "nickname", ec.unmarshalNString2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userName", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["nickname"] = arg0
+	args["userName"] = arg0
 	return args, nil
 }
 
@@ -1892,11 +1905,11 @@ func (ec *executionContext) field_Mutation_updateGameRoom_args(ctx context.Conte
 func (ec *executionContext) field_Mutation_updateUser_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "nickname", ec.unmarshalNString2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userName", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["nickname"] = arg0
+	args["userName"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateUserInput2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUpdateUserInput)
 	if err != nil {
 		return nil, err
@@ -2066,14 +2079,25 @@ func (ec *executionContext) field_Query_randomQAQuiz_args(ctx context.Context, r
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_user_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Query_userByHangeId_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "nickname", ec.unmarshalNString2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["nickname"] = arg0
+	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_userByName_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
 	return args, nil
 }
 
@@ -3301,10 +3325,8 @@ func (ec *executionContext) fieldContext_GameRoom_players(_ context.Context, fie
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "username":
-				return ec.fieldContext_Player_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_Player_displayName(ctx, field)
+			case "name":
+				return ec.fieldContext_Player_name(ctx, field)
 			case "score":
 				return ec.fieldContext_Player_score(ctx, field)
 			case "isReady":
@@ -4134,8 +4156,10 @@ func (ec *executionContext) fieldContext_Invitation_inviter(_ context.Context, f
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "nickname":
-				return ec.fieldContext_User_nickname(ctx, field)
+			case "hangeId":
+				return ec.fieldContext_User_hangeId(ctx, field)
+			case "name":
+				return ec.fieldContext_User_name(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
 			case "level":
@@ -4210,8 +4234,10 @@ func (ec *executionContext) fieldContext_Invitation_invitee(_ context.Context, f
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "nickname":
-				return ec.fieldContext_User_nickname(ctx, field)
+			case "hangeId":
+				return ec.fieldContext_User_hangeId(ctx, field)
+			case "name":
+				return ec.fieldContext_User_name(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
 			case "level":
@@ -4345,8 +4371,10 @@ func (ec *executionContext) fieldContext_Mutation_createUser(ctx context.Context
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "nickname":
-				return ec.fieldContext_User_nickname(ctx, field)
+			case "hangeId":
+				return ec.fieldContext_User_hangeId(ctx, field)
+			case "name":
+				return ec.fieldContext_User_name(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
 			case "level":
@@ -4385,7 +4413,7 @@ func (ec *executionContext) _Mutation_updateUser(ctx context.Context, field grap
 		ec.fieldContext_Mutation_updateUser,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().UpdateUser(ctx, fc.Args["nickname"].(string), fc.Args["input"].(model.UpdateUserInput))
+			return ec.resolvers.Mutation().UpdateUser(ctx, fc.Args["userName"].(string), fc.Args["input"].(model.UpdateUserInput))
 		},
 		nil,
 		ec.marshalNUser2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUser,
@@ -4404,8 +4432,10 @@ func (ec *executionContext) fieldContext_Mutation_updateUser(ctx context.Context
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "nickname":
-				return ec.fieldContext_User_nickname(ctx, field)
+			case "hangeId":
+				return ec.fieldContext_User_hangeId(ctx, field)
+			case "name":
+				return ec.fieldContext_User_name(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
 			case "level":
@@ -4444,7 +4474,7 @@ func (ec *executionContext) _Mutation_deleteUser(ctx context.Context, field grap
 		ec.fieldContext_Mutation_deleteUser,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().DeleteUser(ctx, fc.Args["nickname"].(string))
+			return ec.resolvers.Mutation().DeleteUser(ctx, fc.Args["userName"].(string))
 		},
 		nil,
 		ec.marshalNBoolean2bool,
@@ -5875,14 +5905,14 @@ func (ec *executionContext) fieldContext_OXQuiz_updatedAt(_ context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _Player_username(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
+func (ec *executionContext) _Player_name(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Player_username,
+		ec.fieldContext_Player_name,
 		func(ctx context.Context) (any, error) {
-			return obj.Username, nil
+			return obj.Name, nil
 		},
 		nil,
 		ec.marshalNString2string,
@@ -5891,36 +5921,7 @@ func (ec *executionContext) _Player_username(ctx context.Context, field graphql.
 	)
 }
 
-func (ec *executionContext) fieldContext_Player_username(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Player",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Player_displayName(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Player_displayName,
-		func(ctx context.Context) (any, error) {
-			return obj.DisplayName, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Player_displayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Player_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Player",
 		Field:      field,
@@ -6310,15 +6311,15 @@ func (ec *executionContext) fieldContext_PlayerStats_updatedAt(_ context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_user(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_userByHangeId(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Query_user,
+		ec.fieldContext_Query_userByHangeId,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().User(ctx, fc.Args["nickname"].(string))
+			return ec.resolvers.Query().UserByHangeID(ctx, fc.Args["name"].(string))
 		},
 		nil,
 		ec.marshalOUser2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUser,
@@ -6327,7 +6328,7 @@ func (ec *executionContext) _Query_user(ctx context.Context, field graphql.Colle
 	)
 }
 
-func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_userByHangeId(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -6337,8 +6338,10 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "nickname":
-				return ec.fieldContext_User_nickname(ctx, field)
+			case "hangeId":
+				return ec.fieldContext_User_hangeId(ctx, field)
+			case "name":
+				return ec.fieldContext_User_name(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
 			case "level":
@@ -6362,7 +6365,68 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_user_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_userByHangeId_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_userByName(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_userByName,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().UserByName(ctx, fc.Args["name"].(string))
+		},
+		nil,
+		ec.marshalOUser2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUser,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_userByName(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
+			case "hangeId":
+				return ec.fieldContext_User_hangeId(ctx, field)
+			case "name":
+				return ec.fieldContext_User_name(ctx, field)
+			case "avatarUrl":
+				return ec.fieldContext_User_avatarUrl(ctx, field)
+			case "level":
+				return ec.fieldContext_User_level(ctx, field)
+			case "credit":
+				return ec.fieldContext_User_credit(ctx, field)
+			case "guildId":
+				return ec.fieldContext_User_guildId(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_User_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_User_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_userByName_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -6396,8 +6460,10 @@ func (ec *executionContext) fieldContext_Query_users(ctx context.Context, field 
 			switch field.Name {
 			case "id":
 				return ec.fieldContext_User_id(ctx, field)
-			case "nickname":
-				return ec.fieldContext_User_nickname(ctx, field)
+			case "hangeId":
+				return ec.fieldContext_User_hangeId(ctx, field)
+			case "name":
+				return ec.fieldContext_User_name(ctx, field)
 			case "avatarUrl":
 				return ec.fieldContext_User_avatarUrl(ctx, field)
 			case "level":
@@ -7498,10 +7564,8 @@ func (ec *executionContext) fieldContext_Subscription_playerJoined(ctx context.C
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "username":
-				return ec.fieldContext_Player_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_Player_displayName(ctx, field)
+			case "name":
+				return ec.fieldContext_Player_name(ctx, field)
 			case "score":
 				return ec.fieldContext_Player_score(ctx, field)
 			case "isReady":
@@ -7549,10 +7613,8 @@ func (ec *executionContext) fieldContext_Subscription_playerLeft(ctx context.Con
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "username":
-				return ec.fieldContext_Player_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_Player_displayName(ctx, field)
+			case "name":
+				return ec.fieldContext_Player_name(ctx, field)
 			case "score":
 				return ec.fieldContext_Player_score(ctx, field)
 			case "isReady":
@@ -7600,10 +7662,8 @@ func (ec *executionContext) fieldContext_Subscription_playerReadyUpdated(ctx con
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "username":
-				return ec.fieldContext_Player_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_Player_displayName(ctx, field)
+			case "name":
+				return ec.fieldContext_Player_name(ctx, field)
 			case "score":
 				return ec.fieldContext_Player_score(ctx, field)
 			case "isReady":
@@ -7651,10 +7711,8 @@ func (ec *executionContext) fieldContext_Subscription_hostChanged(ctx context.Co
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "username":
-				return ec.fieldContext_Player_username(ctx, field)
-			case "displayName":
-				return ec.fieldContext_Player_displayName(ctx, field)
+			case "name":
+				return ec.fieldContext_Player_name(ctx, field)
 			case "score":
 				return ec.fieldContext_Player_score(ctx, field)
 			case "isReady":
@@ -8350,14 +8408,14 @@ func (ec *executionContext) fieldContext_User_id(_ context.Context, field graphq
 	return fc, nil
 }
 
-func (ec *executionContext) _User_nickname(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_hangeId(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_User_nickname,
+		ec.fieldContext_User_hangeId,
 		func(ctx context.Context) (any, error) {
-			return obj.Nickname, nil
+			return obj.HangeID, nil
 		},
 		nil,
 		ec.marshalNString2string,
@@ -8366,7 +8424,36 @@ func (ec *executionContext) _User_nickname(ctx context.Context, field graphql.Co
 	)
 }
 
-func (ec *executionContext) fieldContext_User_nickname(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_User_hangeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _User_name(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_User_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_User_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "User",
 		Field:      field,
@@ -10140,20 +10227,27 @@ func (ec *executionContext) unmarshalInputCreateUserInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"nickname", "avatarUrl"}
+	fieldsInOrder := [...]string{"hangeId", "name", "avatarUrl"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "nickname":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nickname"))
+		case "hangeId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hangeId"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Nickname = data
+			it.HangeID = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
 		case "avatarUrl":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avatarUrl"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -11111,13 +11205,8 @@ func (ec *executionContext) _Player(ctx context.Context, sel ast.SelectionSet, o
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Player")
-		case "username":
-			out.Values[i] = ec._Player_username(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "displayName":
-			out.Values[i] = ec._Player_displayName(ctx, field, obj)
+		case "name":
+			out.Values[i] = ec._Player_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -11293,7 +11382,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Query")
-		case "user":
+		case "userByHangeId":
 			field := field
 
 			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
@@ -11302,7 +11391,26 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_user(ctx, field)
+				res = ec._Query_userByHangeId(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "userByName":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_userByName(ctx, field)
 				return res
 			}
 
@@ -11682,8 +11790,13 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "nickname":
-			out.Values[i] = ec._User_nickname(ctx, field, obj)
+		case "hangeId":
+			out.Values[i] = ec._User_hangeId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._User_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

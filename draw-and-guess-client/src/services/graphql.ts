@@ -24,7 +24,8 @@ export const graphqlClient = new GraphQLClient(GRAPHQL_ENDPOINT, {
 export const USER_FIELDS = `
   fragment UserFields on User {
     id
-    nickname
+    hangeId
+    name
     avatarUrl
     level
     credit
@@ -36,8 +37,7 @@ export const USER_FIELDS = `
 
 export const PLAYER_FIELDS = `
   fragment PlayerFields on Player {
-    username
-    displayName
+    name
     score
     isReady
   }
@@ -76,20 +76,32 @@ export const GAME_ROOM_DETAIL_FIELDS = `
 // ============================================
 
 // User Queries
-export const GET_USER = `
+export const GET_USER_BY_HANGE_ID = `
   ${USER_FIELDS}
-  query GetUser($nickname: String!) {
-    user(nickname: $nickname) {
+  query GetUserByHangeId($name: String!) {
+    userByHangeId(name: $name) {
       ...UserFields
     }
   }
 `;
 
+export const GET_USER_BY_NAME = `
+  ${USER_FIELDS}
+  query GetUserByName($name: String!) {
+    userByName(name: $name) {
+      ...UserFields
+    }
+  }
+`;
+
+// Deprecated: 하위 호환성을 위해 유지
+export const GET_USER = GET_USER_BY_NAME;
+
 export const GET_USERS = `
   query GetUsers($limit: Int, $offset: Int, $search: String, $minLevel: Int) {
     users(limit: $limit, offset: $offset, search: $search, minLevel: $minLevel) {
       id
-      nickname
+      name
       avatarUrl
       level
       credit
@@ -158,11 +170,11 @@ export const GET_MY_INVITATIONS = `
         gameType
         maxPlayers
         players {
-          username
+          name
         }
       }
       inviter {
-        nickname
+        name
         avatarUrl
       }
     }
@@ -182,12 +194,12 @@ export const GET_INVITATION = `
         gameType
         status
         players {
-          username
-          displayName
+          name
+          score
         }
       }
       inviter {
-        nickname
+        name
         avatarUrl
       }
     }
@@ -288,7 +300,7 @@ export const CREATE_USER = `
   mutation CreateUser($input: CreateUserInput!) {
     createUser(input: $input) {
       id
-      nickname
+      name
       avatarUrl
       level
       credit
@@ -299,10 +311,10 @@ export const CREATE_USER = `
 `;
 
 export const UPDATE_USER = `
-  mutation UpdateUser($nickname: String!, $input: UpdateUserInput!) {
-    updateUser(nickname: $nickname, input: $input) {
+  mutation UpdateUser($name: String!, $input: UpdateUserInput!) {
+    updateUser(name: $name, input: $input) {
       id
-      nickname
+      name
       avatarUrl
       level
       credit
@@ -312,8 +324,8 @@ export const UPDATE_USER = `
 `;
 
 export const DELETE_USER = `
-  mutation DeleteUser($nickname: String!) {
-    deleteUser(nickname: $nickname)
+  mutation DeleteUser($name: String!) {
+    deleteUser(name: $name)
   }
 `;
 
@@ -458,7 +470,7 @@ export const INVITE_USER = `
       createdAt
       expiresAt
       invitee {
-        nickname
+        name
         avatarUrl
       }
     }
@@ -473,7 +485,7 @@ export const INVITE_USERS = `
       createdAt
       expiresAt
       invitee {
-        nickname
+        name
         avatarUrl
       }
     }

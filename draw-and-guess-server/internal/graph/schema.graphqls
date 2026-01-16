@@ -9,13 +9,15 @@ scalar Time
 
 """
 게임 플레이어 계정을 나타냅니다.
-Nickname은 고유하며 주요 식별자로 사용됩니다.
+name은 고유하며 주요 식별자로 사용됩니다.
 """
 type User {
   "고유 식별자 (MongoDB ObjectID)"
   id: ID!
-  "고유 닉네임 (3-20자, 주요 식별자)"
-  nickname: String!
+  "로그인용 식별자 (3-20자, 로그인 전용)"
+  hangeId: String!
+  "고유 사용자명 (3-20자, 주요 식별자)"
+  name: String!
   "프로필 이미지 URL"
   avatarUrl: String
   "플레이어 레벨"
@@ -32,8 +34,10 @@ type User {
 
 """새 사용자 계정 생성을 위한 입력 데이터"""
 input CreateUserInput {
-  "고유 닉네임 (3-20자)"
-  nickname: String!
+  "로그인용 식별자 (3-20자)"
+  hangeId: String!
+  "고유 사용자명 (3-20자)"
+  name: String!
   "프로필 이미지 URL (선택사항)"
   avatarUrl: String
 }
@@ -86,9 +90,7 @@ WebSocket을 통해 실시간으로 업데이트됩니다.
 """
 type Player {
   "플레이어의 고유 사용자명"
-  username: String!
-  "플레이어의 표시 이름"
-  displayName: String!
+  name: String!
   "현재 게임에서 획득한 점수 (정답 시 +100점)"
   score: Int!
   "준비 완료 여부 (게임 시작 전, 방장 제외 모든 플레이어 true 필요)"
@@ -490,14 +492,13 @@ type Query {
   # ===== User Queries =====
   
   """
-  사용자명으로 특정 사용자 정보를 조회합니다.
+  로그인용: HangeId로 사용자를 조회합니다.
   
   **사용 예시:**
-  - 프로필 화면에서 사용자 정보 표시
-  - 다른 플레이어 정보 확인
+  - 로그인 시 HangeId로 사용자 인증 및 조회
   
   **매개변수:**
-  - username: 조회할 사용자의 고유 사용자명
+  - name: 조회할 사용자의 HangeId (로그인용 식별자)
   
   **반환값:**
   - 사용자 정보 또는 null (사용자가 존재하지 않는 경우)
@@ -505,9 +506,10 @@ type Query {
   **예제:**
   ```graphql
   query {
-    user(nickname: "player123") {
+    userByHangeId(name: "hange123") {
       id
-      nickname
+      hangeId
+      name
       avatarUrl
       level
       credit
@@ -515,7 +517,35 @@ type Query {
   }
   ```
   """
-  user(nickname: String!): User
+  userByHangeId(name: String!): User
+  
+  """
+  사용자명(name)으로 사용자를 조회합니다.
+  
+  **사용 예시:**
+  - 일반적인 사용자 프로필 조회
+  - 게임 내 사용자 정보 표시
+  
+  **매개변수:**
+  - name: 조회할 사용자의 고유 사용자명
+  
+  **반환값:**
+  - 사용자 정보 또는 null (사용자가 존재하지 않는 경우)
+  
+  **예제:**
+  ```graphql
+  query {
+    userByName(name: "player123") {
+      id
+      name
+      avatarUrl
+      level
+      credit
+    }
+  }
+  ```
+  """
+  userByName(name: String!): User
   
   """
   모든 사용자 목록을 조회합니다.
@@ -543,7 +573,7 @@ type Query {
   # 기본 조회 (최대 50명)
   query {
     users {
-      nickname
+      name
       level
     }
   }
@@ -551,7 +581,7 @@ type Query {
   # 페이지네이션
   query {
     users(limit: 20, offset: 40) {
-      nickname
+      name
       level
     }
   }
@@ -559,7 +589,7 @@ type Query {
   # 검색
   query {
     users(search: "player", minLevel: 10) {
-      nickname
+      name
       level
     }
   }
@@ -633,7 +663,7 @@ type Query {
       name
       gameType
       status
-      players { username }
+      players { name }
       maxPlayers
     }
   }
@@ -689,7 +719,7 @@ type Query {
       status
       currentRound
       players {
-        username
+        name
         score
       }
     }
@@ -798,7 +828,7 @@ type Query {
         gameType
       }
       inviter {
-        nickname
+        name
       }
       createdAt
       expiresAt
@@ -830,9 +860,9 @@ type Query {
       room {
         name
         gameType
-        players { username }
+        players { name }
       }
-      inviter { nickname }
+      inviter { name }
       expiresAt
     }
   }
@@ -1048,11 +1078,11 @@ type Mutation {
   ```graphql
   mutation {
     createUser(input: {
-      nickname: "newplayer123"
+      userName: "newplayer123"
       avatarUrl: "https://example.com/avatar.jpg"
     }) {
       id
-      nickname
+      userName
       level
       credit
       createdAt
@@ -1070,28 +1100,28 @@ type Mutation {
   - 설정 페이지
   
   **매개변수:**
-  - nickname: 수정할 사용자의 nickname (변경 불가)
+  - userName: 수정할 사용자의 userName (변경 불가)
   - input: 수정할 정보 (모든 필드 선택사항)
   
   **반환값:**
   - 수정된 사용자 정보
   
   **주의사항:**
-  - nickname은 변경 불가
+  - userName은 변경 불가
   - 본인 계정만 수정 가능 (인증 필요)
   
   **예제:**
   ```graphql
   mutation {
     updateUser(
-      nickname: "player123"
+      userName: "player123"
       input: {
         avatarUrl: "https://example.com/avatar.jpg"
         level: 5
         credit: 1000
       }
     ) {
-      nickname
+      userName
       avatarUrl
       level
       credit
@@ -1100,7 +1130,7 @@ type Mutation {
   }
   ```
   """
-  updateUser(nickname: String!, input: UpdateUserInput!): User!
+  updateUser(userName: String!, input: UpdateUserInput!): User!
   
   """
   사용자 계정을 삭제합니다.
@@ -1110,7 +1140,7 @@ type Mutation {
   - 관리자 계정 삭제
   
   **매개변수:**
-  - nickname: 삭제할 사용자 닉네임
+  - userName: 삭제할 사용자 닉네임
   
   **반환값:**
   - true: 삭제 성공
@@ -1124,11 +1154,11 @@ type Mutation {
   **예제:**
   ```graphql
   mutation {
-    deleteUser(nickname: "player123")
+    deleteUser(userName: "player123")
   }
   ```
   """
-  deleteUser(nickname: String!): Boolean!
+  deleteUser(userName: String!): Boolean!
   
   # ===== Game Room Mutations =====
   
@@ -1467,7 +1497,7 @@ type Mutation {
       inviteeUsernames: ["friend1", "friend2", "friend3"]
     ) {
       id
-      invitee { nickname }
+      invitee { userName }
       status
     }
   }
@@ -2383,7 +2413,7 @@ type Subscription {
         gameType
       }
       inviter {
-        nickname
+        userName
       }
       expiresAt
     }

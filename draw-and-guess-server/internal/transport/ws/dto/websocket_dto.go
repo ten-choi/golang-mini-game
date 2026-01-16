@@ -1,6 +1,8 @@
 package dto
 
-import "draw-and-guess-server/internal/models"
+import (
+	"draw-and-guess-server/internal/graph/model"
+)
 
 // WebSocketRequest represents the base request structure for WebSocket messages
 // @Description WebSocket 요청 메시지의 기본 구조
@@ -37,18 +39,18 @@ type UnsubscribeRequest struct {
 type ChatMessageData struct {
 	RoomID   string `json:"room_id" example:"abc123" description:"방 ID"`
 	UserID   string `json:"user_id" example:"user-001" description:"발신자 ID"`
-	Username string `json:"username" example:"홍길동" description:"발신자 닉네임"`
+	UserName string `json:"UserName" example:"홍길동" description:"발신자 닉네임"`
 	Message  string `json:"message" example:"안녕하세요!" description:"채팅 메시지 내용"`
 }
 
 // GameStateData represents game state update data
 // @Description 게임 상태 업데이트 데이터
 type GameStateData struct {
-	RoomID       string                `json:"room_id" example:"abc123"`
-	CurrentRound int                   `json:"current_round" example:"2" description:"현재 라운드"`
-	Drawer       string                `json:"drawer" example:"user-001" description:"현재 그림 그리는 플레이어"`
-	TimeLeft     int                   `json:"time_left" example:"45" description:"남은 시간 (초)"`
-	Players      []models.LegacyPlayer `json:"players" description:"플레이어 목록"`
+	RoomID       string          `json:"room_id" example:"abc123"`
+	CurrentRound int             `json:"current_round" example:"2" description:"현재 라운드"`
+	Drawer       string          `json:"drawer" example:"user-001" description:"현재 그림 그리는 플레이어"`
+	TimeLeft     int             `json:"time_left" example:"45" description:"남은 시간 (초)"`
+	Players      []*model.Player `json:"players" description:"플레이어 목록"`
 }
 
 // DrawingData represents drawing action data
@@ -73,7 +75,7 @@ type DrawPoint struct {
 type AnswerSubmitData struct {
 	RoomID   string `json:"room_id" example:"abc123"`
 	UserID   string `json:"user_id" example:"user-002"`
-	Username string `json:"username" example:"김철수"`
+	UserName string `json:"UserName" example:"김철수"`
 	Answer   string `json:"answer" example:"사과" description:"제출한 정답"`
 }
 
@@ -82,7 +84,7 @@ type AnswerSubmitData struct {
 type CorrectAnswerData struct {
 	RoomID   string `json:"room_id" example:"abc123"`
 	UserID   string `json:"user_id" example:"user-002"`
-	Username string `json:"username" example:"김철수"`
+	UserName string `json:"UserName" example:"김철수"`
 	Answer   string `json:"answer" example:"사과" description:"정답"`
 	Score    int    `json:"score" example:"100" description:"획득 점수"`
 }
@@ -101,19 +103,19 @@ type RoundStartData struct {
 // RoundEndData represents round end notification
 // @Description 라운드 종료 알림 데이터
 type RoundEndData struct {
-	RoomID     string                `json:"room_id" example:"abc123"`
-	Round      int                   `json:"round" example:"3"`
-	Topic      string                `json:"topic" example:"사과" description:"정답"`
-	Winners    []string              `json:"winners" description:"정답 맞춘 플레이어 목록"`
-	Scoreboard []models.LegacyPlayer `json:"scoreboard" description:"현재 점수판"`
+	RoomID     string          `json:"room_id" example:"abc123"`
+	Round      int             `json:"round" example:"3"`
+	Topic      string          `json:"topic" example:"사과" description:"정답"`
+	Winners    []string        `json:"winners" description:"정답 맞춘 플레이어 목록"`
+	Scoreboard []*model.Player `json:"scoreboard" description:"현재 점수판"`
 }
 
 // GameEndData represents game end notification
 // @Description 게임 종료 알림 데이터
 type GameEndData struct {
-	RoomID     string                `json:"room_id" example:"abc123"`
-	Winner     models.LegacyPlayer   `json:"winner" description:"우승자"`
-	FinalScore []models.LegacyPlayer `json:"final_score" description:"최종 점수판"`
+	RoomID     string          `json:"room_id" example:"abc123"`
+	Winner     *model.Player   `json:"winner" description:"우승자"`
+	FinalScore []*model.Player `json:"final_score" description:"최종 점수판"`
 }
 
 // PlayerJoinedData represents player join notification
@@ -121,7 +123,7 @@ type GameEndData struct {
 type PlayerJoinedData struct {
 	RoomID   string `json:"room_id" example:"abc123"`
 	UserID   string `json:"user_id" example:"user-003"`
-	Username string `json:"username" example:"이영희"`
+	UserName string `json:"UserName" example:"이영희"`
 }
 
 // PlayerLeftData represents player leave notification
@@ -129,7 +131,7 @@ type PlayerJoinedData struct {
 type PlayerLeftData struct {
 	RoomID   string `json:"room_id" example:"abc123"`
 	UserID   string `json:"user_id" example:"user-003"`
-	Username string `json:"username" example:"이영희"`
+	UserName string `json:"UserName" example:"이영희"`
 }
 
 // ErrorResponse represents WebSocket error response

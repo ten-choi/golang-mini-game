@@ -52,8 +52,7 @@ export interface OXQuiz {
 }
 
 export interface Player {
-  username: string;
-  displayName: string;
+  name: string;
   score: number;
   isReady: boolean;
 }
@@ -61,7 +60,8 @@ export interface Player {
 // User Types
 export interface User {
   id: string;
-  nickname: string;
+  hangeId: string;
+  name: string;
   avatarUrl?: string;
   level: number;
   credit: number;
@@ -71,7 +71,8 @@ export interface User {
 }
 
 export interface CreateUserInput {
-  nickname: string;
+  hangeId: string;
+  name: string;
   avatarUrl?: string;
 }
 
@@ -230,7 +231,7 @@ export interface ChatMessageData {
 
 // Base WebSocket Messages
 export interface WebSocketRequest {
-  type: 'subscribe' | 'unsubscribe' | 'message';
+  type: 'subscribe' | 'unsubscribe' | 'message' | 'identify';
   channel: string;
   data?: any;
 }

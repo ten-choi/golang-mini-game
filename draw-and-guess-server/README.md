@@ -64,11 +64,11 @@ go run ./cmd/server/main.go
 ```graphql
 mutation {
   createUser(input: {
-    nickname: "player1"
+    UserName: "player1"
     avatarUrl: "https://example.com/avatar.png"
   }) {
     id
-    nickname
+    UserName
     level
     credit
   }
@@ -84,7 +84,7 @@ mutation {
     gameType: QA
     maxPlayers: 8
     totalRounds: 5
-    hostUsername: "player1"
+    hostUserName: "player1"
   }) {
     id
     name
@@ -94,10 +94,10 @@ mutation {
 
 # 게임방 참가
 mutation {
-  joinGameRoom(roomId: "room-id", username: "player2") {
+  joinGameRoom(roomId: "room-id", UserName: "player2") {
     id
     players {
-      username
+      UserName
       score
       isReady
     }
@@ -120,7 +120,7 @@ mutation {
 mutation {
   submitAnswer(
     roomId: "room-id"
-    username: "player1"
+    UserName: "player1"
     answer: "1"  # OX: "true"/"false", QA: "0"-"3"
   )
 }
@@ -134,14 +134,14 @@ subscription {
     id
     status
     currentRound
-    players { username score }
+    players { UserName score }
   }
 }
 
 # 채팅 메시지
 subscription {
   chatMessage(roomId: "room-id") {
-    username
+    UserName
     message
     timestamp
   }
@@ -192,7 +192,7 @@ subscription {
 ```javascript
 {
   _id: ObjectID,
-  nickname: String (unique),
+  UserName: String (unique),
   avatar_url: String,
   level: Number,
   credit: Number,

@@ -14,7 +14,7 @@ common.CreatedResponse(c, newUser)
 // Error with validation details
 details := map[string]string{
     "email": "invalid format",
-    "username": "already exists",
+    "UserName": "already exists",
 }
 common.ErrorResponseWithDetails(c, err, details)
 // Output: 
@@ -30,10 +30,10 @@ common.ErrorResponseWithDetails(c, err, details)
 
 ### GraphQL Resolvers (Return data directly)
 ```go
-func (r *queryResolver) User(ctx context.Context, username string) (*model.User, error) {
+func (r *queryResolver) User(ctx context.Context, UserName string) (*model.User, error) {
     // DO NOT use common.SuccessResponse here
     // Just return data and error
-    user, err := r.UserService.GetByUsername(username)
+    user, err := r.UserService.GetByUserName(UserName)
     if err != nil {
         return nil, err  // gqlgen handles error formatting
     }

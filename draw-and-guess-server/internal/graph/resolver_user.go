@@ -15,7 +15,8 @@ import (
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error) {
 	// GraphQL input -> Service DTO
 	dto := service.CreateUserDTO{
-		Nickname:  input.Nickname,
+		HangeId:   input.HangeID,
+		Name:      input.Name,
 		AvatarURL: "",
 		Level:     0,
 		Credit:    0,
@@ -32,7 +33,8 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 	// Domain model -> GraphQL model
 	return &model.User{
 		ID:        created.ID.Hex(),
-		Nickname:  created.Nickname,
+		HangeID:   created.HangeId,
+		Name:      created.Name,
 		AvatarURL: &created.AvatarURL,
 		Level:     int32(created.Level),
 		Credit:    int32(created.Credit),
@@ -42,7 +44,7 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 }
 
 // UpdateUser is the resolver for the updateUser field.
-func (r *mutationResolver) UpdateUser(ctx context.Context, nickname string, input model.UpdateUserInput) (*model.User, error) {
+func (r *mutationResolver) UpdateUser(ctx context.Context, Name string, input model.UpdateUserInput) (*model.User, error) {
 	// GraphQL input -> Service DTO
 	dto := service.UpdateUserDTO{
 		AvatarURL: input.AvatarURL,
@@ -56,7 +58,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, nickname string, inpu
 		dto.Credit = &credit
 	}
 
-	updated, err := r.UserService.UpdateUser(ctx, nickname, dto)
+	updated, err := r.UserService.UpdateUser(ctx, Name, dto)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +66,8 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, nickname string, inpu
 	// Domain model -> GraphQL model
 	return &model.User{
 		ID:        updated.ID.Hex(),
-		Nickname:  updated.Nickname,
+		HangeID:   updated.HangeId,
+		Name:      updated.Name,
 		AvatarURL: &updated.AvatarURL,
 		Level:     int32(updated.Level),
 		Credit:    int32(updated.Credit),
@@ -77,16 +80,36 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, nickname string, inpu
 // User Queries
 // ========================================
 
-// User is the resolver for the user field.
-func (r *queryResolver) User(ctx context.Context, nickname string) (*model.User, error) {
-	user, err := r.UserService.GetUser(ctx, nickname)
+// UserByHangeID is the resolver for the userByHangeId field.
+func (r *queryResolver) UserByHangeID(ctx context.Context, Name string) (*model.User, error) {
+	user, err := r.UserService.GetUserByHangeId(ctx, Name)
 	if err != nil {
 		return nil, err
 	}
 
 	return &model.User{
 		ID:        user.ID.Hex(),
-		Nickname:  user.Nickname,
+		HangeID:   user.HangeId,
+		Name:      user.Name,
+		AvatarURL: &user.AvatarURL,
+		Level:     int32(user.Level),
+		Credit:    int32(user.Credit),
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}, nil
+}
+
+// User is the resolver for the user field.
+func (r *queryResolver) UserByName(ctx context.Context, Name string) (*model.User, error) {
+	user, err := r.UserService.GetUserByName(ctx, Name)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.User{
+		ID:        user.ID.Hex(),
+		HangeID:   user.HangeId,
+		Name:      user.Name,
 		AvatarURL: &user.AvatarURL,
 		Level:     int32(user.Level),
 		Credit:    int32(user.Credit),
@@ -110,15 +133,16 @@ func (r *queryResolver) Users(ctx context.Context, limit *int32, offset *int32, 
 			continue
 		}
 		if search != nil && len(*search) > 0 {
-			// Simple case-insensitive search in nickname
-			if !contains(u.Nickname, *search) {
+			// Simple case-insensitive search in name
+			if !contains(u.Name, *search) {
 				continue
 			}
 		}
 
 		result = append(result, &model.User{
 			ID:        u.ID.Hex(),
-			Nickname:  u.Nickname,
+			HangeID:   u.HangeId,
+			Name:      u.Name,
 			AvatarURL: &u.AvatarURL,
 			Level:     int32(u.Level),
 			Credit:    int32(u.Credit),
@@ -171,7 +195,7 @@ func toLower(s string) string {
 }
 
 // DeleteUser is the resolver for the deleteUser field.
-func (r *mutationResolver) DeleteUser(ctx context.Context, nickname string) (bool, error) {
+func (r *mutationResolver) DeleteUser(ctx context.Context, Name string) (bool, error) {
 	// TODO: Implement delete user logic
 	// This would require adding DeleteUser to UserService
 	return false, fmt.Errorf("not implemented yet")

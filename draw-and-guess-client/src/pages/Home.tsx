@@ -16,19 +16,21 @@ const Home: React.FC = () => {
     setLoading(true);
     try {
       console.log('[Home] === 로그인 시작 ===');
-      console.log('[Home] 입력된 닉네임:', username.trim());
+      console.log('[Home] 입력된 HangeId:', username.trim());
       
-      const user = await apiService.getUser(username.trim());
-      console.log('[Home] getUser 결과:', user);
+      // 로그인은 HangeId로 조회
+      const user = await apiService.getUserByHangeId(username.trim());
+      console.log('[Home] getUserByHangeId 결과:', user);
       
       if (!user) {
         console.log('[Home] ❌ 사용자를 찾을 수 없습니다.');
-        alert('존재하지 않는 닉네임입니다. 회원가입을 해주세요.');
+        alert('존재하지 않는 HangeId입니다. 회원가입을 해주세요.');
         return;
       }
       
       console.log('[Home] ✅ 기존 사용자 로그인:', user);
-      sessionStorage.setItem('username', username.trim());
+      // 실제 username(name)을 sessionStorage에 저장
+      sessionStorage.setItem('username', user.name);
       navigate('/rooms');
     } catch (error: any) {
       console.error('[Home] ❌ 로그인 에러:', error);
@@ -47,24 +49,26 @@ const Home: React.FC = () => {
     setLoading(true);
     try {
       console.log('[Home] === 회원가입 시작 ===');
-      console.log('[Home] 입력된 닉네임:', username.trim());
+      console.log('[Home] 입력된 HangeId:', username.trim());
       
-      // 먼저 중복 확인
-      const existingUser = await apiService.getUser(username.trim());
+      // 먼저 중복 확인 - HangeId로 확인
+      const existingUser = await apiService.getUserByHangeId(username.trim());
       if (existingUser) {
-        console.log('[Home] ❌ 이미 존재하는 닉네임');
-        alert('이미 사용 중인 닉네임입니다. 다른 닉네임을 사용해주세요.');
+        console.log('[Home] ❌ 이미 존재하는 HangeId');
+        alert('이미 사용 중인 HangeId입니다. 다른 HangeId를 사용해주세요.');
         return;
       }
       
       // 새 사용자 생성
       const newUser = await apiService.createUser({
-        nickname: username.trim(),
+        hangeId: username.trim(),
+        name: username.trim(),
       });
       console.log('[Home] ✅ 회원가입 완료:', newUser);
       
-      alert(`환영합니다, ${newUser.nickname}님!`);
-      sessionStorage.setItem('username', username.trim());
+      alert(`환영합니다, ${newUser.name}님!`);
+      // 실제 username(name)을 sessionStorage에 저장
+      sessionStorage.setItem('username', newUser.name);
       navigate('/rooms');
     } catch (error: any) {
       console.error('[Home] ❌ 회원가입 에러:', error);
@@ -82,7 +86,7 @@ const Home: React.FC = () => {
         <div style={styles.inputGroup}>
           <input
             type="text"
-            placeholder="닉네임 입력"
+            placeholder="HangeId 입력 (로그인용 ID)"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
@@ -127,7 +131,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '40px',
     borderRadius: '12px',
     boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-    maxWidth: '400p3',
+    maxWidth: '400px',
     width: '100%',
   },
   title: {
@@ -137,12 +141,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: '28px',
   },
   inputGroup: {
-    margGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  buttoninBottom: '20px',
+    marginBottom: '20px',
   },
   input: {
     width: '100%',
@@ -151,6 +150,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     border: '2px solid #ddd',
     borderRadius: '8px',
     boxSizing: 'border-box',
+  },
+  buttonGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
   },
   button: {
     padding: '14px',

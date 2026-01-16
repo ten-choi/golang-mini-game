@@ -11,7 +11,7 @@ import (
 // ========================================
 
 // PlayerStats is the resolver for the playerStats field.
-func (r *queryResolver) PlayerStats(ctx context.Context, username string, gameType *string) ([]*model.PlayerStats, error) {
+func (r *queryResolver) PlayerStats(ctx context.Context, UserName string, gameType *string) ([]*model.PlayerStats, error) {
 	// For now, return mock data. In production, fetch from database.
 	now := time.Now()
 
@@ -24,7 +24,7 @@ func (r *queryResolver) PlayerStats(ctx context.Context, username string, gameTy
 
 	for _, gt := range gameTypes {
 		stats = append(stats, &model.PlayerStats{
-			Username:   username,
+			Username:   UserName,
 			GameType:   gt,
 			TotalGames: 0,
 			TotalWins:  0,

@@ -9,11 +9,3 @@ export const env = {
   isDevelopment: import.meta.env.DEV,
   isProduction: import.meta.env.PROD,
 } as const;
-
-// Type for environment variables
-declare global {
-  interface ImportMetaEnv {
-    VITE_API_BASE_URL?: string;
-    VITE_WS_URL?: string;
-  }
-}

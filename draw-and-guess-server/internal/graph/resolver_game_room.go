@@ -57,10 +57,9 @@ func (r *mutationResolver) CreateGameRoom(ctx context.Context, input model.Creat
 
 	// Add host as first player
 	room.Players = append(room.Players, &model.Player{
-		Username:    input.HostUsername,
-		DisplayName: input.HostUsername,
-		Score:       0,
-		IsReady:     true,
+		Name:    input.HostUsername,
+		Score:   0,
+		IsReady: true,
 	})
 
 	roomMutex.Lock()
@@ -74,7 +73,7 @@ func (r *mutationResolver) CreateGameRoom(ctx context.Context, input model.Creat
 }
 
 // JoinGameRoom is the resolver for the joinGameRoom field.
-func (r *mutationResolver) JoinGameRoom(ctx context.Context, roomID string, username string, password *string) (*model.GameRoom, error) {
+func (r *mutationResolver) JoinGameRoom(ctx context.Context, roomID string, Name string, password *string) (*model.GameRoom, error) {
 	roomMutex.Lock()
 	defer roomMutex.Unlock()
 
@@ -92,7 +91,7 @@ func (r *mutationResolver) JoinGameRoom(ctx context.Context, roomID string, user
 
 	// Check if player already in room
 	for _, p := range room.Players {
-		if p.Username == username {
+		if p.Name == Name {
 			return room, nil // Already in room
 		}
 	}
@@ -104,10 +103,9 @@ func (r *mutationResolver) JoinGameRoom(ctx context.Context, roomID string, user
 
 	// Add player
 	newPlayer := &model.Player{
-		Username:    username,
-		DisplayName: username,
-		Score:       0,
-		IsReady:     false,
+		Name:    Name,
+		Score:   0,
+		IsReady: false,
 	}
 	room.Players = append(room.Players, newPlayer)
 
@@ -125,7 +123,7 @@ func (r *mutationResolver) JoinGameRoom(ctx context.Context, roomID string, user
 }
 
 // LeaveGameRoom is the resolver for the leaveGameRoom field.
-func (r *mutationResolver) LeaveGameRoom(ctx context.Context, roomID string, username string) (*model.GameRoom, error) {
+func (r *mutationResolver) LeaveGameRoom(ctx context.Context, roomID string, Name string) (*model.GameRoom, error) {
 	roomMutex.Lock()
 	defer roomMutex.Unlock()
 
@@ -138,7 +136,7 @@ func (r *mutationResolver) LeaveGameRoom(ctx context.Context, roomID string, use
 	var leavingPlayer *model.Player
 	newPlayers := []*model.Player{}
 	for _, p := range room.Players {
-		if p.Username != username {
+		if p.Name != Name {
 			newPlayers = append(newPlayers, p)
 		} else {
 			leavingPlayer = p
@@ -295,14 +293,14 @@ func (r *queryResolver) GameRooms(ctx context.Context, gameType *model.GameType,
 }
 
 // MyCurrentRoom is the resolver for the myCurrentRoom field.
-func (r *queryResolver) MyCurrentRoom(ctx context.Context, username string) (*model.GameRoom, error) {
+func (r *queryResolver) MyCurrentRoom(ctx context.Context, Name string) (*model.GameRoom, error) {
 	roomMutex.RLock()
 	defer roomMutex.RUnlock()
 
-	// Find room where username is a player
+	// Find room where Name is a player
 	for _, room := range gameRooms {
 		for _, player := range room.Players {
-			if player.Username == username {
+			if player.Name == Name {
 				return room, nil
 			}
 		}
@@ -372,8 +370,8 @@ func startWordchainGame(roomID string) {
 
 	room.WordchainLastWord = &initialWord
 	if len(room.Players) > 0 {
-		firstUsername := room.Players[0].Username
-		room.CurrentTurnUsername = &firstUsername
+		firstUserName := room.Players[0].Name
+		room.CurrentTurnUsername = &firstUserName
 	}
 
 	// Initialize used words array with initial word
@@ -474,7 +472,7 @@ func (r *mutationResolver) TransferHost(ctx context.Context, roomID string, newH
 	// Check if new host is in the room
 	found := false
 	for _, p := range room.Players {
-		if p.Username == newHostUsername {
+		if p.Name == newHostUsername {
 			found = true
 			break
 		}
@@ -488,14 +486,14 @@ func (r *mutationResolver) TransferHost(ctx context.Context, roomID string, newH
 	// Publish update
 	go func() {
 		GetPubSub().PublishRoomUpdate(room)
-		GetPubSub().PublishHostChanged(roomID, &model.Player{Username: newHostUsername, DisplayName: newHostUsername})
+		GetPubSub().PublishHostChanged(roomID, &model.Player{Name: newHostUsername})
 	}()
 
 	return room, nil
 }
 
 // SetReady is the resolver for the setReady field.
-func (r *mutationResolver) SetReady(ctx context.Context, roomID string, username string, ready bool) (*model.GameRoom, error) {
+func (r *mutationResolver) SetReady(ctx context.Context, roomID string, Name string, ready bool) (*model.GameRoom, error) {
 	roomMutex.Lock()
 	defer roomMutex.Unlock()
 
@@ -506,7 +504,7 @@ func (r *mutationResolver) SetReady(ctx context.Context, roomID string, username
 
 	// Find player and update ready status
 	for i, p := range room.Players {
-		if p.Username == username {
+		if p.Name == Name {
 			room.Players[i].IsReady = ready
 
 			// Publish update
@@ -548,7 +546,7 @@ func (r *mutationResolver) StartRound(ctx context.Context, roomID string) (*mode
 }
 
 // SubmitAnswer is the resolver for the submitAnswer field.
-func (r *mutationResolver) SubmitAnswer(ctx context.Context, roomID string, username string, answer string) (*model.AnswerResult, error) {
+func (r *mutationResolver) SubmitAnswer(ctx context.Context, roomID string, Name string, answer string) (*model.AnswerResult, error) {
 	roomMutex.Lock()
 	defer roomMutex.Unlock()
 
@@ -560,7 +558,7 @@ func (r *mutationResolver) SubmitAnswer(ctx context.Context, roomID string, user
 	// Find player
 	var player *model.Player
 	for i := range room.Players {
-		if room.Players[i].Username == username {
+		if room.Players[i].Name == Name {
 			player = room.Players[i]
 			break
 		}
@@ -609,14 +607,13 @@ func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.G
 }
 
 // SendChat is the resolver for the sendChat field.
-func (r *mutationResolver) SendChat(ctx context.Context, roomID string, username string, message string) (*model.ChatMessage, error) {
+func (r *mutationResolver) SendChat(ctx context.Context, roomID string, Name string, message string) (*model.ChatMessage, error) {
 	chatMsg := &model.ChatMessage{
-		ID:          uuid.New().String(),
-		RoomID:      roomID,
-		Username:    username,
-		DisplayName: username,
-		Message:     message,
-		Timestamp:   time.Now(),
+		ID:        uuid.New().String(),
+		RoomID:    roomID,
+		Username:  Name,
+		Message:   message,
+		Timestamp: time.Now(),
 	}
 
 	// Publish chat message
@@ -766,7 +763,7 @@ func (r *subscriptionResolver) Error(ctx context.Context, roomID string) (<-chan
 }
 
 // MyEvents is the resolver for the myEvents field.
-func (r *subscriptionResolver) MyEvents(ctx context.Context, username string) (<-chan *model.GameEvent, error) {
+func (r *subscriptionResolver) MyEvents(ctx context.Context, Name string) (<-chan *model.GameEvent, error) {
 	subscriberID := uuid.New().String()
 	ch := GetPubSub().SubscribeToGameEvent("", subscriberID) // Empty roomID for user-specific events
 
@@ -811,7 +808,7 @@ func StartWordchainTurnTimer(roomID string) {
 		gameRooms[roomID] = room
 		roomMutex.Unlock()
 
-		log.Printf("[Wordchain] Turn timer started for %s: %d seconds", room.CurrentTurnUsername, timeLimit)
+		log.Printf("[Wordchain] Turn timer started for %s: %d seconds", *room.CurrentTurnUsername, timeLimit)
 
 		// Countdown timer
 		for i := timeLimit; i >= 0; i-- {
@@ -839,8 +836,8 @@ func StartWordchainTurnTimer(roomID string) {
 		}
 
 		// Time's up - end round
-		log.Printf("[Wordchain] Time's up for %s, ending round", room.CurrentTurnUsername)
-		EndWordchainRound(roomID, fmt.Sprintf("%s님 시간 초과", room.CurrentTurnUsername))
+		log.Printf("[Wordchain] Time's up for %s, ending round", *room.CurrentTurnUsername)
+		EndWordchainRound(roomID, fmt.Sprintf("%s님 시간 초과", *room.CurrentTurnUsername))
 	}()
 }
 

@@ -157,7 +157,7 @@ const QuizRoom: React.FC = () => {
         setTimeLeft(gameRoom.roundTimeLimit);
         
         // Auto-rejoin if not in players list (e.g., after refresh)
-        const isInRoom = gameRoom.players.some(p => p.username === username);
+        const isInRoom = gameRoom.players.some(p => p.name === username);
         if (!isInRoom) {
           console.log('[QuizRoom] Player not in room, auto-rejoining...');
           try {
@@ -293,11 +293,11 @@ const QuizRoom: React.FC = () => {
               <h3 style={styles.finishedTitle}>🏆 게임 종료!</h3>
               <div style={styles.finalRanking}>
                 {sortedPlayers.map((player, index) => (
-                  <div key={player.username} style={styles.rankItem}>
+                  <div key={player.name} style={styles.rankItem}>
                     <span style={styles.rank}>
                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}위`}
                     </span>
-                    <span style={styles.rankName}>{player.username}</span>
+                    <span style={styles.rankName}>{player.name}</span>
                     <span style={styles.rankScore}>{player.score}점</span>
                   </div>
                 ))}
@@ -398,11 +398,11 @@ const QuizRoom: React.FC = () => {
             <h3 style={styles.sectionTitle}>👥 플레이어 ({room.players.length}/{room.maxPlayers})</h3>
             <div style={styles.playersList}>
               {sortedPlayers.map((player) => (
-                <div key={player.username} style={styles.playerCard}>
+                <div key={player.name} style={styles.playerCard}>
                   <div style={styles.playerInfo}>
                     <span style={styles.playerName}>
-                      {player.username === room.hostUsername && '👑 '}
-                      {player.username}
+                      {player.name === room.hostUsername && '👑 '}
+                      {player.name}
                     </span>
                   </div>
                   <span style={styles.playerScore}>{player.score}점</span>

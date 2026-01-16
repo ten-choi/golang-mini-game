@@ -17,7 +17,7 @@ const WordchainRoom: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<Array<{username: string, text: string, type: 'chat' | 'system' | 'correct' | 'wrong'}>>([]);
   const [lastWord, setLastWord] = useState('');
   const [roundEndInfo, setRoundEndInfo] = useState<{round: number, reason: string, countdown: number} | null>(null);
-  const [gameEndInfo, setGameEndInfo] = useState<{players: Array<{username: string, score: number}>, message: string} | null>(null);
+  const [gameEndInfo, setGameEndInfo] = useState<{players: Array<{name: string, score: number}>, message: string} | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -158,7 +158,7 @@ const WordchainRoom: React.FC = () => {
         setTimeLeft(gameRoom.roundTimeLimit);
         
         // Auto-rejoin if not in players list (e.g., after refresh)
-        const isInRoom = gameRoom.players.some(p => p.username === username);
+        const isInRoom = gameRoom.players.some(p => p.name === username);
         if (!isInRoom) {
           console.log('[WordchainRoom] Player not in room, auto-rejoining...');
           try {
@@ -296,11 +296,11 @@ const WordchainRoom: React.FC = () => {
               <h3 style={styles.finishedTitle}>🏆 게임 종료!</h3>
               <div style={styles.finalRanking}>
                 {sortedPlayers.map((player, index) => (
-                  <div key={player.username} style={styles.rankItem}>
+                  <div key={player.name} style={styles.rankItem}>
                     <span style={styles.rank}>
                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}위`}
                     </span>
-                    <span style={styles.rankName}>{player.username}</span>
+                    <span style={styles.rankName}>{player.name}</span>
                     <span style={styles.rankScore}>{player.score}점</span>
                   </div>
                 ))}
@@ -385,11 +385,11 @@ const WordchainRoom: React.FC = () => {
             <h3 style={styles.sectionTitle}>👥 플레이어 ({room.players.length}/4)</h3>
             <div style={styles.playersList}>
               {sortedPlayers.map((player) => (
-                <div key={player.username} style={styles.playerCard}>
+                <div key={player.name} style={styles.playerCard}>
                   <div style={styles.playerInfo}>
                     <span style={styles.playerName}>
-                      {player.username === room.hostUsername && '👑 '}
-                      {player.username}
+                      {player.name === room.hostUsername && '👑 '}
+                      {player.name}
                     </span>
                   </div>
                   <span style={styles.playerScore}>{player.score}점</span>
@@ -467,14 +467,14 @@ const WordchainRoom: React.FC = () => {
             <div style={styles.finalScores}>
               <h3 style={styles.scoresTitle}>최종 점수</h3>
               {gameEndInfo.players.map((player, index) => (
-                <div key={player.username} style={{
+                <div key={player.name} style={{
                   ...styles.scoreRow,
                   background: index === 0 ? 'linear-gradient(135deg, #FFD700, #FFA500)' : '#f8f9fa'
                 }}>
                   <div style={styles.scoreRank}>
                     {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}위`}
                   </div>
-                  <div style={styles.scoreName}>{player.username}</div>
+                  <div style={styles.scoreName}>{player.name}</div>
                   <div style={styles.scorePoints}>{player.score}점</div>
                 </div>
               ))}

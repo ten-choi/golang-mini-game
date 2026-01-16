@@ -173,7 +173,7 @@ sequenceDiagram
     participant WSServer
 
     Player->>Client: 채팅창에 정답 입력
-    Client->>API: POST /game/room/:id/chat<br/>{username, message}
+    Client->>API: POST /game/room/:id/chat<br/>{UserName, message}
     API->>Handler: HandleChatMessage()
     Handler->>Valkey: 게임 방 데이터 조회
     Valkey-->>Handler: GameRoom 데이터
@@ -243,7 +243,7 @@ Value (JSON):
   "is_active": true,
   "drawer_user": "Alice",
   "players": [
-    {"username": "Bob", "score": 2, "attempts": 1}
+    {"UserName": "Bob", "score": 2, "attempts": 1}
   ],
   "current_word": "lion",
   "current_word_translations": {
@@ -261,7 +261,7 @@ Value (JSON):
 |----------|------|-------------|
 | `game/{roomId}` | 게임 상태 업데이트 | `{type: "timer_update", time_left: 45}` |
 | `draw/{roomId}` | 그리기 데이터 | `{action: "draw", points: [...], color: "#000"}` |
-| `chat/{roomId}` | 채팅 메시지 | `{username: "Bob", message: "hi"}` |
+| `chat/{roomId}` | 채팅 메시지 | `{UserName: "Bob", message: "hi"}` |
 
 ### MongoDB
 
@@ -294,9 +294,9 @@ Value (JSON):
 |--------|----------|------|------|------|
 | GET | `/game/rooms` | 방 목록 조회 | `?id=uuid` (optional) | `GameRoom[]` |
 | POST | `/game/room` | 방 생성 | `ldap_user` | `{room_id, current_word}` |
-| POST | `/game/room/:id/join` | 방 참가 | `username` | `{status, message}` |
+| POST | `/game/room/:id/join` | 방 참가 | `UserName` | `{status, message}` |
 | POST | `/game/room/:id/start` | 게임 시작 | - | `{status, message}` |
-| POST | `/game/room/:id/chat` | 채팅/정답 | `{username, message}` | `{is_correct}` |
+| POST | `/game/room/:id/chat` | 채팅/정답 | `{UserName, message}` | `{is_correct}` |
 | DELETE | `/game/room/:id` | 방 삭제 | - | `{status}` |
 
 ### WebSocket Protocol
@@ -368,7 +368,7 @@ Value (JSON):
 - ✅ CORS 설정 (Gin middleware)
 - ✅ WebSocket origin 검증
 - ✅ Valkey TTL을 통한 자동 방 정리
-- ✅ 입력 데이터 검증 (username, room ID)
+- ✅ 입력 데이터 검증 (UserName, room ID)
 
 ### Recommended Improvements
 - 🔒 JWT 기반 인증 추가

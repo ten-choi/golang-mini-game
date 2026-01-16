@@ -23,7 +23,7 @@ users(
 # 페이지네이션
 query {
   users(limit: 20, offset: 40) {
-    nickname
+    UserName
     level
   }
 }
@@ -31,7 +31,7 @@ query {
 # 검색
 query {
   users(search: "player", minLevel: 10) {
-    nickname
+    UserName
     level
   }
 }
@@ -61,7 +61,7 @@ query {
   ) {
     id
     name
-    players { username }
+    players { UserName }
   }
 }
 ```
@@ -71,14 +71,14 @@ query {
 **`myCurrentRoom` - 현재 참여 중인 게임방 조회**
 ```graphql
 query {
-  myCurrentRoom(username: "player123") {
+  myCurrentRoom(UserName: "player123") {
     id
     name
     gameType
     status
     currentRound
     players {
-      username
+      UserName
       score
     }
   }
@@ -96,7 +96,7 @@ query {
       gameType
     }
     inviter {
-      nickname
+      UserName
     }
     createdAt
     expiresAt
@@ -113,9 +113,9 @@ query {
     status
     room {
       name
-      players { username }
+      players { UserName }
     }
-    inviter { nickname }
+    inviter { UserName }
   }
 }
 ```
@@ -130,10 +130,10 @@ query {
 **`setReady` Mutation**
 ```graphql
 # 이전: Boolean 반환
-setReady(roomId: ID!, username: String!, ready: Boolean!): Boolean!
+setReady(roomId: ID!, UserName: String!, ready: Boolean!): Boolean!
 
 # 개선: GameRoom 반환 (Apollo Cache 자동 업데이트)
-setReady(roomId: ID!, username: String!, ready: Boolean!): GameRoom!
+setReady(roomId: ID!, UserName: String!, ready: Boolean!): GameRoom!
 ```
 
 **Apollo Client 장점:**
@@ -157,7 +157,7 @@ type AnswerResult {
 mutation {
   submitAnswer(
     roomId: ID!
-    username: String!
+    UserName: String!
     answer: String!
   ): AnswerResult!  # Boolean 대신 상세 정보 반환
 }
@@ -187,10 +187,10 @@ const [submitAnswer] = useMutation(SUBMIT_ANSWER, {
 mutation {
   inviteUsers(
     roomId: "room-123"
-    inviteeUsernames: ["friend1", "friend2", "friend3"]
+    inviteeUserNames: ["friend1", "friend2", "friend3"]
   ) {
     id
-    invitee { nickname }
+    invitee { UserName }
     status
   }
 }
@@ -209,7 +209,7 @@ mutation {
 **`myEvents` - 본인에게만 전송되는 이벤트**
 ```graphql
 subscription {
-  myEvents(username: "player123") {
+  myEvents(UserName: "player123") {
     type    # CORRECT_ANSWER, WRONG_ANSWER, LEVEL_UP, etc.
     data
     timestamp
@@ -232,7 +232,7 @@ subscription {
       gameType
     }
     inviter {
-      nickname
+      UserName
     }
     expiresAt
   }
@@ -248,7 +248,7 @@ subscription {
 **`playerConnectionStatus` - 플레이어 온라인/오프라인 상태**
 ```graphql
 type PlayerConnection {
-  username: String!
+  UserName: String!
   isConnected: Boolean!
   lastSeen: Time!
   ping: Int  # 네트워크 지연시간 (ms)
@@ -256,7 +256,7 @@ type PlayerConnection {
 
 subscription {
   playerConnectionStatus(roomId: "room-123") {
-    username
+    UserName
     isConnected
     lastSeen
     ping
@@ -290,7 +290,7 @@ type AnswerResult {
 **`PlayerConnection`** - 플레이어 연결 상태
 ```graphql
 type PlayerConnection {
-  username: String!
+  UserName: String!
   isConnected: Boolean!
   lastSeen: Time!
   ping: Int
@@ -307,8 +307,7 @@ type PlayerConnection {
 // Fragments로 코드 재사용성 향상
 export const PLAYER_FIELDS = `
   fragment PlayerFields on Player {
-    username
-    displayName
+    UserName
     score
     isReady
   }
@@ -368,7 +367,7 @@ const { data } = useSubscription(GAME_ROOM_UPDATED, {
 
 // 개인 이벤트 수신
 const { data } = useSubscription(MY_EVENTS, {
-  variables: { username },
+  variables: { UserName },
   onData: ({ data }) => {
     const event = data.data.myEvents;
     if (event.type === 'CORRECT_ANSWER') {
@@ -404,7 +403,7 @@ const [inviteUsers] = useMutation(INVITE_USERS);
 inviteUsers({
   variables: {
     roomId,
-    inviteeUsernames: selectedFriends.map(f => f.username),
+    inviteeUserNames: selectedFriends.map(f => f.UserName),
   },
 });
 ```
@@ -413,7 +412,7 @@ inviteUsers({
 ```typescript
 // 필요한 이벤트만 구독
 const { data } = useSubscription(MY_EVENTS, {
-  variables: { username: currentUser },
+  variables: { UserName: currentUser },
   skip: !isInGame,  // 게임 중일 때만 구독
 });
 ```

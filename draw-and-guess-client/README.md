@@ -151,13 +151,13 @@ VITE_WS_BASE_URL=ws://localhost:8080
 const rooms = await apiService.getGameRooms();
 
 // 방 생성
-const result = await apiService.createGameRoom('username');
+const result = await apiService.createGameRoom('UserName');
 
 // 방 참가
-await apiService.joinGameRoom(roomId, username);
+await apiService.joinGameRoom(roomId, UserName);
 
 // 채팅/정답 제출
-const response = await apiService.handleChatMessage(roomId, username, message);
+const response = await apiService.handleChatMessage(roomId, UserName, message);
 ```
 
 #### WebSocket Service (websocket.ts)
@@ -171,7 +171,7 @@ const subscription = wsService.subscribe('game/room-123', (data) => {
 });
 
 // 메시지 전송
-wsService.sendMessage(roomId, 'chat', { username, message });
+wsService.sendMessage(roomId, 'chat', { UserName, message });
 
 // 구독 해제
 subscription.unsubscribe();

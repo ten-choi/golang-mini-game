@@ -67,8 +67,10 @@ type CreateGameRoomInput struct {
 
 // 새 사용자 계정 생성을 위한 입력 데이터
 type CreateUserInput struct {
-	// 고유 닉네임 (3-20자)
-	Nickname string `json:"nickname"`
+	// 로그인용 식별자 (3-20자)
+	HangeID string `json:"hangeId"`
+	// 고유 사용자명 (3-20자)
+	Name string `json:"name"`
 	// 프로필 이미지 URL (선택사항)
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
@@ -245,9 +247,7 @@ type OXQuiz struct {
 // WebSocket을 통해 실시간으로 업데이트됩니다.
 type Player struct {
 	// 플레이어의 고유 사용자명
-	Username string `json:"username"`
-	// 플레이어의 표시 이름
-	DisplayName string `json:"displayName"`
+	Name string `json:"name"`
 	// 현재 게임에서 획득한 점수 (정답 시 +100점)
 	Score int32 `json:"score"`
 	// 준비 완료 여부 (게임 시작 전, 방장 제외 모든 플레이어 true 필요)
@@ -334,12 +334,14 @@ type UpdateUserInput struct {
 }
 
 // 게임 플레이어 계정을 나타냅니다.
-// Nickname은 고유하며 주요 식별자로 사용됩니다.
+// name은 고유하며 주요 식별자로 사용됩니다.
 type User struct {
 	// 고유 식별자 (MongoDB ObjectID)
 	ID string `json:"id"`
-	// 고유 닉네임 (3-20자, 주요 식별자)
-	Nickname string `json:"nickname"`
+	// 로그인용 식별자 (3-20자, 로그인 전용)
+	HangeID string `json:"hangeId"`
+	// 고유 사용자명 (3-20자, 주요 식별자)
+	Name string `json:"name"`
 	// 프로필 이미지 URL
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 	// 플레이어 레벨

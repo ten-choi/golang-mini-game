@@ -11,12 +11,12 @@ import (
 )
 
 // InviteUser is the resolver for the inviteUser field.
-func (r *mutationResolver) InviteUser(ctx context.Context, roomID string, inviteeUsername string) (*model.Invitation, error) {
+func (r *mutationResolver) InviteUser(ctx context.Context, roomID string, inviteeUserName string) (*model.Invitation, error) {
 	// TODO: Implement invitation logic with database
 	invitation := &model.Invitation{
 		ID:        uuid.New().String(),
 		RoomID:    roomID,
-		InviteeID: inviteeUsername,
+		InviteeID: inviteeUserName,
 		Status:    model.InviteStatusPending,
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(5 * time.Minute),
@@ -26,15 +26,15 @@ func (r *mutationResolver) InviteUser(ctx context.Context, roomID string, invite
 }
 
 // InviteUsers is the resolver for the inviteUsers field.
-func (r *mutationResolver) InviteUsers(ctx context.Context, roomID string, inviteeUsernames []string) ([]*model.Invitation, error) {
+func (r *mutationResolver) InviteUsers(ctx context.Context, roomID string, inviteeUserNames []string) ([]*model.Invitation, error) {
 	// TODO: Implement batch invitation logic with database
-	invitations := make([]*model.Invitation, 0, len(inviteeUsernames))
+	invitations := make([]*model.Invitation, 0, len(inviteeUserNames))
 
-	for _, username := range inviteeUsernames {
+	for _, UserName := range inviteeUserNames {
 		invitation := &model.Invitation{
 			ID:        uuid.New().String(),
 			RoomID:    roomID,
-			InviteeID: username,
+			InviteeID: UserName,
 			Status:    model.InviteStatusPending,
 			CreatedAt: time.Now(),
 			ExpiresAt: time.Now().Add(5 * time.Minute),

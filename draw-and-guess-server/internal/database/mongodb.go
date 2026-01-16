@@ -65,7 +65,11 @@ func InitSchema() error {
 	usersCollection := DB.Collection("users")
 	_, err := usersCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{
-			Keys:    map[string]interface{}{"nickname": 1},
+			Keys:    map[string]interface{}{"UserName": 1},
+			Options: options.Index().SetUnique(true).SetSparse(true),
+		},
+		{
+			Keys:    map[string]interface{}{"hange_id": 1},
 			Options: options.Index().SetUnique(true).SetSparse(true),
 		},
 		{

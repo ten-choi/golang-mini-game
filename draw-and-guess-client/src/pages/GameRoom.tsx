@@ -213,7 +213,7 @@ const GameRoom: React.FC = () => {
       setTimeLeft(newRoom.roundTimeLimit);
       
       // Auto-rejoin if not in players list (e.g., after refresh)
-      const isInRoom = newRoom.players.some(p => p.username === username);
+      const isInRoom = newRoom.players.some(p => p.name === username);
       if (!isInRoom) {
         console.log('[GameRoom] Player not in room, auto-rejoining...');
         try {
@@ -296,7 +296,7 @@ const GameRoom: React.FC = () => {
     return <div style={styles.loading}>{t.gameRoom.loading}</div>;
   }
 
-  const myPlayer = room.players.find((p: Player) => p.username === username);
+  const myPlayer = room.players.find((p: Player) => p.name === username);
   const sortedPlayers = [...room.players].sort((a, b) => b.score - a.score);
 
   return (
@@ -384,17 +384,17 @@ const GameRoom: React.FC = () => {
           <div style={styles.playerList}>
             {sortedPlayers.map((player: Player, index: number) => (
               <div 
-                key={player.username}
+                key={player.name}
                 style={{
                   ...styles.playerCard,
-                  ...(player.username === username ? styles.myPlayer : {}),
+                  ...(player.name === username ? styles.myPlayer : {}),
                 }}
               >
                 <div style={styles.playerRank}>#{index + 1}</div>
                 <div style={styles.playerInfo}>
                   <div style={styles.playerName}>
-                    {player.username}
-                    {player.username === room.hostUsername && ' 👑'}
+                    {player.name}
+                    {player.name === room.hostUsername && ' 👑'}
                   </div>
                   <div style={styles.playerStats}>
                     {t.gameRoom.score}: {player.score}
@@ -444,7 +444,7 @@ const GameRoom: React.FC = () => {
             <div style={styles.resultSection}>
               <h3 style={styles.resultTitle}>🎊 {t.gameRoom.gameFinished}</h3>
               <div style={styles.winner}>
-                {t.gameRoom.winner}: {sortedPlayers[0]?.username} ({sortedPlayers[0]?.score}{t.gameRoom.score})
+                {t.gameRoom.winner}: {sortedPlayers[0]?.name} ({sortedPlayers[0]?.score}{t.gameRoom.score})
               </div>
             </div>
           )}
