@@ -10,18 +10,41 @@ const RoomList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedGameType, setSelectedGameType] = useState<GameType>('WORDCHAIN');
-  const [maxPlayers, setMaxPlayers] = useState(4);
-  const [totalRounds, setTotalRounds] = useState(3);
-  const [roundTimeLimit, setRoundTimeLimit] = useState(15);
+  const [maxUsers, setMaxUsers] = useState(4);
+  const [totalRounds, setTotalRounds] = useState(5);
+  const [roundTimeLimit, setRoundTimeLimit] = useState(30);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [lobbyChatMessages, setLobbyChatMessages] = useState<Array<{playerName: string, message: string}>>([]);
   const [chatInput, setChatInput] = useState('');
+  const [user, setUser] = useState<{id: string; name: string} | null>(null);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
   const username = sessionStorage.getItem('username') || '';
 
   useEffect(() => {
+    if (!username) {
+      navigate('/');
+      return;
+    }
+    
+    // Load user data
+    const loadUser = async () => {
+      try {
+        const userData = await apiService.getUserByName(username);
+        if (userData) {
+          setUser({ id: userData.id, name: userData.name });
+        } else {
+          alert('사용자 정보를 찾을 수 없습니다.');
+          navigate('/');
+        }
+      } catch (error) {
+        console.error('Failed to load user:', error);
+        navigate('/');
+      }
+    };
+    loadUser();
+    
     loadRooms();
 
     // WebSocket 연결 및 lobby 채널 구독
@@ -83,15 +106,14 @@ const RoomList: React.FC = () => {
   };
 
   const handleJoinRoom = async (room: GameRoom) => {
-    const username = sessionStorage.getItem('username');
-    if (!username) {
+    if (!user) {
       alert(t.home.enterUsername);
       navigate('/');
       return;
     }
 
     try {
-      await apiService.joinGameRoom(room.id, username);
+      await apiService.joinGameRoom(room.id, user.id);
       navigate(`/game/${room.id}`);
     } catch (error) {
       console.error('Failed to join room:', error);
@@ -105,8 +127,8 @@ const RoomList: React.FC = () => {
   };
 
   const handleCreateRoom = async () => {
-    if (!username) {
-      alert('사용자 이름이 없습니다.');
+    if (!user) {
+      alert('사용자 정보가 없습니다.');
       navigate('/');
       return;
     }
@@ -114,12 +136,12 @@ const RoomList: React.FC = () => {
     setCreatingRoom(true);
     try {
       const result = await apiService.createGameRoom({
-        name: `${username}의 게임방`,
+        name: `${user.name}의 게임방`,
         gameType: selectedGameType,
-        maxPlayers: maxPlayers,
+        maxUsers: maxUsers,
         totalRounds: totalRounds,
         roundTimeLimit: roundTimeLimit,
-        hostUsername: username,
+        hostUserId: user.id,
         isPrivate: false
       });
       setShowCreateModal(false);

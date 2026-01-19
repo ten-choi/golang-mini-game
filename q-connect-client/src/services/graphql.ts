@@ -1,14 +1,13 @@
 /**
  * GraphQL Client Service
- * 
- * Provides GraphQL client for communicating with the backend GraphQL API
+ * Aligned with q-connect-server GraphQL Schema
  */
 
 import { GraphQLClient } from 'graphql-request';
 import { env } from '../config/env';
 
-// GraphQL endpoint
-const GRAPHQL_ENDPOINT = `${env.apiBaseUrl}/graphql`;
+// GraphQL endpoint from environment
+const GRAPHQL_ENDPOINT = env.graphqlUrl;
 
 // Create GraphQL client
 export const graphqlClient = new GraphQLClient(GRAPHQL_ENDPOINT, {
@@ -35,8 +34,9 @@ export const USER_FIELDS = `
   }
 `;
 
-export const PLAYER_FIELDS = `
-  fragment PlayerFields on Player {
+export const GAME_USER_FIELDS = `
+  fragment GameUserFields on GameUser {
+    userId
     name
     score
     isReady
@@ -52,8 +52,8 @@ export const GAME_ROOM_FIELDS = `
     currentRound
     totalRounds
     roundTimeLimit
-    maxPlayers
-    hostUsername
+    maxUsers
+    hostUserId
     isPrivate
     createdAt
   }
@@ -63,12 +63,48 @@ export const GAME_ROOM_DETAIL_FIELDS = `
   fragment GameRoomDetailFields on GameRoom {
     ...GameRoomFields
     usedQuizIds
-    players {
-      ...PlayerFields
+    users {
+      ...GameUserFields
     }
+    wordchainLastWord
+    wordchainUsedWords
+    currentTurnUserId
+    wordchainTurnStartTime
   }
   ${GAME_ROOM_FIELDS}
-  ${PLAYER_FIELDS}
+  ${GAME_USER_FIELDS}
+`;
+
+export const OX_QUIZ_FIELDS = `
+  fragment OXQuizFields on OXQuiz {
+    id
+    category
+    difficulty
+    question
+    answer
+    explanation
+    usageCount
+    isActive
+    createdAt
+    updatedAt
+  }
+`;
+
+export const GENERAL_QUIZ_FIELDS = `
+  fragment GeneralQuizFields on GeneralQuiz {
+    id
+    category
+    difficulty
+    question
+    options
+    answer
+    explanation
+    imageUrl
+    usageCount
+    isActive
+    createdAt
+    updatedAt
+  }
 `;
 
 // ============================================
@@ -113,7 +149,7 @@ export const GET_USERS = `
 // Game Room Queries
 export const GET_GAME_ROOMS = `
   ${GAME_ROOM_FIELDS}
-  ${PLAYER_FIELDS}
+  ${GAME_USER_FIELDS}
   query GetGameRooms(
     $gameType: GameType
     $status: GameStatus
@@ -131,8 +167,8 @@ export const GET_GAME_ROOMS = `
       sortBy: $sortBy
     ) {
       ...GameRoomFields
-      players {
-        ...PlayerFields
+      users {
+        ...GameUserFields
       }
     }
   }
@@ -168,8 +204,8 @@ export const GET_MY_INVITATIONS = `
         id
         name
         gameType
-        maxPlayers
-        players {
+        maxUsers
+        users {
           name
         }
       }
@@ -193,7 +229,7 @@ export const GET_INVITATION = `
         name
         gameType
         status
-        players {
+        users {
           name
           score
         }
@@ -211,27 +247,19 @@ export const GET_INVITATION = `
 // In production, quizzes are pre-loaded by the server at game start
 // and pushed automatically via WebSocket. No manual quiz requests needed.
 export const GET_RANDOM_OX_QUIZ = `
+  ${OX_QUIZ_FIELDS}
   query GetRandomOXQuiz($roomId: ID) {
     randomOXQuiz(roomId: $roomId) {
-      id
-      category
-      difficulty
-      question
-      explanation
+      ...OXQuizFields
     }
   }
 `;
 
 export const GET_RANDOM_QA_QUIZ = `
+  ${GENERAL_QUIZ_FIELDS}
   query GetRandomQAQuiz($roomId: ID) {
     randomQAQuiz(roomId: $roomId) {
-      id
-      category
-      difficulty
-      question
-      options
-      explanation
-      imageUrl
+      ...GeneralQuizFields
     }
   }
 `;
@@ -267,7 +295,7 @@ export const GET_LEADERBOARD = `
 export const GET_GAME_CONFIG = `
   query GetGameConfig {
     gameConfig {
-      maxPlayers
+      maxUsers
       roundDuration
       drawingTime
       guessingTime
@@ -297,129 +325,86 @@ export const VALIDATE_WORD = `
 
 // User Mutations
 export const CREATE_USER = `
+  ${USER_FIELDS}
   mutation CreateUser($input: CreateUserInput!) {
     createUser(input: $input) {
-      id
-      hangeId
-      name
-      avatarUrl
-      level
-      credit
-      createdAt
-      updatedAt
+      ...UserFields
     }
   }
 `;
 
 export const UPDATE_USER = `
-  mutation UpdateUser($name: String!, $input: UpdateUserInput!) {
-    updateUser(name: $name, input: $input) {
-      id
-      name
-      avatarUrl
-      level
-      credit
-      updatedAt
+  ${USER_FIELDS}
+  mutation UpdateUser($id: ID!, $input: UpdateUserInput!) {
+    updateUser(id: $id, input: $input) {
+      ...UserFields
     }
   }
 `;
 
 export const DELETE_USER = `
-  mutation DeleteUser($name: String!) {
-    deleteUser(name: $name)
+  mutation DeleteUser($id: ID!) {
+    deleteUser(id: $id)
   }
 `;
 
 // Game Room Mutations
 export const CREATE_GAME_ROOM = `
+  ${GAME_ROOM_DETAIL_FIELDS}
   mutation CreateGameRoom($input: CreateGameRoomInput!) {
     createGameRoom(input: $input) {
-      id
-      name
-      gameType
-      status
-      maxPlayers
-      totalRounds
-      hostUsername
-      isPrivate
-      players {
-        username
-        displayName
-        score
-        isReady
-      }
-      createdAt
+      ...GameRoomDetailFields
     }
   }
 `;
 
 export const UPDATE_GAME_ROOM = `
-  mutation UpdateGameRoom($roomId: ID!, $input: UpdateGameRoomInput!) {
-    updateGameRoom(roomId: $roomId, input: $input) {
-      id
-      name
-      maxPlayers
-      totalRounds
-      isPrivate
+  ${GAME_ROOM_DETAIL_FIELDS}
+  mutation UpdateGameRoom($id: ID!, $input: UpdateGameRoomInput!) {
+    updateGameRoom(id: $id, input: $input) {
+      ...GameRoomDetailFields
     }
   }
 `;
 
 export const JOIN_GAME_ROOM = `
-  mutation JoinGameRoom($roomId: ID!, $username: String!, $password: String) {
-    joinGameRoom(roomId: $roomId, username: $username, password: $password) {
-      id
-      name
-      gameType
-      status
-      currentRound
-      totalRounds
-      maxPlayers
-      hostUsername
-      players {
-        username
-        displayName
-        score
-        isReady
-      }
+  ${GAME_ROOM_DETAIL_FIELDS}
+  mutation JoinGameRoom($roomId: ID!, $userId: ID!, $password: String) {
+    joinGameRoom(roomId: $roomId, userId: $userId, password: $password) {
+      ...GameRoomDetailFields
     }
   }
 `;
 
 export const LEAVE_GAME_ROOM = `
-  mutation LeaveGameRoom($roomId: ID!, $username: String!) {
-    leaveGameRoom(roomId: $roomId, username: $username) {
-      id
-      players {
-        username
-        displayName
-        score
-        isReady
-      }
-      hostUsername
-    }
+  mutation LeaveGameRoom($roomId: ID!, $userId: ID!) {
+    leaveGameRoom(roomId: $roomId, userId: $userId)
+  }
+`;
+
+export const DELETE_GAME_ROOM = `
+  mutation DeleteGameRoom($id: ID!) {
+    deleteGameRoom(id: $id)
   }
 `;
 
 export const READY_PLAYER = `
-  ${PLAYER_FIELDS}
-  mutation SetReady($roomId: ID!, $username: String!, $ready: Boolean!) {
-    setReady(roomId: $roomId, username: $username, ready: $ready) {
-      id
-      status
-      players {
-        ...PlayerFields
-      }
+  ${GAME_ROOM_DETAIL_FIELDS}
+  mutation ReadyPlayer($roomId: ID!, $userId: ID!) {
+    readyPlayer(roomId: $roomId, userId: $userId) {
+      ...GameRoomDetailFields
     }
   }
 `;
 
 export const START_GAME = `
-  mutation StartGame($roomId: ID!) {
-    startGame(roomId: $roomId) {
-      id
-      status
-      currentRound
+  ${GAME_ROOM_DETAIL_FIELDS}
+  mutation StartGame($roomId: ID!, $hostUserId: ID!) {
+    startGame(roomId: $roomId, hostUserId: $hostUserId) {
+      ...GameRoomDetailFields
+    }
+  }
+`;
     }
   }
 `;
@@ -462,78 +447,59 @@ export const DELETE_GAME_ROOM = `
   }
 `;
 
-// Invitation Mutations
-export const INVITE_USER = `
-  mutation InviteUser($roomId: ID!, $inviteeUsername: String!) {
-    inviteUser(roomId: $roomId, inviteeUsername: $inviteeUsername) {
-      id
-      status
-      createdAt
-      expiresAt
-      invitee {
-        name
-        avatarUrl
-      }
-    }
-  }
-`;
-
-export const INVITE_USERS = `
-  mutation InviteUsers($roomId: ID!, $inviteeUsernames: [String!]!) {
-    inviteUsers(roomId: $roomId, inviteeUsernames: $inviteeUsernames) {
-      id
-      status
-      createdAt
-      expiresAt
-      invitee {
-        name
-        avatarUrl
-      }
-    }
-  }
-`;
-
-export const ACCEPT_INVITE = `
+export const START_ROUND = `
   ${GAME_ROOM_DETAIL_FIELDS}
-  mutation AcceptInvite($invitationId: ID!) {
-    acceptInvite(invitationId: $invitationId) {
+  mutation StartRound($roomId: ID!) {
+    startRound(roomId: $roomId) {
       ...GameRoomDetailFields
     }
   }
 `;
 
-export const REJECT_INVITE = `
-  mutation RejectInvite($invitationId: ID!) {
-    rejectInvite(invitationId: $invitationId)
-  }
-`;
-
-export const SEND_INVITATION = `
-  mutation SendInvitation($roomId: ID!, $inviterId: ID!, $inviteeId: ID!) {
-    sendInvitation(roomId: $roomId, inviterId: $inviterId, inviteeId: $inviteeId) {
-      id
-      roomId
-      inviterId
-      inviteeId
-      status
-      createdAt
-      expiresAt
+export const SUBMIT_ANSWER = `
+  mutation SubmitAnswer($roomId: ID!, $userId: ID!, $answer: String!) {
+    submitAnswer(roomId: $roomId, userId: $userId, answer: $answer) {
+      success
+      isCorrect
+      earnedScore
+      totalScore
+      correctAnswer
+      explanation
     }
   }
 `;
 
-export const RESPOND_INVITATION = `
-  mutation RespondInvitation($invitationId: ID!, $accept: Boolean!) {
-    respondInvitation(invitationId: $invitationId, accept: $accept) {
-      id
-      status
+export const NEXT_ROUND = `
+  ${GAME_ROOM_DETAIL_FIELDS}
+  mutation NextRound($roomId: ID!) {
+    nextRound(roomId: $roomId) {
+      ...GameRoomDetailFields
     }
   }
 `;
 
+export const END_GAME = `
+  ${GAME_ROOM_DETAIL_FIELDS}
+  mutation EndGame($roomId: ID!) {
+    endGame(roomId: $roomId) {
+      ...GameRoomDetailFields
+    }
+  }
+`;
+
+export const TRANSFER_HOST = `
+  ${GAME_ROOM_DETAIL_FIELDS}
+  mutation TransferHost($roomId: ID!, $currentHostUserId: ID!, $newHostUserId: ID!) {
+    transferHost(roomId: $roomId, currentHostUserId: $currentHostUserId, newHostUserId: $newHostUserId) {
+      ...GameRoomDetailFields
+    }
+  }
+`;
+
+// Chat Mutation
 export const SEND_CHAT = `
-  mutation SendChat($roomId: ID!, $username: String!, $message: String!) {
-    sendChat(roomId: $roomId, username: $username, message: $message) {
+  mutation SendChat($roomId: ID!, $userId: ID!, $message: String!) {
+    sendChat(roomId: $roomId, userId: $userId, message: $message) {
       id
       roomId
       username
@@ -544,33 +510,46 @@ export const SEND_CHAT = `
   }
 `;
 
-export const TRANSFER_HOST = `
-  mutation TransferHost($roomId: ID!, $newHostUsername: String!) {
-    transferHost(roomId: $roomId, newHostUsername: $newHostUsername) {
-      id
-      hostUsername
-    }
-  }
-`;
-
-export const SET_READY = `
-  ${PLAYER_FIELDS}
-  mutation SetReady($roomId: ID!, $username: String!, $ready: Boolean!) {
-    setReady(roomId: $roomId, username: $username, ready: $ready) {
+// Invitation Mutations
+export const SEND_INVITATION = `
+  mutation SendInvitation($roomId: ID!, $inviterId: ID!, $inviteeId: ID!) {
+    sendInvitation(roomId: $roomId, inviterId: $inviterId, inviteeId: $inviteeId) {
       id
       status
-      players {
-        ...PlayerFields
-      }
+      createdAt
+      expiresAt
     }
   }
 `;
 
-export const START_ROUND = `
-  mutation StartRound($roomId: ID!) {
-    startRound(roomId: $roomId) {
+export const RESPOND_INVITATION = `
+  mutation RespondInvitation($id: ID!, $accept: Boolean!) {
+    respondInvitation(id: $id, accept: $accept) {
       id
-      currentRound
+      status
+    }
+  }
+`;
+
+// Wordchain Mutations
+export const SUBMIT_WORDCHAIN_WORD = `
+  mutation SubmitWordchainWord($roomId: ID!, $userId: ID!, $word: String!) {
+    submitWordchainWord(roomId: $roomId, userId: $userId, word: $word) {
+      success
+      isCorrect
+      earnedScore
+      totalScore
+      correctAnswer
+      explanation
+    }
+  }
+`;
+
+export const SKIP_WORDCHAIN_TURN = `
+  ${GAME_ROOM_DETAIL_FIELDS}
+  mutation SkipWordchainTurn($roomId: ID!, $userId: ID!) {
+    skipWordchainTurn(roomId: $roomId, userId: $userId) {
+      ...GameRoomDetailFields
     }
   }
 `;

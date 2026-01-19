@@ -7,16 +7,35 @@ import { useLanguage } from '../i18n/LanguageContext';
 const CreateRoom: React.FC = () => {
   const navigate = useNavigate();
   const [username] = useState(sessionStorage.getItem('username') || '');
+  const [user, setUser] = useState<{id: string; name: string} | null>(null);
   const [selectedGameType, setSelectedGameType] = useState<GameType>('WORDCHAIN');
-  const [maxPlayers, setMaxPlayers] = useState(2);
-  const [totalRounds, setTotalRounds] = useState(3);
-  const [roundTimeLimit, setRoundTimeLimit] = useState(15);
+  const [maxUsers, setMaxUsers] = useState(4);
+  const [totalRounds, setTotalRounds] = useState(5);
+  const [roundTimeLimit, setRoundTimeLimit] = useState(30);
   const [loading, setLoading] = useState(false);
 
   React.useEffect(() => {
     if (!username) {
       navigate('/');
+      return;
     }
+    
+    // Load user data
+    const loadUser = async () => {
+      try {
+        const userData = await apiService.getUserByName(username);
+        if (userData) {
+          setUser({ id: userData.id, name: userData.name });
+        } else {
+          alert('사용자 정보를 찾을 수 없습니다.');
+          navigate('/');
+        }
+      } catch (error) {
+        console.error('Failed to load user:', error);
+        navigate('/');
+      }
+    };
+    loadUser();
   }, [username, navigate]);
 
   const gameModes = [
@@ -72,8 +91,8 @@ const CreateRoom: React.FC = () => {
   ];
 
   const handleCreateRoom = async () => {
-    if (!username) {
-      alert('사용자 이름이 없습니다.');
+    if (!user) {
+      alert('사용자 정보가 없습니다.');
       navigate('/');
       return;
     }
@@ -81,12 +100,12 @@ const CreateRoom: React.FC = () => {
     setLoading(true);
     try {
       const result = await apiService.createGameRoom({
-        name: `${username}의 게임방`,
+        name: `${user.name}의 게임방`,
         gameType: selectedGameType,
-        maxPlayers: maxPlayers,
+        maxUsers: maxUsers,
         totalRounds: totalRounds,
         roundTimeLimit: roundTimeLimit,
-        hostUsername: username,
+        hostUserId: user.id,
         isPrivate: false
       });
       navigate(`/game/${result.id}`);
