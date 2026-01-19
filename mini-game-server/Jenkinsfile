@@ -1,0 +1,160 @@
+pipeline {
+
+    agent any
+
+    
+
+    triggers {
+
+        pollSCM('H/2 * * * *') 
+
+    }
+
+    
+
+    options {
+
+        timestamps()
+
+        disableConcurrentBuilds()
+
+    }
+
+
+
+    environment {
+
+        // 실행할 Jenkins Job 이름 (필요하면 여기만 바꾸면 됨)
+
+        BUILD_JOB  = "build"
+
+        DEPLOY_JOB = "deploy"
+
+    }
+
+
+
+    parameters {
+
+        // 필요하면 빌드/배포에 넘길 파라미터를 추가로 여기에 선언 가능
+
+        string(name: 'BRANCH', defaultValue: 'master', description: 'Git branch for build/deploy (if jobs use it)')
+
+        booleanParam(name: 'DEPLOY_AFTER_BUILD', defaultValue: true, description: 'If false, only run build')
+
+    }
+
+
+
+    stages {
+
+        stage('1) Run build job') {
+
+            steps {
+
+                script {
+
+                    echo "🚀 Triggering build job: ${env.BUILD_JOB} (BRANCH=${params.BRANCH})"
+
+
+
+                    // build 잡 실행 (동기 실행: 끝날 때까지 기다림)
+
+                    def buildRun = build job: env.BUILD_JOB,
+
+                                        wait: true,
+
+                                        propagate: true,
+
+                                        parameters: [
+
+                                            string(name: 'BRANCH', value: params.BRANCH)
+
+                                        ]
+
+
+
+                    // build 잡 번호 저장 (deploy에 전달용)
+
+                    env.BUILD_JOB_NUMBER = "${buildRun.number}"
+
+                    echo "✅ build job finished. number=${env.BUILD_JOB_NUMBER}, result=${buildRun.result}"
+
+                }
+
+            }
+
+        }
+
+
+
+        stage('2) Run deploy job') {
+
+            when {
+
+                expression { return params.DEPLOY_AFTER_BUILD }
+
+            }
+
+            steps {
+
+                script {
+
+                    echo "🚀 Triggering deploy job: ${env.DEPLOY_JOB} (from build #${env.BUILD_JOB_NUMBER})"
+
+
+
+                    // deploy 잡 실행 (build 결과(번호)도 넘김)
+
+                    def deployRun = build job: env.DEPLOY_JOB,
+
+                                         wait: true,
+
+                                         propagate: true,
+
+                                         parameters: [
+
+                                             string(name: 'BRANCH', value: params.BRANCH),
+
+                                             string(name: 'BUILD_JOB_NUMBER', value: env.BUILD_JOB_NUMBER)
+
+                                         ]
+
+
+
+                    echo "✅ deploy job finished. number=${deployRun.number}, result=${deployRun.result}"
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+
+    post {
+
+        success {
+
+            echo "🎉 Pipeline success! build#${env.BUILD_JOB_NUMBER} → deploy done"
+
+        }
+
+        failure {
+
+            echo "❌ Pipeline failed. Check build/deploy job console logs."
+
+        }
+
+        always {
+
+            echo "Done."
+
+        }
+
+    }
+
+}
+
