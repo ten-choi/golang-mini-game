@@ -1,0 +1,2458 @@
+# Draw and Guess Game - GraphQL Schema
+
+"""RFC3339 형식의 날짜/시간 문자열 (예: 2026-01-08T10:30:00Z)"""
+scalar Time
+
+# ============================================
+# User Types
+# ============================================
+
+"""
+게임 플레이어 계정을 나타냅니다.
+name은 고유하며 주요 식별자로 사용됩니다.
+"""
+type User {
+  "고유 식별자 (MongoDB ObjectID)"
+  id: ID!
+  "로그인용 식별자 (3-20자, 로그인 전용)"
+  hangeId: String!
+  "고유 사용자명 (3-20자, 주요 식별자)"
+  name: String!
+  "프로필 이미지 URL"
+  avatarUrl: String
+  "플레이어 레벨"
+  level: Int!
+  "일반 재화 (게임 플레이로 획득)"
+  credit: Int!
+  "소속 길드 ID (선택사항)"
+  guildId: ID
+  "계정 생성 시각"
+  createdAt: Time!
+  "마지막 업데이트 시각"
+  updatedAt: Time!
+}
+
+"""새 사용자 계정 생성을 위한 입력 데이터"""
+input CreateUserInput {
+  "로그인용 식별자 (3-20자)"
+  hangeId: String!
+  "고유 사용자명 (3-20자) (선택사항)"
+  name: String
+  "프로필 이미지 URL (선택사항)"
+  avatarUrl: String
+}
+
+"""사용자 프로필 업데이트를 위한 입력 데이터 (모든 필드 선택사항)"""
+input UpdateUserInput {
+  "새로운 프로필 이미지 URL"
+  avatarUrl: String
+  "새로운 레벨"
+  level: Int
+  "새로운 일반 재화"
+  credit: Int
+}
+
+# ============================================
+# Game Room Types
+# ============================================
+
+"""
+게임 모드를 나타냅니다.
+클라이언트는 게임방 생성 시 이 값을 선택해야 합니다.
+"""
+enum GameType {
+  "OX 퀴즈 게임 (참/거짓 문제, 빠른 판단력 게임)"
+  OX
+  "4지선다 퀴즈 게임 (일반 지식 퀴즈)"
+  QA
+  "끝말잇기 게임 (일본어 히라가나/카타카나 단어 연결)"
+  WORDCHAIN
+  "그림 맞추기 게임 (그림을 그리고 정답 맞추기)"
+  DRAWING
+}
+
+"""
+게임방의 현재 상태를 나타냅니다.
+클라이언트는 이 값에 따라 UI를 다르게 표시해야 합니다.
+"""
+enum GameStatus {
+  "대기 중 (플레이어 모집 중, 게임 시작 전)"
+  WAITING
+  "게임 진행 중 (라운드 진행 중, 플레이어 입장 불가)"
+  PLAYING
+  "게임 종료 (최종 결과 표시, 곧 대기 상태로 전환)"
+  FINISHED
+}
+
+"""
+게임방 내 사용자 정보입니다.
+WebSocket을 통해 실시간으로 업데이트됩니다.
+"""
+type GameUser {
+  "사용자의 고유 id"
+  userId: ID!
+  "사용자의 고유 사용자명"
+  name: String!
+  "현재 게임에서 획득한 점수 (정답 시 +100점)"
+  score: Int!
+  "준비 완료 여부 (게임 시작 전, 방장 제외 모든 사용자 true 필요)"
+  isReady: Boolean!
+}
+
+"""
+멀티플레이어 게임 세션을 나타냅니다.
+OX 퀴즈, QA 퀴즈, 끝말잇기 게임 모드를 지원합니다.
+"""
+type GameRoom {
+  "고유 게임방 식별자 (UUID)"
+  id: ID!
+  "게임방 표시 이름"
+  name: String!
+  "게임 모드: OX, QA, 또는 WORDCHAIN"
+  gameType: GameType!
+  "현재 게임 상태"
+  status: GameStatus!
+  "현재 라운드 번호 (1부터 시작)"
+  currentRound: Int!
+  "총 라운드 수 (기본값: 5)"
+  totalRounds: Int!
+  "라운드당 제한 시간 (초 단위, 기본값: 30초)"
+  roundTimeLimit: Int!
+  "게임방 내 사용자 목록"
+  users: [GameUser!]!
+  "최대 사용자 수 (2-10명)"
+  maxUsers: Int!
+  "방장 사용자 ID"
+  hostUserId: ID!
+  "현재 게임에서 사용된 퀴즈 ID 목록"
+  usedQuizIds: [String!]!
+  "비공개방 여부"
+  isPrivate: Boolean!
+  "게임방 비밀번호 (비공개방만)"
+  password: String
+  "게임방 생성 시각"
+  createdAt: Time!
+  
+  "끝말잇기 게임 - 마지막 단어"
+  wordchainLastWord: String
+  "끝말잇기 게임 - 사용된 단어 목록"
+  wordchainUsedWords: [String!]
+  "끝말잇기 게임 - 현재 턴 플레이어 ID"
+  currentTurnUserId: ID
+  "끝말잇기 게임 - 턴 시작 시간"
+  wordchainTurnStartTime: Time
+}
+
+"""
+새 게임방 생성을 위한 입력 데이터
+생성자가 자동으로 방장이 되며 첫 번째 플레이어로 입장합니다.
+"""
+input CreateGameRoomInput {
+  "게임방 이름 (1-50자, 로비에 표시)"
+  name: String!
+  "게임 모드 (OX, QA, WORDCHAIN 중 선택)"
+  gameType: GameType!
+  "최대 플레이어 수 (2-10명, 권장: 4-6명)"
+  maxUsers: Int!
+  "총 라운드 수 (1-20, 권장: 3-10)"
+  totalRounds: Int!
+  "라운드당 제한 시간 (초 단위, 10-300초, 기본값: 30초)"
+  roundTimeLimit: Int
+  "방장 사용자 ID (게임방 생성자)"
+  hostUserId: ID!
+  "비공개 방 여부 (true: 비밀번호 필요, false: 누구나 입장 가능)"
+  isPrivate: Boolean
+  "게임방 비밀번호 (isPrivate=true 시 필수, 4-20자)"
+  password: String
+}
+
+"""
+게임방 설정 변경을 위한 입력 데이터 (모든 필드 선택사항)
+방장만 실행 가능하며, 게임 진행 중에는 변경 불가합니다.
+"""
+input UpdateGameRoomInput {
+  "새로운 게임방 이름"
+  name: String
+  "새로운 최대 플레이어 수 (현재 인원보다 작게 설정 불가)"
+  maxUsers: Int
+  "새로운 총 라운드 수"
+  totalRounds: Int
+  "새로운 라운드당 제한 시간 (초 단위, 10-300초)"
+  roundTimeLimit: Int
+  "비공개 설정 변경 (true로 변경 시 password 필수)"
+  isPrivate: Boolean
+  "새로운 비밀번호 (빈 문자열로 비밀번호 제거 가능)"
+  password: String
+}
+
+# ============================================
+# Invitation Types
+# ============================================
+
+"""
+게임방 초대 상태를 나타냅니다.
+초대는 24시간 후 자동으로 만료됩니다.
+"""
+enum InviteStatus {
+  "대기 중 (초대받은 사용자의 응답 대기)"
+  PENDING
+  "수락됨 (사용자가 게임방에 입장함)"
+  ACCEPTED
+  "거절됨 (사용자가 초대를 거절함)"
+  REJECTED
+  "만료됨 (24시간 경과 또는 게임방 삭제)"
+  EXPIRED
+}
+
+"""
+게임방 초대 정보입니다.
+사용자는 알림을 통해 초대를 받고 수락/거절할 수 있습니다.
+"""
+type Invitation {
+  "고유 초대 ID (UUID)"
+  id: ID!
+  "초대 대상 게임방 ID"
+  roomId: ID!
+  "초대 대상 게임방 정보"
+  room: GameRoom!
+  "초대한 사용자 ID"
+  inviterId: ID!
+  "초대한 사용자 정보"
+  inviter: User!
+  "초대받은 사용자 ID"
+  inviteeId: ID!
+  "초대받은 사용자 정보"
+  invitee: User!
+  "현재 초대 상태"
+  status: InviteStatus!
+  "초대 생성 시각"
+  createdAt: Time!
+  "초대 만료 시각 (생성 후 24시간)"
+  expiresAt: Time!
+}
+
+# ============================================
+# Quiz Types
+# ============================================
+
+"""
+OX 퀴즈 (참/거짓 문제)를 나타냅니다.
+OX 게임 모드에서 사용됩니다.
+"""
+type OXQuiz {
+  "고유 퀴즈 ID (Snowflake)"
+  id: ID!
+  "퀴즈 카테고리 (예: 과학, 역사)"
+  category: String!
+  "난이도: easy, medium, hard"
+  difficulty: String!
+  "문제 텍스트"
+  question: String!
+  "정답: true 또는 false"
+  answer: Boolean!
+  "정답 설명 (선택사항)"
+  explanation: String
+  "이 퀴즈가 사용된 횟수"
+  usageCount: Int!
+  "퀴즈 활성화 여부"
+  isActive: Boolean!
+  "퀴즈 생성 시각"
+  createdAt: Time!
+  "마지막 업데이트 시각"
+  updatedAt: Time!
+}
+
+"""
+4지선다 퀴즈를 나타냅니다.
+QA 게임 모드에서 사용됩니다.
+"""
+type GeneralQuiz {
+  "고유 퀴즈 ID (Snowflake)"
+  id: ID!
+  "퀴즈 카테고리 (예: 수학, 지리)"
+  category: String!
+  "난이도: easy, medium, hard"
+  difficulty: String!
+  "문제 텍스트"
+  question: String!
+  "4개의 선택지 배열"
+  options: [String!]!
+  "정답 인덱스 (0-3)"
+  answer: Int!
+  "정답 설명 (선택사항)"
+  explanation: String
+  "시각적 문제를 위한 이미지 URL (선택사항)"
+  imageUrl: String
+  "이 퀴즈가 사용된 횟수"
+  usageCount: Int!
+  "퀴즈 활성화 여부"
+  isActive: Boolean!
+  "퀴즈 생성 시각"
+  createdAt: Time!
+  "마지막 업데이트 시각"
+  updatedAt: Time!
+}
+
+"""
+OX 퀴즈의 선택지입니다.
+submitAnswer 뮤테이션에서 'true' 또는 'false' 문자열로 전달합니다.
+"""
+enum OXChoice {
+  "참 (정답: true)"
+  O
+  "거짓 (정답: false)"
+  X
+}
+
+# ============================================
+# Game Config & Data Types
+# ============================================
+
+"""
+게임 전역 설정 정보입니다.
+서버에서 관리하며 클라이언트는 이 값을 참고하여 UI를 구성합니다.
+"""
+type GameConfig {
+  "최대 플레이어 수 제한 (현재: 8명)"
+  maxUsers: Int!
+  "라운드당 제한 시간 (초, 현재: 30초)"
+  roundDuration: Int!
+  "그리기 제한 시간 (초, 향후 기능)"
+  drawingTime: Int!
+  "추측 제한 시간 (초, 향후 기능)"
+  guessingTime: Int!
+  "게임당 기본 라운드 수 (현재: 5)"
+  roundsPerGame: Int!
+}
+
+"""
+끝말잇기 게임의 시작 단어 정보입니다.
+일본어 히라가나 또는 카타카나 단어입니다.
+"""
+type WordchainPrompt {
+  "시작 단어 (히라가나 또는 카타카나, 2자 이상)"
+  word: String!
+  "힌트 (선택사항, 단어의 의미)"
+  hint: String
+}
+
+# ============================================
+# User Stats Types
+# ============================================
+
+"""
+사용자의 게임 타입별 통계 정보입니다.
+리더보드 및 프로필 화면에서 사용됩니다.
+"""
+type UserStats {
+  "사용자명"
+  username: String!
+  "게임 타입 (OX, QA, WORDCHAIN)"
+  gameType: String!
+  "총 플레이한 게임 수"
+  totalGames: Int!
+  "총 승리 횟수 (1등 횟수)"
+  totalWins: Int!
+  "총 획득 점수 (모든 게임 누적)"
+  totalScore: Int!
+  "통계 생성 시각"
+  createdAt: Time!
+  "마지막 업데이트 시각"
+  updatedAt: Time!
+}
+
+# ============================================
+# Result Types
+# ============================================
+
+"""
+답변 제출 결과를 나타냅니다.
+Apollo Client에서 Optimistic UI와 즉각적인 피드백을 위해 사용됩니다.
+"""
+type AnswerResult {
+  "제출 성공 여부"
+  success: Boolean!
+  "정답 여부 (제출자에게만 전달)"
+  isCorrect: Boolean!
+  "획득한 점수 (정답 시 100점)"
+  earnedScore: Int!
+  "현재 총 점수"
+  totalScore: Int!
+  "정답 (라운드 종료 후에만 제공되지만, 즉시 피드백용)"
+  correctAnswer: String
+  "설명 (선택사항)"
+  explanation: String
+}
+
+# ============================================
+# Chat & Events Types
+# ============================================
+
+"""
+게임방 채팅 메시지입니다.
+WebSocket을 통해 실시간으로 전달됩니다.
+"""
+type ChatMessage {
+  "고유 메시지 ID"
+  id: ID!
+  "메시지가 전송된 게임방 ID"
+  roomId: ID!
+  "발신자 사용자명"
+  username: String!
+  "발신자 표시 이름"
+  displayName: String!
+  "메시지 내용 (최대 500자)"
+  message: String!
+  "전송 시각"
+  timestamp: Time!
+}
+
+"""
+게임 내에서 발생하는 이벤트 타입입니다.
+WebSocket gameEvent 구독을 통해 실시간으로 수신됩니다.
+클라이언트는 이 이벤트에 따라 UI를 업데이트하고 효과음/애니메이션을 재생할 수 있습니다.
+"""
+enum GameEventType {
+  "플레이어가 게임방에 입장함"
+  user_JOINED
+  "플레이어가 게임방에서 퇴장함"
+  user_LEFT
+  "플레이어가 준비 완료 상태로 변경함"
+  user_READY
+  "방장이 변경됨 (이전 방장 퇴장 또는 권한 양도)"
+  HOST_CHANGED
+  "새 라운드가 시작됨 (새 퀴즈 제시)"
+  ROUND_STARTED
+  "라운드가 종료됨 (정답 공개 및 점수 갱신)"
+  ROUND_ENDED
+  "플레이어가 답변을 제출함 (다른 플레이어에게 알림)"
+  ANSWER_SUBMITTED
+  "정답을 맞춤 (본인에게만 전송, +100점)"
+  CORRECT_ANSWER
+  "오답 (본인에게만 전송, 점수 변화 없음)"
+  WRONG_ANSWER
+  "게임이 종료됨 (최종 결과 및 순위 표시)"
+  GAME_ENDED
+}
+
+"""
+게임 이벤트 상세 정보입니다.
+WebSocket을 통해 실시간으로 전달되며, 클라이언트는 type에 따라 적절한 처리를 수행해야 합니다.
+"""
+type GameEvent {
+  "이벤트 타입 (어떤 이벤트가 발생했는지)"
+  type: GameEventType!
+  "이벤트가 발생한 게임방 ID"
+  roomId: ID!
+  "이벤트 관련 플레이어 사용자명 (선택사항)"
+  username: String
+  "이벤트 관련 플레이어 표시 이름 (선택사항)"
+  displayName: String
+  "추가 데이터 (JSON 문자열, type에 따라 다름)"
+  data: String
+  "이벤트 발생 시각"
+  timestamp: Time!
+}
+
+"""
+에러 이벤트 정보입니다.
+게임 중 발생한 에러를 클라이언트에 전달합니다.
+"""
+type ErrorEvent {
+  "에러 코드 (예: INVALID_ANSWER, ROOM_FULL, PERMISSION_DENIED)"
+  code: String!
+  "사용자에게 표시할 에러 메시지 (다국어 지원 권장)"
+  message: String!
+  "에러 발생 시각"
+  timestamp: Time!
+}
+
+"""
+사용자의 연결 상태 정보입니다.
+실시간 온라인/오프라인 표시에 사용됩니다.
+"""
+type UserConnection {
+  "사용자명"
+  username: String!
+  "연결 상태 (true: 온라인, false: 오프라인)"
+  isConnected: Boolean!
+  "마지막 접속 시각"
+  lastSeen: Time!
+  "핑 (밀리초, 네트워크 지연시간)"
+  ping: Int
+}
+
+# ============================================
+# Queries
+# ============================================
+
+"""
+데이터 조회를 위한 쿼리입니다.
+읽기 전용 작업이며 서버 상태를 변경하지 않습니다.
+"""
+type Query {
+  # ===== User Queries =====
+  
+  """
+  로그인용: HangeId로 사용자를 조회합니다.
+  
+  **사용 예시:**
+  - 로그인 시 HangeId로 사용자 인증 및 조회
+  
+  **매개변수:**
+  - name: 조회할 사용자의 HangeId (로그인용 식별자)
+  
+  **반환값:**
+  - 사용자 정보 또는 null (사용자가 존재하지 않는 경우)
+  
+  **예제:**
+  ```graphql
+  query {
+    userByHangeId(name: "hange123") {
+      id
+      hangeId
+      name
+      avatarUrl
+      level
+      credit
+    }
+  }
+  ```
+  """
+  userByHangeId(name: String!): User
+  
+  """
+  사용자명(name)으로 사용자를 조회합니다.
+  
+  **사용 예시:**
+  - 일반적인 사용자 프로필 조회
+  - 게임 내 사용자 정보 표시
+  
+  **매개변수:**
+  - name: 조회할 사용자의 고유 사용자명
+  
+  **반환값:**
+  - 사용자 정보 또는 null (사용자가 존재하지 않는 경우)
+  
+  **예제:**
+  ```graphql
+  query {
+    userByName(name: "user123") {
+      id
+      name
+      avatarUrl
+      level
+      credit
+    }
+  }
+  ```
+  """
+  userByName(name: String!): User
+  
+  """
+  모든 사용자 목록을 조회합니다.
+  
+  **사용 예시:**
+  - 관리자 페이지에서 사용자 관리
+  - 친구 목록 구성
+  - 초대 가능한 사용자 목록 표시
+  
+  **매개변수:**
+  - limit: (선택사항) 반환할 최대 개수 (기본값: 50, 최대: 100)
+  - offset: (선택사항) 건너뛸 개수 (기본값: 0)
+  - search: (선택사항) 닉네임 검색어 (부분 일치)
+  - minLevel: (선택사항) 최소 레벨 필터
+  
+  **반환값:**
+  - 사용자 배열 (빈 배열 가능)
+  
+  **주의사항:**
+  - 필요한 필드만 선택하여 성능 최적화
+  - 검색어는 대소문자 구분하지 않음
+  
+  **예제:**
+  ```graphql
+  # 기본 조회 (최대 50명)
+  query {
+    users {
+      name
+      level
+    }
+  }
+  
+  # 페이지네이션
+  query {
+    users(limit: 20, offset: 40) {
+      name
+      level
+    }
+  }
+  
+  # 검색
+  query {
+    users(search: "user", minLevel: 10) {
+      name
+      level
+    }
+  }
+  ```
+  """
+  users(limit: Int, offset: Int, search: String, minLevel: Int): [User!]!
+  
+  # ===== Game Room Queries =====
+  
+  """
+  게임방 ID로 특정 게임방의 상세 정보를 조회합니다.
+  
+  **사용 예시:**
+  - 게임방 입장 전 정보 확인
+  - 게임방 상세 화면 표시
+  - 초대 링크를 통한 게임방 정보 조회
+  
+  **매개변수:**
+  - id: 조회할 게임방의 UUID
+  
+  **반환값:**
+  - 게임방 정보 또는 null (게임방이 존재하지 않는 경우)
+  
+  **예제:**
+  ```graphql
+  query {
+    gameRoom(id: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      name
+      gameType
+      status
+      users {
+        username
+        score
+        isReady
+      }
+      maxUsers
+      currentRound
+      totalRounds
+    }
+  }
+  ```
+  """
+  gameRoom(id: ID!): GameRoom
+  
+  """
+  모든 게임방 목록을 조회합니다. 다양한 필터와 정렬 옵션을 지원합니다.
+  
+  **사용 예시:**
+  - 로비 화면에서 게임방 목록 표시
+  - 특정 게임 타입의 방만 표시
+  - 입장 가능한 방 검색
+  
+  **매개변수:**
+  - gameType: (선택사항) 필터링할 게임 타입 (OX, QA, WORDCHAIN, DRAWING)
+  - status: (선택사항) 게임 상태 필터 (WAITING, PLAYING)
+  - includePrivate: (선택사항) 비공개방 포함 여부 (기본값: false)
+  - hasSpace: (선택사항) 입장 가능한 방만 (기본값: true)
+  - limit: (선택사항) 반환할 최대 개수 (기본값: 50, 최대: 100)
+  - sortBy: (선택사항) 정렬 기준 (CREATED_DESC, CREATED_ASC, userS_DESC)
+  
+  **반환값:**
+  - 게임방 배열 (빈 배열 가능)
+  
+  **예제:**
+  ```graphql
+  # 모든 게임방 조회
+  query {
+    gameRooms {
+      id
+      name
+      gameType
+      status
+      users { name }
+      maxUsers
+    }
+  }
+  
+  # OX 게임, 입장 가능한 방만
+  query {
+    gameRooms(gameType: OX, status: WAITING, hasSpace: true) {
+      id
+      name
+      status
+    }
+  }
+  
+  # 비공개방 포함, 최신순
+  query {
+    gameRooms(includePrivate: true, sortBy: CREATED_DESC, limit: 20) {
+      id
+      name
+      isPrivate
+    }
+  }
+  ```
+  """
+  gameRooms(
+    gameType: GameType
+    status: GameStatus
+    includePrivate: Boolean
+    hasSpace: Boolean
+    limit: Int
+    sortBy: String
+  ): [GameRoom!]!
+  
+  """
+  사용자가 현재 참여 중인 게임방을 조회합니다.
+  
+  **사용 예시:**
+  - 앱 재시작 시 진행 중인 게임 복구
+  - 다른 기기에서 접속 시 현재 상태 확인
+  
+  **매개변수:**
+  - username: 사용자명
+  
+  **반환값:**
+  - 참여 중인 게임방 정보 또는 null (게임방에 없는 경우)
+  
+  **예제:**
+  ```graphql
+  query {
+    myCurrentRoom(username: "user123") {
+      id
+      name
+      gameType
+      status
+      currentRound
+      users {
+        name
+        score
+      }
+    }
+  }
+  ```
+  """
+  myCurrentRoom(username: String!): GameRoom
+  
+  # ===== Quiz Queries =====
+  
+  """
+  랜덤 OX 퀴즈를 조회합니다. 이미 사용된 퀴즈는 제외됩니다.
+  
+  **사용 예시:**
+  - OX 게임 라운드 시작 시 퀴즈 가져오기
+  - 퀴즈 미리보기
+  
+  **매개변수:**
+  - roomId: (선택사항) 게임방 ID
+    - 제공 시: 해당 게임방에서 이미 사용된 퀴즈 제외
+    - 미제공 시: 완전 랜덤 퀴즈 반환
+  
+  **반환값:**
+  - OX 퀴즈 정보 또는 null (사용 가능한 퀴즈가 없는 경우)
+  
+  **주의사항:**
+  - 정답(answer)이 포함되어 있으므로 서버 측에서만 사용하거나
+  - 클라이언트에서는 정답을 제외하고 표시하세요
+  
+  **예제:**
+  ```graphql
+  query {
+    randomOXQuiz(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      category
+      difficulty
+      question
+      # answer는 클라이언트에 전달하지 않음
+    }
+  }
+  ```
+  """
+  randomOXQuiz(roomId: ID): OXQuiz
+  
+  """
+  랜덤 4지선다 퀴즈를 조회합니다. 이미 사용된 퀴즈는 제외됩니다.
+  
+  **사용 예시:**
+  - QA 게임 라운드 시작 시 퀴즈 가져오기
+  - 퀴즈 미리보기
+  
+  **매개변수:**
+  - roomId: (선택사항) 게임방 ID
+    - 제공 시: 해당 게임방에서 이미 사용된 퀴즈 제외
+    - 미제공 시: 완전 랜덤 퀴즈 반환
+  
+  **반환값:**
+  - 4지선다 퀴즈 정보 또는 null (사용 가능한 퀴즈가 없는 경우)
+  
+  **주의사항:**
+  - 정답(answer)이 포함되어 있으므로 서버 측에서만 사용하거나
+  - 클라이언트에서는 정답을 제외하고 표시하세요
+  
+  **예제:**
+  ```graphql
+  query {
+    randomQAQuiz(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      category
+      difficulty
+      question
+      options
+      imageUrl
+      # answer는 클라이언트에 전달하지 않음
+    }
+  }
+  ```
+  """
+  randomQAQuiz(roomId: ID): GeneralQuiz
+  
+  # ===== Invitation Queries =====
+  
+  """
+  특정 사용자가 받은 초대 목록을 조회합니다.
+  
+  **사용 예시:**
+  - 초대 알림 화면
+  - 대기 중인 초대 개수 표시
+  
+  **매개변수:**
+  - userId: 조회할 사용자 ID
+  - status: (선택사항) 초대 상태 필터 (PENDING, ACCEPTED, REJECTED, EXPIRED)
+  
+  **반환값:**
+  - 초대 배열 (빈 배열 가능)
+  - 최신순으로 정렬
+  
+  **예제:**
+  ```graphql
+  # 대기 중인 초대만 조회
+  query {
+    myInvitations(userId: "user123", status: PENDING) {
+      id
+      room {
+        name
+        gameType
+      }
+      inviter {
+        name
+      }
+      createdAt
+      expiresAt
+    }
+  }
+  ```
+  """
+  myInvitations(userId: ID!, status: InviteStatus): [Invitation!]!
+  
+  """
+  특정 초대 정보를 조회합니다.
+  
+  **사용 예시:**
+  - 초대 링크를 통한 정보 확인
+  - 초대 상세 정보 표시
+  
+  **매개변수:**
+  - id: 초대 ID
+  
+  **반환값:**
+  - 초대 정보 또는 null (존재하지 않는 경우)
+  
+  **예제:**
+  ```graphql
+  query {
+    invitation(id: "inv-123") {
+      id
+      status
+      room {
+        name
+        gameType
+        users { name }
+      }
+      inviter { name }
+      expiresAt
+    }
+  }
+  ```
+  """
+  invitation(id: ID!): Invitation
+  
+  # ===== user Stats Queries =====
+  
+  """
+  특정 플레이어의 통계 정보를 조회합니다. 게임 타입별로 필터링 가능합니다.
+  
+  **사용 예시:**
+  - 플레이어 프로필 화면에서 통계 표시
+  - 특정 게임 타입의 전적 확인
+  
+  **매개변수:**
+  - username: 조회할 플레이어의 사용자명 (필수)
+  - gameType: (선택사항) 게임 타입 ("OX", "QA", "WORDCHAIN")
+    - 제공 시: 해당 게임 타입의 통계만 반환
+    - 미제공 시: 모든 게임 타입의 통계 반환
+  
+  **반환값:**
+  - 통계 정보 배열 (빈 배열 가능)
+  - 각 게임 타입별로 별도의 통계 객체 반환
+  
+  **예제:**
+  ```graphql
+  # 모든 게임 타입 통계 조회
+  query {
+    userStats(username: "user123") {
+      gameType
+      totalGames
+      totalWins
+      totalScore
+    }
+  }
+  
+  # OX 게임 통계만 조회
+  query {
+    userStats(username: "user123", gameType: "OX") {
+      totalGames
+      totalWins
+      totalScore
+    }
+  }
+  ```
+  """
+  userStats(userId: ID!, gameType: String): [UserStats!]!
+  
+  """
+  리더보드 상위 랭커를 조회합니다.
+  
+  **사용 예시:**
+  - 리더보드 화면 표시
+  - 상위 플레이어 목록
+  - 게임 타입별 랭킹
+  
+  **매개변수:**
+  - gameType: 게임 타입 ("OX", "QA", "WORDCHAIN") - 필수
+  - limit: (선택사항) 반환할 최대 개수
+    - 기본값: 10
+    - 최대값: 100
+  
+  **반환값:**
+  - 통계 정보 배열 (총점 기준 내림차순 정렬)
+  
+  **정렬 기준:**
+  1. totalScore (총 획득 점수) - 내림차순
+  2. totalWins (승리 횟수) - 내림차순
+  3. totalGames (플레이 횟수) - 오름차순
+  
+  **예제:**
+  ```graphql
+  # 상위 10명 조회
+  query {
+    leaderboard(gameType: "QA", limit: 10) {
+      username
+      totalScore
+      totalWins
+      totalGames
+    }
+  }
+  ```
+  """
+  leaderboard(gameType: String!, limit: Int): [UserStats!]!
+  
+  # ===== Game Config & Data =====
+  
+  """
+  게임 전역 설정 정보를 조회합니다.
+  
+  **사용 예시:**
+  - 앱 초기화 시 설정값 로드
+  - UI 제한값 설정 (최대 플레이어 수 등)
+  - 타이머 설정
+  
+  **반환값:**
+  - 게임 설정 정보 (항상 반환)
+  
+  **주의사항:**
+  - 이 값들은 서버에서 관리되며 클라이언트에서 변경 불가
+  - 앱 시작 시 한 번 조회하여 캐싱 권장
+  
+  **예제:**
+  ```graphql
+  query {
+    gameConfig {
+      maxUsers
+      roundDuration
+      roundsPerGame
+    }
+  }
+  ```
+  """
+  gameConfig: GameConfig!
+  
+  """
+  끝말잇기 게임용 랜덤 시작 단어를 조회합니다.
+  
+  **사용 예시:**
+  - 끝말잇기 게임 시작 시 시작 단어 표시
+  - 연습 모드에서 단어 예시 표시
+  
+  **반환값:**
+  - 일본어 단어와 힌트 (항상 반환)
+  
+  **단어 형식:**
+  - 히라가나 또는 카타카나
+  - 2자 이상
+  - ん으로 끝나지 않음
+  
+  **예제:**
+  ```graphql
+  query {
+    randomWordchainPrompt {
+      word
+      hint
+    }
+  }
+  ```
+  """
+  randomWordchainPrompt: WordchainPrompt!
+  
+  """
+  단어의 유효성을 검증합니다 (끝말잇기용).
+  
+  **사용 예시:**
+  - 플레이어가 입력한 단어의 유효성 실시간 확인
+  - 단어 제출 전 클라이언트 측 검증
+  
+  **매개변수:**
+  - word: 검증할 일본어 단어 (히라가나 또는 카타카나)
+  
+  **반환값:**
+  - true: 유효한 단어 (사전에 존재하며 규칙 준수)
+  - false: 무효한 단어
+  
+  **검증 규칙:**
+  1. 2자 이상
+  2. 히라가나 또는 카타카나만 허용
+  3. ん으로 끝나면 안 됨
+  4. 사전에 등록된 단어여야 함
+  
+  **예제:**
+  ```graphql
+  query {
+    isValidWord(word: "りんご")  # true
+  }
+  
+  query {
+    isValidWord(word: "あいうえん")  # false (ん으로 끝남)
+  }
+  
+  query {
+    isValidWord(word: "あ")  # false (너무 짧음)
+  }
+  ```
+  """
+  isValidWord(word: String!): Boolean!
+}
+
+# ============================================
+# Mutations
+# ============================================
+
+"""
+데이터 변경을 위한 뮤테이션입니다.
+서버 상태를 변경하는 모든 작업은 mutation을 통해 수행됩니다.
+"""
+type Mutation {
+  # ===== User Mutations =====
+  
+  """
+  새 사용자 계정을 생성합니다.
+  
+  **사용 시점:**
+  - 회원가입 프로세스
+  - 게스트 계정 생성
+  
+  **매개변수:**
+  - input: 사용자 생성 정보 (username, displayName 필수)
+  
+  **반환값:**
+  - 생성된 사용자 정보 (id 포함)
+  
+  **에러 상황:**
+  - 이미 존재하는 username
+  - 유효하지 않은 형식 (3-20자, 영문/숫자/언더스코어만)
+  - 이메일 형식 오류
+  
+  **예제:**
+  ```graphql
+  mutation {
+    createUser(input: {
+      userName: "newuser123"
+      avatarUrl: "https://example.com/avatar.jpg"
+    }) {
+      id
+      userName
+      level
+      credit
+      createdAt
+    }
+  }
+  ```
+  """
+  createUser(input: CreateUserInput!): User!
+  
+  """
+  사용자 프로필 정보를 수정합니다.
+  
+  **사용 시점:**
+  - 프로필 편집 화면
+  - 설정 페이지
+  
+  **매개변수:**
+  - userName: 수정할 사용자의 userName (변경 불가)
+  - input: 수정할 정보 (모든 필드 선택사항)
+  
+  **반환값:**
+  - 수정된 사용자 정보
+  
+  **주의사항:**
+  - userName은 변경 불가
+  - 본인 계정만 수정 가능 (인증 필요)
+  
+  **예제:**
+  ```graphql
+  mutation {
+    updateUser(
+      userName: "user123"
+      input: {
+        avatarUrl: "https://example.com/avatar.jpg"
+        level: 5
+        credit: 1000
+      }
+    ) {
+      userName
+      avatarUrl
+      level
+      credit
+      updatedAt
+    }
+  }
+  ```
+  """
+  updateUser(userName: String!, input: UpdateUserInput!): User!
+  
+  """
+  사용자 계정을 삭제합니다.
+  
+  **사용 시점:**
+  - 계정 탈퇴
+  - 관리자 계정 삭제
+  
+  **매개변수:**
+  - userName: 삭제할 사용자 닉네임
+  
+  **반환값:**
+  - true: 삭제 성공
+  - false: 삭제 실패
+  
+  **주의사항:**
+  - 관련된 모든 데이터가 삭제될 수 있음
+  - 본인 계정만 삭제 가능 (또는 관리자 권한 필요)
+  - 게임방에 있는 경우 먼저 퇴장 필요
+  
+  **예제:**
+  ```graphql
+  mutation {
+    deleteUser(userName: "user123")
+  }
+  ```
+  """
+  deleteUser(userName: String!): Boolean!
+  
+  # ===== Game Room Mutations =====
+  
+  """
+  새 게임방을 생성합니다. 생성자가 자동으로 방장이 됩니다.
+  
+  **사용 시점:**
+  - 로비에서 "방 만들기" 버튼 클릭
+  
+  **매개변수:**
+  - input: 게임방 설정 정보
+  
+  **반환값:**
+  - 생성된 게임방 정보 (생성자가 첫 번째 플레이어로 입장된 상태)
+  
+  **자동 처리:**
+  - hostUsername의 사용자가 자동으로 users에 추가됨
+  - status는 WAITING으로 설정됨
+  - currentRound는 0으로 초기화됨
+  
+  **에러 상황:**
+  - 존재하지 않는 hostUsername
+  - 이미 다른 게임방에 있는 경우
+  - 유효하지 않은 maxUsers 또는 totalRounds 값
+  
+  **예제:**
+  ```graphql
+  mutation {
+    createGameRoom(input: {
+      name: "초보자 환영 방"
+      gameType: QA
+      maxUsers: 4
+      totalRounds: 5
+      hostUsername: "user123"
+      isPrivate: false
+    }) {
+      id
+      name
+      gameType
+      status
+      hostUsername
+      users {
+        username
+        displayName
+      }
+    }
+  }
+  ```
+  """
+  createGameRoom(input: CreateGameRoomInput!): GameRoom!
+  
+  """
+  게임방 설정을 변경합니다. 방장만 실행 가능합니다.
+  
+  **사용 시점:**
+  - 게임 시작 전 설정 조정
+  
+  **매개변수:**
+  - roomId: 수정할 게임방 ID
+  - input: 변경할 설정 (모든 필드 선택사항)
+  
+  **반환값:**
+  - 수정된 게임방 정보
+  
+  **제약사항:**
+  - 방장만 실행 가능
+  - 게임 진행 중(PLAYING)에는 변경 불가
+  - maxUsers는 현재 인원보다 작게 설정 불가
+  
+  **예제:**
+  ```graphql
+  mutation {
+    updateGameRoom(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      input: {
+        name: "변경된 방 이름"
+        maxUsers: 6
+        totalRounds: 7
+      }
+    ) {
+      id
+      name
+      maxUsers
+      totalRounds
+    }
+  }
+  ```
+  """
+  updateGameRoom(roomId: ID!, input: UpdateGameRoomInput!): GameRoom!
+  
+  """
+  게임방에 입장합니다. 비공개방은 비밀번호가 필요합니다.
+  
+  **사용 시점:**
+  - 로비에서 게임방 선택
+  - 초대 링크를 통한 입장
+  
+  **매개변수:**
+  - roomId: 입장할 게임방 ID
+  - username: 입장하는 사용자명
+  - password: (선택사항) 비공개방인 경우 비밀번호
+  
+  **반환값:**
+  - 입장한 게임방 정보 (업데이트된 users 포함)
+  
+  **에러 상황:**
+  - 게임방이 가득 참 (maxUsers 도달)
+  - 잘못된 비밀번호 (비공개방)
+  - 게임 진행 중(PLAYING) 상태
+  - 이미 다른 게임방에 있는 경우
+  
+  **예제:**
+  ```graphql
+  # 공개 방 입장
+  mutation {
+    joinGameRoom(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      username: "user456"
+    ) {
+      id
+      users {
+        username
+        displayName
+      }
+    }
+  }
+  
+  # 비공개 방 입장
+  mutation {
+    joinGameRoom(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      username: "user456"
+      password: "1234"
+    ) {
+      id
+      users { username }
+    }
+  }
+  ```
+  """
+  joinGameRoom(roomId: ID!, userId: ID!, password: String): GameRoom!
+  
+  """
+  게임방에서 퇴장합니다. 마지막 플레이어가 퇴장하면 방이 자동으로 삭제됩니다.
+  
+  **사용 시점:**
+  - 게임방에서 나가기 버튼 클릭
+  - 앱 종료 또는 연결 끊김
+  
+  **매개변수:**
+  - roomId: 퇴장할 게임방 ID
+  - username: 퇴장하는 사용자명
+  
+  **반환값:**
+  - 업데이트된 게임방 정보 (마지막 플레이어 퇴장 시 null)
+  
+  **자동 처리:**
+  - 방장이 퇴장하면 다음 플레이어에게 자동으로 방장 권한 이전
+  - 마지막 플레이어 퇴장 시 게임방 자동 삭제
+  - 게임 진행 중 퇴장 시 해당 플레이어는 0점 처리
+  
+  **예제:**
+  ```graphql
+  mutation {
+    leaveGameRoom(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      username: "user456"
+    ) {
+      id
+      users {
+        username
+      }
+      hostUsername
+    }
+  }
+  ```
+  """
+  leaveGameRoom(roomId: ID!, userId: ID!): GameRoom
+  
+  """
+  게임방을 삭제합니다. 방장만 실행 가능합니다.
+  
+  **사용 시점:**
+  - 방장이 강제로 방을 닫을 때
+  
+  **매개변수:**
+  - roomId: 삭제할 게임방 ID
+  
+  **반환값:**
+  - true: 삭제 성공
+  
+  **제약사항:**
+  - 방장만 실행 가능
+  - 모든 플레이어가 강제 퇴장됨
+  
+  **예제:**
+  ```graphql
+  mutation {
+    deleteGameRoom(roomId: "550e8400-e29b-41d4-a716-446655440000")
+  }
+  ```
+  """
+  deleteGameRoom(roomId: ID!): Boolean!
+  
+  """
+  방장 권한을 다른 플레이어에게 양도합니다. 방장만 실행 가능합니다.
+  
+  **사용 시점:**
+  - 방장이 다른 플레이어에게 권한 위임
+  
+  **매개변수:**
+  - roomId: 게임방 ID
+  - newHostUsername: 새 방장의 사용자명
+  
+  **반환값:**
+  - 업데이트된 게임방 정보 (hostUsername 변경됨)
+  
+  **제약사항:**
+  - 현재 방장만 실행 가능
+  - newHostUsername은 게임방에 있는 플레이어여야 함
+  
+  **예제:**
+  ```graphql
+  mutation {
+    transferHost(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      newHostUsername: "user456"
+    ) {
+      id
+      hostUsername
+    }
+  }
+  ```
+  """
+  transferHost(roomId: ID!, newHostUserId: ID!): GameRoom!
+  
+  """
+  플레이어의 준비 상태를 변경합니다.
+  
+  **사용 시점:**
+  - 게임 시작 전 준비 버튼 클릭
+  
+  **매개변수:**
+  - roomId: 게임방 ID
+  - username: 플레이어 사용자명
+  - ready: 준비 상태 (true: 준비 완료, false: 준비 취소)
+  
+  **반환값:**
+  - 업데이트된 게임방 정보 (Apollo Cache 자동 업데이트용)
+  
+  **주의사항:**
+  - 방장은 준비 상태와 관계없이 게임 시작 가능
+  - 모든 플레이어(방장 제외)가 준비 완료해야 게임 시작 가능
+  
+  **예제:**
+  ```graphql
+  # 준비 완료
+  mutation {
+    setReady(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      username: "user456"
+      ready: true
+    ) {
+      id
+      users {
+        username
+        isReady
+      }
+    }
+  }
+  ```
+  """
+  setReady(roomId: ID!, userId: ID!, ready: Boolean!): GameRoom!
+  
+  # ===== Invitation Mutations =====
+  
+  """
+  다른 사용자를 게임방에 초대합니다.
+  
+  **사용 시점:**
+  - 친구 초대
+  - 특정 플레이어 초대
+  
+  **매개변수:**
+  - roomId: 게임방 ID
+  - inviteeUsername: 초대할 사용자명
+  
+  **반환값:**
+  - 생성된 초대 정보
+  
+  **자동 처리:**
+  - 초대는 PENDING 상태로 생성됨
+  - 24시간 후 자동 만료
+  - 피초대자에게 알림 전송 (구현 필요)
+  
+  **제약사항:**
+  - 게임방이 가득 찬 경우 초대 불가
+  - 이미 게임방에 있는 사용자는 초대 불가
+  
+  **예제:**
+  ```graphql
+  mutation {
+    inviteUser(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      inviteeUsername: "friend123"
+    ) {
+      id
+      status
+      createdAt
+      expiresAt
+    }
+  }
+  ```
+  """
+  inviteUser(roomId: ID!, inviteeUsername: String!): Invitation!
+  
+  """
+  여러 사용자를 한 번에 게임방에 초대합니다.
+  
+  **사용 시점:**
+  - 여러 친구를 동시에 초대
+  - 파티 초대
+  
+  **매개변수:**
+  - roomId: 게임방 ID
+  - inviteeUsernames: 초대할 사용자명 배열 (최대 10명)
+  
+  **반환값:**
+  - 생성된 초대 목록
+  
+  **예제:**
+  ```graphql
+  mutation {
+    inviteUsers(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      inviteeUsernames: ["friend1", "friend2", "friend3"]
+    ) {
+      id
+      invitee { userName }
+      status
+    }
+  }
+  ```
+  """
+  inviteUsers(roomId: ID!, inviteeUsernames: [String!]!): [Invitation!]!
+  
+  """
+  초대를 수락하고 게임방에 입장합니다.
+  
+  **사용 시점:**
+  - 초대 알림에서 수락 버튼 클릭
+  
+  **매개변수:**
+  - invitationId: 초대 ID
+  
+  **반환값:**
+  - 입장한 게임방 정보
+  
+  **자동 처리:**
+  - 초대 상태가 ACCEPTED로 변경됨
+  - 사용자가 게임방에 자동 입장됨
+  
+  **에러 상황:**
+  - 만료된 초대
+  - 게임방이 가득 참
+  - 게임 진행 중
+  
+  **예제:**
+  ```graphql
+  mutation {
+    acceptInvite(invitationId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      name
+      users { username }
+    }
+  }
+  ```
+  """
+  acceptInvite(invitationId: ID!): GameRoom!
+  
+  """
+  초대를 거절합니다.
+  
+  **사용 시점:**
+  - 초대 알림에서 거절 버튼 클릭
+  
+  **매개변수:**
+  - invitationId: 초대 ID
+  
+  **반환값:**
+  - true: 거절 성공
+  
+  **자동 처리:**
+  - 초대 상태가 REJECTED로 변경됨
+  
+  **예제:**
+  ```graphql
+  mutation {
+    rejectInvite(invitationId: "550e8400-e29b-41d4-a716-446655440000")
+  }
+  ```
+  """
+  rejectInvite(invitationId: ID!): Boolean!
+  
+  # ===== Game Flow Mutations =====
+  
+  """
+  게임을 시작합니다. 방장만 실행 가능하며 최소 2명 필요합니다.
+  
+  **사용 시점:**
+  - 모든 플레이어가 준비 완료 후 시작 버튼 클릭
+  
+  **매개변수:**
+  - roomId: 게임방 ID
+  
+  **반환값:**
+  - 업데이트된 게임방 정보 (status: PLAYING)
+  
+  **자동 처리:**
+  - status가 PLAYING으로 변경됨
+  - currentRound가 1로 설정됨
+  - 첫 번째 퀴즈가 자동으로 제시됨 (roundStarted 이벤트 발생)
+  - 모든 플레이어의 준비 상태가 초기화됨
+  
+  **제약사항:**
+  - 방장만 실행 가능
+  - 최소 2명 이상의 플레이어 필요
+  - 모든 플레이어(방장 제외)가 준비 완료 상태여야 함
+  
+  **예제:**
+  ```graphql
+  mutation {
+    startGame(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      status
+      currentRound
+      users {
+        username
+        score
+        isReady
+      }
+    }
+  }
+  ```
+  """
+  startGame(roomId: ID!): GameRoom!
+  
+  """
+  다음 라운드를 시작합니다. 일반적으로 서버가 자동으로 호출합니다.
+  
+  **사용 시점:**
+  - 이전 라운드 종료 후 자동 호출
+  - 관리자가 강제로 다음 라운드 진행
+  
+  **매개변수:**
+  - roomId: 게임방 ID
+  
+  **반환값:**
+  - 업데이트된 게임방 정보 (currentRound 증가)
+  
+  **자동 처리:**
+  - currentRound가 1 증가
+  - 새로운 퀴즈가 자동으로 제시됨
+  - 이전 라운드의 답변이 초기화됨
+  - totalRounds 도달 시 게임 자동 종료
+  
+  **주의사항:**
+  - 클라이언트에서 직접 호출할 필요 없음 (서버가 자동 처리)
+  
+  **예제:**
+  ```graphql
+  mutation {
+    startRound(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      currentRound
+      totalRounds
+    }
+  }
+  ```
+  """
+  startRound(roomId: ID!): GameRoom!
+  
+  """
+  답변 제출
+  
+  **사용 시점:**
+  - 플레이어가 퀴즈 선택지를 선택했을 때
+  
+  **매개변수:**
+  - roomId: 게임방 ID
+  - username: 답변 제출자 사용자명
+  - answer: 답변 값
+    - OX 게임: "true" 또는 "false"
+    - QA 게임: "0", "1", "2", "3" (선택지 인덱스)
+    - WORDCHAIN 게임: 일본어 단어 (히라가나/카타카나)
+  
+  **반환값:**
+  - true: 제출 성공 (정답 여부와 무관)
+  
+  **자동 처리:**
+  - 정답이면 플레이어 score +100점
+  - 정답/오답 이벤트가 해당 플레이어에게 전송됨
+  - 모든 플레이어가 답변 제출 시 라운드 자동 종료
+  
+  **에러 상황:**
+  - 게임 진행 중이 아님
+  - 이미 답변 제출함
+  - 유효하지 않은 답변 형식
+  
+  **예제:**
+  ```graphql
+  # OX 게임
+  mutation {
+    submitAnswer(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      username: "user123"
+      answer: "true"
+    )
+  }
+  
+  # QA 게임
+  mutation {
+    submitAnswer(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      username: "user123"
+      answer: "2"
+    ) {
+      success
+      isCorrect
+      earnedScore
+      totalScore
+      explanation
+    }
+  }
+  
+  # WORDCHAIN 게임
+  mutation {
+    submitAnswer(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      username: "user123"
+      answer: "ごりら"
+    ) {
+      success
+      isCorrect
+      earnedScore
+      totalScore
+    }
+  }
+  ```
+  """
+  submitAnswer(roomId: ID!, userId: ID!, answer: String!): AnswerResult!
+  
+  """
+  게임을 강제로 종료합니다. 방장만 실행 가능합니다.
+  
+  **사용 시점:**
+  - 게임 도중 강제 종료
+  - 비정상 상황에서 게임 초기화
+  
+  **매개변수:**
+  - roomId: 게임방 ID
+  
+  **반환값:**
+  - 업데이트된 게임방 정보 (status: FINISHED)
+  
+  **자동 처리:**
+  - status가 FINISHED로 변경됨
+  - 최종 결과가 모든 플레이어에게 전송됨
+  - 잠시 후 status가 WAITING으로 변경됨
+  
+  **제약사항:**
+  - 방장만 실행 가능
+  
+  **예제:**
+  ```graphql
+  mutation {
+    endGame(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      status
+      users {
+        username
+        score
+      }
+    }
+  }
+  ```
+  """
+  endGame(roomId: ID!): GameRoom!
+  
+  # ===== Chat Mutations =====
+  
+  """
+  게임방에 채팅 메시지를 전송합니다.
+  
+  **사용 시점:**
+  - 게임 중 채팅
+  - 대기 중 채팅
+  
+  **매개변수:**
+  - roomId: 게임방 ID
+  - username: 발신자 사용자명
+  - message: 메시지 내용 (최대 500자)
+  
+  **반환값:**
+  - 전송된 채팅 메시지 정보
+  
+  **자동 처리:**
+  - 메시지가 게임방의 모든 플레이어에게 실시간 전송됨
+  - chatMessage subscription 이벤트 발생
+  
+  **제약사항:**
+  - 게임방에 있는 플레이어만 전송 가능
+  - 메시지 길이 제한: 500자
+  - 스팸 방지: 1초당 최대 5개 (구현 권장)
+  
+  **예제:**
+  ```graphql
+  mutation {
+    sendChat(
+      roomId: "550e8400-e29b-41d4-a716-446655440000"
+      username: "user123"
+      message: "안녕하세요! 잘 부탁드립니다."
+    ) {
+      id
+      message
+      timestamp
+    }
+  }
+  ```
+  """
+  sendChat(roomId: ID!, username: String!, message: String!): ChatMessage!
+}
+
+# ============================================
+# Subscriptions (Real-time Updates via WebSocket)
+# ============================================
+
+"""
+실시간 데이터 업데이트를 위한 구독입니다.
+WebSocket 연결을 통해 서버에서 클라이언트로 이벤트를 푸시합니다.
+
+**연결 방법:**
+1. WebSocket 엔드포인트 연결: ws://server/graphql
+2. GraphQL Subscription 시작
+3. 이벤트 수신 대기
+
+**주의사항:**
+- 각 구독은 별도의 WebSocket 연결 필요
+- 불필요한 구독은 해제하여 리소스 절약
+- 연결 끊김 시 자동 재연결 구현 권장
+"""
+type Subscription {
+  # ===== Lobby Subscriptions =====
+  
+  """
+  로비의 게임방 목록 변경을 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 로비 화면에 있을 때
+  
+  **이벤트 발생 시점:**
+  - 새 게임방 생성
+  - 게임방 삭제
+  - 게임방 상태 변경 (WAITING, PLAYING, FINISHED)
+  - 게임방 설정 변경
+  
+  **반환값:**
+  - 전체 게임방 목록 (매 이벤트마다)
+  
+  **최적화:**
+  - 로비를 벗어나면 구독 해제
+  - 변경된 방만 업데이트하도록 클라이언트 측에서 처리
+  
+  **예제:**
+  ```graphql
+  subscription {
+    lobbyUpdated {
+      id
+      name
+      gameType
+      status
+      users { username }
+      maxUsers
+      isPrivate
+    }
+  }
+  ```
+  """
+  lobbyUpdated: [GameRoom!]!
+  
+  """
+  특정 게임 타입의 게임방 목록 변경을 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 게임 타입별 필터링된 로비 화면
+  
+  **이벤트 발생 시점:**
+  - lobbyUpdated와 동일하지만 특정 gameType만 필터링
+  
+  **반환값:**
+  - 해당 게임 타입의 게임방 목록
+  
+  **예제:**
+  ```graphql
+  subscription {
+    gameRoomsUpdated {
+      id
+      name
+      gameType
+      users { username }
+    }
+  }
+  ```
+  """
+  gameRoomsUpdated: [GameRoom!]!
+  
+  # ===== Room Subscriptions =====
+  
+  """
+  특정 게임방의 상태 변경을 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 게임방에 입장한 후
+  - 게임방 상세 정보를 표시할 때
+  
+  **이벤트 발생 시점:**
+  - 플레이어 입장/퇴장
+  - 게임 시작/종료
+  - 라운드 변경
+  - 점수 업데이트
+  - 방 설정 변경
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 업데이트된 게임방 전체 정보
+  
+  **주의사항:**
+  - 게임방을 나가면 즉시 구독 해제
+  - 모든 게임방 관련 UI 업데이트의 기본 구독
+  
+  **예제:**
+  ```graphql
+  subscription {
+    gameRoomUpdated(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      name
+      status
+      currentRound
+      totalRounds
+      users {
+        username
+        displayName
+        score
+        isReady
+      }
+      hostUsername
+    }
+  }
+  ```
+  """
+  gameRoomUpdated(roomId: ID!): GameRoom!
+  
+  """
+  플레이어 입장 이벤트를 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 새 플레이어 입장 시 환영 메시지 표시
+  - 입장 애니메이션 재생
+  
+  **이벤트 발생 시점:**
+  - joinGameRoom mutation 성공 후
+  - acceptInvite mutation 성공 후
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 입장한 플레이어 정보
+  
+  **예제:**
+  ```graphql
+  subscription {
+    userJoined(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      username
+      displayName
+    }
+  }
+  ```
+  """
+  userJoined(roomId: ID!): GameUser!
+  
+  """
+  플레이어 퇴장 이벤트를 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 플레이어 퇴장 시 알림 표시
+  - 퇴장 애니메이션 재생
+  
+  **이벤트 발생 시점:**
+  - leaveGameRoom mutation 실행 후
+  - 연결 끊김
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 퇴장한 플레이어 정보
+  
+  **예제:**
+  ```graphql
+  subscription {
+    userLeft(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      username
+      displayName
+    }
+  }
+  ```
+  """
+  userLeft(roomId: ID!): GameUser!
+  
+  """
+  플레이어 준비 상태 변경을 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 대기 화면에서 플레이어 준비 상태 표시
+  
+  **이벤트 발생 시점:**
+  - setReady mutation 실행 후
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 상태가 변경된 플레이어 정보
+  
+  **예제:**
+  ```graphql
+  subscription {
+    userReadyUpdated(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      username
+      isReady
+    }
+  }
+  ```
+  """
+  userReadyUpdated(roomId: ID!): GameUser!
+  
+  """
+  방장 변경 이벤트를 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 방장 아이콘 업데이트
+  - 방장 권한 UI 표시/숨김
+  
+  **이벤트 발생 시점:**
+  - transferHost mutation 실행 후
+  - 방장 퇴장 시 자동 위임
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 새로운 방장 플레이어 정보
+  
+  **예제:**
+  ```graphql
+  subscription {
+    hostChanged(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      username
+      displayName
+    }
+  }
+  ```
+  """
+  hostChanged(roomId: ID!): GameUser!
+  
+  # ===== Game Flow Subscriptions =====
+  
+  """
+  게임 시작 이벤트를 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 대기 화면에서 게임 화면으로 전환
+  
+  **이벤트 발생 시점:**
+  - startGame mutation 실행 후
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 업데이트된 게임방 정보 (status: PLAYING)
+  
+  **클라이언트 처리:**
+  1. 대기 화면 닫기
+  2. 게임 화면 표시
+  3. 게임 시작 애니메이션 재생
+  4. 첫 번째 퀴즈 대기 (roundStarted 이벤트로 전달됨)
+  
+  **예제:**
+  ```graphql
+  subscription {
+    gameStarted(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      status
+      currentRound
+      users {
+        username
+        score
+      }
+    }
+  }
+  ```
+  """
+  gameStarted(roomId: ID!): GameRoom!
+  
+  """
+  라운드 시작 이벤트를 실시간으로 구독합니다. 새 퀴즈가 포함됩니다.
+  
+  **사용 시점:**
+  - 새 퀴즈 표시
+  - 라운드 타이머 시작
+  
+  **이벤트 발생 시점:**
+  - startGame 후 자동
+  - startRound 실행 후
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 업데이트된 게임방 정보 (currentRound 증가)
+  
+  **주의사항:**
+  - 이벤트 데이터에 퀴즈 정보가 포함됨 (gameEvent를 통해)
+  - 클라이언트는 퀴즈를 파싱하여 표시
+  
+  **클라이언트 처리:**
+  1. 라운드 번호 업데이트
+  2. 퀴즈 표시
+  3. 타이머 시작 (30초)
+  4. 답변 입력 활성화
+  
+  **예제:**
+  ```graphql
+  subscription {
+    roundStarted(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      currentRound
+      totalRounds
+    }
+  }
+  ```
+  """
+  roundStarted(roomId: ID!): GameRoom!
+  
+  """
+  라운드 종료 이벤트를 실시간으로 구독합니다. 점수와 정답이 포함됩니다.
+  
+  **사용 시점:**
+  - 정답 공개
+  - 점수 업데이트
+  - 순위 표시
+  
+  **이벤트 발생 시점:**
+  - 모든 플레이어가 답변 제출
+  - 라운드 제한 시간 종료
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 업데이트된 게임방 정보 (users.score 업데이트됨)
+  
+  **클라이언트 처리:**
+  1. 정답 공개
+  2. 점수 애니메이션
+  3. 맞춘 플레이어 표시
+  4. 잠시 후 다음 라운드 대기
+  
+  **예제:**
+  ```graphql
+  subscription {
+    roundEnded(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      users {
+        username
+        score
+      }
+    }
+  }
+  ```
+  """
+  roundEnded(roomId: ID!): GameRoom!
+  
+  """
+  게임 종료 이벤트를 실시간으로 구독합니다. 최종 결과가 포함됩니다.
+  
+  **사용 시점:**
+  - 게임 결과 화면 표시
+  
+  **이벤트 발생 시점:**
+  - 모든 라운드 완료
+  - endGame mutation 실행
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 최종 게임방 정보 (status: FINISHED)
+  
+  **클라이언트 처리:**
+  1. 게임 화면 닫기
+  2. 결과 화면 표시
+  3. 순위 애니메이션
+  4. 통계 업데이트
+  5. 잠시 후 대기 화면으로 전환
+  
+  **예제:**
+  ```graphql
+  subscription {
+    gameEnded(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      status
+      users {
+        username
+        displayName
+        score
+      }
+    }
+  }
+  ```
+  """
+  gameEnded(roomId: ID!): GameRoom!
+  
+  # ===== Chat Subscriptions =====
+  
+  """
+  채팅 메시지를 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 게임방 채팅 창
+  
+  **이벤트 발생 시점:**
+  - sendChat mutation 실행 후
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 채팅 메시지 정보
+  
+  **클라이언트 처리:**
+  1. 메시지를 채팅 창에 추가
+  2. 본인 메시지는 다른 스타일로 표시
+  3. 새 메시지 알림 (화면 하단에 있는 경우)
+  4. 자동 스크롤
+  
+  **예제:**
+  ```graphql
+  subscription {
+    chatMessage(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      id
+      username
+      displayName
+      message
+      timestamp
+    }
+  }
+  ```
+  """
+  chatMessage(roomId: ID!): ChatMessage!
+  
+  # ===== Event Subscriptions =====
+  
+  """
+  모든 게임 이벤트를 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 모든 게임 관련 알림 수신
+  - 효과음/애니메이션 트리거
+  
+  **이벤트 발생 시점:**
+  - 모든 GameEventType에 해당하는 상황
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 게임 이벤트 정보 (type, data 포함)
+  
+  **이벤트 타입별 처리:**
+  - user_JOINED: 입장 알림
+  - user_LEFT: 퇴장 알림
+  - user_READY: 준비 상태 변경
+  - HOST_CHANGED: 방장 변경 알림
+  - ROUND_STARTED: 새 퀴즈 제시 (data에 퀴즈 JSON)
+  - ROUND_ENDED: 정답 공개 (data에 정답 JSON)
+  - ANSWER_SUBMITTED: 다른 플레이어가 답변 제출
+  - CORRECT_ANSWER: 정답 효과음/애니메이션 (본인에게만)
+  - WRONG_ANSWER: 오답 효과 (본인에게만)
+  - GAME_ENDED: 게임 종료 알림
+  
+  **data 필드 파싱:**
+  - JSON 문자열을 파싱하여 추가 정보 획득
+  - 각 이벤트 타입마다 다른 구조
+  
+  **예제:**
+  ```graphql
+  subscription {
+    gameEvent(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      type
+      username
+      displayName
+      data
+      timestamp
+    }
+  }
+  ```
+  
+  **data 예시:**
+  ```json
+  // ROUND_STARTED
+  {
+    "quiz": {
+      "id": "123",
+      "question": "지구는 평평하다",
+      "category": "과학"
+    }
+  }
+  
+  // CORRECT_ANSWER
+  {
+    "score": 100,
+    "totalScore": 300
+  }
+  
+  // GAME_ENDED
+  {
+    "winner": "user123",
+    "rankings": [...]
+  }
+  ```
+  """
+  gameEvent(roomId: ID!): GameEvent!
+  
+  """
+  에러 이벤트를 실시간으로 구독합니다.
+  
+  **사용 시점:**
+  - 에러 알림 표시
+  - 에러 로깅
+  
+  **이벤트 발생 시점:**
+  - 서버 측 에러 발생
+  - 유효하지 않은 요청
+  - 권한 없는 작업 시도
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 에러 이벤트 정보
+  
+  **주요 에러 코드:**
+  - INVALID_ANSWER: 유효하지 않은 답변
+  - ROOM_FULL: 게임방이 가득 참
+  - PERMISSION_DENIED: 권한 없음
+  - GAME_NOT_STARTED: 게임이 시작되지 않음
+  - ALREADY_ANSWERED: 이미 답변 제출함
+  - INVALID_WORD: 유효하지 않은 단어 (끝말잇기)
+  
+  **클라이언트 처리:**
+  1. 에러 메시지를 토스트/스낵바로 표시
+  2. 적절한 에러 아이콘/색상 사용
+  3. 에러 로그 저장 (디버깅용)
+  
+  **예제:**
+  ```graphql
+  subscription {
+    error(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      code
+      message
+      timestamp
+    }
+  }
+  ```
+  """
+  error(roomId: ID!): ErrorEvent!
+  
+  # ===== user-specific Subscriptions =====
+  
+  """
+  특정 플레이어에게 전송되는 이벤트를 구독합니다.
+  
+  **사용 시점:**
+  - 개인화된 알림 (정답/오답)
+  - 개인 통계 업데이트
+  - 개인 초대 알림
+  
+  **이벤트 발생 시점:**
+  - CORRECT_ANSWER: 정답 맞춤
+  - WRONG_ANSWER: 오답
+  - INVITED: 게임방 초대 받음
+  - LEVEL_UP: 레벨 상승
+  - ACHIEVEMENT_UNLOCKED: 업적 해금
+  
+  **매개변수:**
+  - username: 구독할 플레이어 사용자명
+  
+  **반환값:**
+  - 개인 이벤트 정보
+  
+  **예제:**
+  ```graphql
+  subscription {
+    myEvents(username: "user123") {
+      type
+      data
+      timestamp
+    }
+  }
+  ```
+  """
+  myEvents(username: String!): GameEvent!
+  
+  """
+  특정 사용자의 초대 알림을 구독합니다.
+  
+  **사용 시점:**
+  - 알림 센터
+  - 초대 배지 표시
+  
+  **이벤트 발생 시점:**
+  - inviteUser 또는 inviteUsers mutation 실행 후
+  
+  **매개변수:**
+  - userId: 구독할 사용자 ID
+  
+  **반환값:**
+  - 새로운 초대 정보
+  
+  **예제:**
+  ```graphql
+  subscription {
+    invitationReceived(userId: "user123") {
+      id
+      room {
+        name
+        gameType
+      }
+      inviter {
+        userName
+      }
+      expiresAt
+    }
+  }
+  ```
+  """
+  invitationReceived(userId: ID!): Invitation!
+  
+  # ===== Connection Status =====
+  
+  """
+  게임방 플레이어들의 연결 상태를 구독합니다.
+  
+  **사용 시점:**
+  - 플레이어 온라인/오프라인 표시
+  - 네트워크 상태 모니터링
+  
+  **이벤트 발생 시점:**
+  - WebSocket 연결/끊김
+  - 하트비트 누락
+  
+  **매개변수:**
+  - roomId: 구독할 게임방 ID
+  
+  **반환값:**
+  - 플레이어 연결 상태 정보
+  
+  **예제:**
+  ```graphql
+  subscription {
+    userConnectionStatus(roomId: "550e8400-e29b-41d4-a716-446655440000") {
+      username
+      isConnected
+      lastSeen
+    }
+  }
+  ```
+  """
+  userConnectionStatus(roomId: ID!): UserConnection!
+}

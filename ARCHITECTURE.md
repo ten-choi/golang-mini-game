@@ -80,7 +80,7 @@ graph TD
     
     GameRoom --> Canvas[DrawingCanvas<br/>그리기 컴포넌트]
     GameRoom --> ChatBox[ChatBox<br/>채팅 UI]
-    GameRoom --> PlayerList[PlayerList<br/>플레이어 목록]
+    GameRoom --> UserList[UserList<br/>사용자 목록]
     GameRoom --> Timer[Timer Display<br/>타이머]
     
     GameRoom --> API[api.ts<br/>REST Client]
@@ -146,9 +146,9 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor Drawer
-    actor Player
+    actor user
     participant WSClient1[WS Client 1<br/>(Drawer)]
-    participant WSClient2[WS Client 2<br/>(Player)]
+    participant WSClient2[WS Client 2<br/>(user)]
     participant WSServer[WebSocket Server]
     participant Valkey[Valkey Pub/Sub]
 
@@ -158,21 +158,21 @@ sequenceDiagram
     Valkey-->>WSServer: 구독자들에게 전달
     WSServer-->>WSClient1: 자신에게도 전달
     WSServer-->>WSClient2: 메시지 브로드캐스트
-    WSClient2->>Player: 캔버스에 그림 렌더링
+    WSClient2->>user: 캔버스에 그림 렌더링
 ```
 
 ### 정답 제출 및 검증 플로우
 
 ```mermaid
 sequenceDiagram
-    actor Player
+    actor user
     participant Client
     participant API
     participant Handler
     participant Valkey
     participant WSServer
 
-    Player->>Client: 채팅창에 정답 입력
+    user->>Client: 채팅창에 정답 입력
     Client->>API: POST /game/room/:id/chat<br/>{UserName, message}
     API->>Handler: HandleChatMessage()
     Handler->>Valkey: 게임 방 데이터 조회
@@ -242,7 +242,7 @@ Value (JSON):
   "uuid": "abc-123",
   "is_active": true,
   "drawer_user": "Alice",
-  "players": [
+  "users": [
     {"UserName": "Bob", "score": 2, "attempts": 1}
   ],
   "current_word": "lion",

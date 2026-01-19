@@ -53,7 +53,7 @@
 - **입력**:
   - name: 방 이름
   - gameType: WORDCHAIN | OX | QA
-  - maxPlayers: 최대 인원 (2-10명)
+  - maxusers: 최대 인원 (2-10명)
   - totalRounds: 총 라운드 수 (1 Round = 1 문제)
   - hostUserName: 방장 UserName
   - isPrivate: 비공개 여부 (선택)
@@ -66,7 +66,7 @@
 
 #### 2.2.3 게임방 참가/퇴장 (P0) ✅ 완료
 - **참가**:
-  - maxPlayers 체크
+  - maxusers 체크
   - 중복 참가 방지
   - GraphQL Subscription으로 실시간 알림
   - Valkey PubSub 기반
@@ -188,7 +188,7 @@ internal/
   ├── models/              # 🧠 도메인 모델
   │   ├── user.go
   │   ├── quiz.go
-  │   ├── player_stats.go
+  │   ├── user_stats.go
   │   ├── game_room.go     # WebSocket용 레거시 모델
   │   ├── shop.go
   │   ├── transaction.go
@@ -196,7 +196,7 @@ internal/
   ├── repository/          # 💾 데이터 접근 레이어
   │   ├── user_repository.go
   │   ├── quiz_repository.go
-  │   ├── player_stats_repository.go
+  │   ├── user_stats_repository.go
   │   ├── shop_repository.go
   │   └── transaction_repository.go
   ├── routes/              # 🛣️ 라우팅 설정
@@ -204,7 +204,7 @@ internal/
   ├── service/             # ✅ 비즈니스 로직
   │   ├── user_service.go
   │   ├── quiz_service.go
-  │   ├── player_stats_service.go
+  │   ├── user_stats_service.go
   │   ├── shop_service.go
   │   └── transaction_service.go
   ├── transport/           # 🌐 API 레이어
@@ -307,7 +307,7 @@ deployments/               # 배포 스크립트
 
 #### 3.3.3 GraphQL Subscription ✅ 완료
 - **gameRoomUpdated**: 게임방 상태 변경 구독
-- **playerJoined**: 플레이어 입장 이벤트
+- **userJoined**: 플레이어 입장 이벤트
 - **gameStarted**: 게임 시작 이벤트
 - **gameEnded**: 게임 종료 이벤트
 - **Valkey PubSub 기반**:
@@ -375,7 +375,7 @@ deployments/               # 배포 스크립트
 // Indexes: category_1, is_active_1, difficulty_1
 ```
 
-#### 3.4.5 player_stats 컬렉션
+#### 3.4.5 user_stats 컬렉션
 ```javascript
 {
   _id: ObjectID,
@@ -455,7 +455,7 @@ deployments/               # 배포 스크립트
 ### Phase 2 (v1.1) - 게임 플로우 🚧 진행 중
 - [x] 게임방 생성/참가/퇴장
 - [x] 게임 시작 (StartGame)
-- [x] GraphQL Subscription (gameRoomUpdated, playerJoined, gameStarted, gameEnded)
+- [x] GraphQL Subscription (gameRoomUpdated, userJoined, gameStarted, gameEnded)
 - [x] Valkey PubSub 통합
 - [x] WebSocket 채팅 (lobby, room) 
 - [ ] 게임 진행 로직 (라운드 관리)
