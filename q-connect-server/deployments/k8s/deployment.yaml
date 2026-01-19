@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-server-app-deployment
+  namespace: data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: go-server
+  template:
+    metadata:
+      labels:
+        app: go-server
+    spec:
+      containers:
+      - name: go-server-container
+        image: ghcr.io/yoru-choi/go-server-app:v1.0
+        imagePullPolicy: Always
+        env:
+        - name: MONGO_URI
+          value: "mongodb://admin:password@mongodb:27017"
+        - name: MONGO_DB
+          value: "draw_and_guess_db"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: VALKEY_ADDR
+          value: "valkey:6379"
+        ports:
+        - containerPort: 8080
+      imagePullSecrets:
+      - name: ghcr-pull-secret
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
