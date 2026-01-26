@@ -193,7 +193,7 @@ type ComplexityRoot struct {
 		RandomOXQuiz          func(childComplexity int, roomID *string) int
 		RandomQAQuiz          func(childComplexity int, roomID *string) int
 		RandomWordchainPrompt func(childComplexity int) int
-		UserByHangeID         func(childComplexity int, name string) int
+		UserByHangeID         func(childComplexity int, hangeID string) int
 		UserByName            func(childComplexity int, name string) int
 		UserStats             func(childComplexity int, userID string, gameType *string) int
 		Users                 func(childComplexity int, limit *int32, offset *int32, search *string, minLevel *int32) int
@@ -276,7 +276,7 @@ type MutationResolver interface {
 	SendChat(ctx context.Context, roomID string, username string, message string) (*model.ChatMessage, error)
 }
 type QueryResolver interface {
-	UserByHangeID(ctx context.Context, name string) (*model.User, error)
+	UserByHangeID(ctx context.Context, hangeID string) (*model.User, error)
 	UserByName(ctx context.Context, name string) (*model.User, error)
 	Users(ctx context.Context, limit *int32, offset *int32, search *string, minLevel *int32) ([]*model.User, error)
 	GameRoom(ctx context.Context, id string) (*model.GameRoom, error)
@@ -1152,7 +1152,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.UserByHangeID(childComplexity, args["name"].(string)), true
+		return e.complexity.Query.UserByHangeID(childComplexity, args["hangeId"].(string)), true
 	case "Query.userByName":
 		if e.complexity.Query.UserByName == nil {
 			break
@@ -2073,11 +2073,11 @@ func (ec *executionContext) field_Query_randomQAQuiz_args(ctx context.Context, r
 func (ec *executionContext) field_Query_userByHangeId_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name", ec.unmarshalNString2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "hangeId", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["name"] = arg0
+	args["hangeId"] = arg0
 	return args, nil
 }
 
@@ -4880,9 +4880,9 @@ func (ec *executionContext) _Mutation_leaveGameRoom(ctx context.Context, field g
 			return ec.resolvers.Mutation().LeaveGameRoom(ctx, fc.Args["roomId"].(string), fc.Args["userId"].(string))
 		},
 		nil,
-		ec.marshalNGameRoom2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoom,
+		ec.marshalOGameRoom2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoom,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -6038,7 +6038,7 @@ func (ec *executionContext) _Query_userByHangeId(ctx context.Context, field grap
 		ec.fieldContext_Query_userByHangeId,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().UserByHangeID(ctx, fc.Args["name"].(string))
+			return ec.resolvers.Query().UserByHangeID(ctx, fc.Args["hangeId"].(string))
 		},
 		nil,
 		ec.marshalOUser2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUser,
@@ -11103,9 +11103,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_leaveGameRoom(ctx, field)
 			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "deleteGameRoom":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteGameRoom(ctx, field)

@@ -42,11 +42,8 @@ func SetupRouter() *gin.Engine {
 
 // setupWebSocketRoutes sets up WebSocket routes for real-time communication
 func setupWebSocketRoutes(api *gin.RouterGroup) {
-	ws := api.Group("/ws")
-	{
-		ws.GET("/lobby", websocket.HandleLobbyWebSocket)
-		ws.GET("/rooms/:id", websocket.HandleRoomWebSocket)
-	}
+	// Single WebSocket endpoint - lobby/room distinguished by channel subscription
+	api.GET("/ws", websocket.HandleWebSocket)
 }
 
 // setupGraphQLRoutes sets up GraphQL routes with gqlgen

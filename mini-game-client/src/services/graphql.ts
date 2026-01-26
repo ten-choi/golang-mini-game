@@ -114,8 +114,8 @@ export const GENERAL_QUIZ_FIELDS = `
 // User Queries
 export const GET_USER_BY_HANGE_ID = `
   ${USER_FIELDS}
-  query GetUserByHangeId($name: String!) {
-    userByHangeId(name: $name) {
+  query GetUserByHangeId($hangeId: String!) {
+    userByHangeId(hangeId: $hangeId) {
       ...UserFields
     }
   }

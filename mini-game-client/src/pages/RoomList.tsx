@@ -78,7 +78,7 @@ const RoomList: React.FC = () => {
       }
       
       // 로비 채팅 히스토리 수신
-      if (data.type === 'LOBBY_CHAT_HISTORY' && data.messages) {
+      if ((data.type === 'LOBBY_CHAT_HISTORY' || data.type === 'lobby_chat_history') && data.messages) {
         console.log('[RoomList] Received chat history:', data.messages.length, 'messages');
         setLobbyChatMessages(data.messages.map((msg: any) => ({
           username: msg.userName || msg.username || 'Unknown',
@@ -87,10 +87,13 @@ const RoomList: React.FC = () => {
       }
       
       // 로비 채팅 메시지 처리
-      if (data.type === 'LOBBY_CHAT' && data.payload) {
-        const { username, message } = data.payload;
-        console.log('[RoomList] Received lobby chat:', username, message);
-        setLobbyChatMessages(prev => [...prev, { username: username || 'Unknown', message }]);
+      if (data.type === 'LOBBY_CHAT' || data.type === 'lobby_chat') {
+        // data.payload에서 메시지 추출
+        const payload = data.payload || {};
+        const username = payload.username || 'Unknown';
+        const message = payload.message || '';
+        console.log('[RoomList] Received lobby chat:', username, message, 'Full data:', data);
+        setLobbyChatMessages(prev => [...prev, { username, message }]);
       }
     });
 

@@ -66,7 +66,7 @@ mutation {
 **GraphQL Query**
 ```json
 {
-  "query": "query($name: String!) { userByHangeId(name: $name) { id hangeId name level credit } }",
+  "query": "query($hangeId: String!) { userByHangeId(hangeId: $hangeId) { id hangeId name level credit } }",
   "variables": {
     "name": "user123"
   }

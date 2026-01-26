@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/graph/model"
 	"draw-and-guess-server/internal/valkey"
 	"draw-and-guess-server/pkg/dictionary"
@@ -925,7 +926,7 @@ func StartWordchainTurnTimer(roomID string) {
 
 // publishRoomUpdateToWebSocket publishes room update to WebSocket clients via Valkey
 func publishRoomUpdateToWebSocket(roomID string, room *model.GameRoom) {
-	channel := "game/" + roomID
+	channel := common.ChannelGamePrefix + roomID
 
 	// Create the message payload
 	payload := map[string]interface{}{

@@ -86,7 +86,7 @@ export const apiService = {
   async getUserByHangeId(hangeId: string): Promise<User | null> {
     try {
       console.log('[API] Getting user by hangeId:', hangeId);
-      const data: any = await graphqlClient.request(GET_USER_BY_HANGE_ID, { name: hangeId });
+      const data: any = await graphqlClient.request(GET_USER_BY_HANGE_ID, { hangeId: hangeId });
       console.log('[API] User found by hangeId:', data.userByHangeId);
       return data.userByHangeId;
     } catch (error: any) {

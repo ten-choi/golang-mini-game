@@ -4,22 +4,22 @@ import (
 	"encoding/json"
 )
 
-// WSSuccessMessage는 성공적인 WebSocket 메시지 형식
-// 형식: { "type": "DRAW_EVENT", "payload": { ... } }
+// WSSuccessMessage represents a successful WebSocket message format
+// Format: { "type": "DRAW_EVENT", "payload": { ... } }
 type WSSuccessMessage struct {
 	Type    string      `json:"type"`
 	Payload interface{} `json:"payload"`
 }
 
-// WSErrorMessage는 에러 WebSocket 메시지 형식
-// 형식: { "type": "ERROR", "code": "UNAUTHORIZED", "message": "token expired" }
+// WSErrorMessage represents an error WebSocket message format
+// Format: { "type": "ERROR", "code": "UNAUTHORIZED", "message": "token expired" }
 type WSErrorMessage struct {
 	Type    string `json:"type"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
-// GameEventPayload는 게임 상태 변경 데이터
+// GameEventPayload represents game state change data
 type GameEventPayload struct {
 	EventType string      `json:"eventType"` // "user_joined", "user_left", "game_started", "round_started"
 	RoomID    string      `json:"roomId"`

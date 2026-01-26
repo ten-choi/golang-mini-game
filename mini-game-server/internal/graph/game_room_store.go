@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/graph/model"
 	"draw-and-guess-server/internal/valkey"
 	"draw-and-guess-server/pkg/dictionary"
@@ -157,7 +158,7 @@ func GetGameRoomsByType(gameType *model.GameType) []*model.GameRoom {
 
 // publishLobbyUpdateToWebSocket publishes lobby update to WebSocket clients via Valkey
 func publishLobbyUpdateToWebSocket(rooms []*model.GameRoom) {
-	channel := "lobby"
+	channel := common.ChannelLobby
 
 	// Create the message payload
 	payload := map[string]interface{}{
@@ -231,7 +232,7 @@ func StartRoomCleanupScheduler() {
 
 // publishQuizToWebSocket publishes a quiz to users in a game room via WebSocket
 func publishQuizToWebSocket(roomID string, quiz interface{}) {
-	channel := "game/" + roomID
+	channel := common.ChannelGamePrefix + roomID
 
 	// Create the message payload
 	payload := map[string]interface{}{
@@ -256,7 +257,7 @@ func publishQuizToWebSocket(roomID string, quiz interface{}) {
 
 // publishTimerToWebSocket publishes the remaining time to users in a game room via WebSocket
 func publishTimerToWebSocket(roomID string, timeLeft int) {
-	channel := "game/" + roomID
+	channel := common.ChannelGamePrefix + roomID
 
 	// Create the message payload
 	payload := map[string]interface{}{
@@ -279,7 +280,7 @@ func publishTimerToWebSocket(roomID string, timeLeft int) {
 
 // publishRoundEndToWebSocket publishes round end message to WebSocket clients
 func publishRoundEndToWebSocket(roomID string, roundNumber int, reason string) {
-	channel := "game/" + roomID
+	channel := common.ChannelGamePrefix + roomID
 
 	// Create the message payload
 	payload := map[string]interface{}{
@@ -307,7 +308,7 @@ func publishRoundEndToWebSocket(roomID string, roundNumber int, reason string) {
 
 // publishRoomDeletedToWebSocket publishes room deletion notification to WebSocket clients
 func publishRoomDeletedToWebSocket(roomID string) {
-	channel := "game/" + roomID
+	channel := common.ChannelGamePrefix + roomID
 
 	// Create the message payload
 	payload := map[string]interface{}{
@@ -335,7 +336,7 @@ func publishRoomDeletedToWebSocket(roomID string) {
 
 // publishGameEndToWebSocket publishes game end message with final scores to WebSocket clients
 func publishGameEndToWebSocket(roomID string, room *model.GameRoom) {
-	channel := "game/" + roomID
+	channel := common.ChannelGamePrefix + roomID
 
 	// Prepare user scores sorted by score
 	type UserScore struct {

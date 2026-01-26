@@ -369,7 +369,7 @@ export class WebSocketService {
       const message: WebSocketResponse = JSON.parse(event.data);
       
       // Handle lobby chat history (special case - sent directly by server)
-      if (message.type === 'LOBBY_CHAT_HISTORY') {
+      if (message.type === 'LOBBY_CHAT_HISTORY' || message.type === 'lobby_chat_history') {
         console.log('[WebSocket] Received LOBBY_CHAT_HISTORY:', message);
         const callback = this.subscriptions.get('lobby');
         if (callback) {
@@ -379,7 +379,7 @@ export class WebSocketService {
       }
       
       // Handle lobby chat messages (special case)
-      if (message.type === 'LOBBY_CHAT') {
+      if (message.type === 'LOBBY_CHAT' || message.type === 'lobby_chat') {
         console.log('[WebSocket] Received LOBBY_CHAT:', message);
         const callback = this.subscriptions.get('lobby');
         if (callback) {
@@ -390,15 +390,25 @@ export class WebSocketService {
       
       // Handle standard channel messages
       if (message.type === 'message' && message.channel) {
+        // Parse data if it's a JSON string
+        let parsedData = message.data;
+        if (typeof message.data === 'string') {
+          try {
+            parsedData = JSON.parse(message.data);
+          } catch (e) {
+            console.warn('[WebSocket] Failed to parse message.data as JSON:', message.data);
+          }
+        }
+
         // Call channel-specific callback
         const callback = this.subscriptions.get(message.channel);
         if (callback) {
-          callback(message.data);
+          callback(parsedData);
         }
 
         // Handle typed message data based on WebSocket DTO types
-        if (message.data && typeof message.data === 'object') {
-          this.handleTypedMessage(message.channel, message.data);
+        if (parsedData && typeof parsedData === 'object') {
+          this.handleTypedMessage(message.channel, parsedData);
         }
       }
       // Handle error responses
