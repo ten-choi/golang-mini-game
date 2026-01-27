@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { GameType, User } from '../types';
-import { useLanguage } from '../i18n/LanguageContext';
 
 const CreateRoom: React.FC = () => {
   const navigate = useNavigate();

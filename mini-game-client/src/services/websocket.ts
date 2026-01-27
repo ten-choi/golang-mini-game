@@ -7,16 +7,7 @@
  */
 
 import type { 
-  WebSocketRequest, 
-  WebSocketResponse, 
-  WSChatMessageData,
-  WSGameStateData,
-  WSDrawingData,
-  WSAnswerSubmitData,
-  WSCorrectAnswerData,
-  WSRoundStartData,
-  WSRoundEndData,
-  WSGameEndData
+  WebSocketRequest
 } from '../types';
 
 // ============================================
@@ -252,59 +243,89 @@ export class WebSocketService {
    * @param message - Message content
    */
   sendChatMessage(roomId: string, userId: string, username: string, message: string): void {
-    const chatData: WSChatMessageData = {
-      room_id: roomId,
-      user_id: userId,
-      username: username,
-      message: message
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('[WebSocket] Cannot send chat message: not connected');
+      return;
+    }
+
+    const request: WebSocketRequest = {
+      type: 'chat',
+      channel: '', // Not used for chat
+      data: {
+        roomId: roomId,
+        userId: userId,
+        username: username,
+        message: message
+      }
     };
 
-    this.sendMessage(`game/room-${roomId}`, {
-      type: 'chat',
-      data: chatData
-    });
+    try {
+      this.ws.send(JSON.stringify(request));
+      console.log(`[WebSocket] Sent chat message to room ${roomId}`);
+    } catch (error) {
+      console.error('[WebSocket] Failed to send chat message:', error);
+    }
   }
 
   /**
    * Send a drawing event (aligned with DrawingData DTO)
    * @param roomId - Room ID
+   * @param userId - User ID
    * @param action - Drawing action
-   * @param points - Drawing points
-   * @param color - Drawing color
-   * @param width - Line width
+   * @param drawData - Drawing data (points, color, lineWidth, strokeId, etc.)
    */
   sendDrawingEvent(
     roomId: string, 
-    action: 'draw' | 'clear' | 'undo',
-    points?: Array<{ x: number; y: number }>,
-    color?: string,
-    width?: number
+    userId: string,
+    action: 'draw' | 'clear' | 'undo' | 'start' | 'end',
+    drawData?: any
   ): void {
-    const drawingData: WSDrawingData = {
-      room_id: roomId,
-      action: action,
-      points: points,
-      color: color,
-      width: width
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('[WebSocket] Cannot send drawing event: not connected');
+      return;
+    }
+
+    const request: WebSocketRequest = {
+      type: 'drawing',
+      channel: '', // Not used for drawing
+      data: {
+        roomId: roomId,
+        userId: userId,
+        action: action,
+        ...drawData
+      }
     };
 
-    this.sendMessage(`game/room-${roomId}`, {
-      type: 'drawing',
-      data: drawingData
-    });
+    try {
+      this.ws.send(JSON.stringify(request));
+      console.log(`[WebSocket] Sent drawing event to room ${roomId}:`, action);
+    } catch (error) {
+      console.error('[WebSocket] Failed to send drawing event:', error);
+    }
   }
 
-  /**
-   * Submit an answer (aligned with AnswerSubmitData DTO)
-   * @param roomId - Room ID
-   * @param userId - User ID
-   * @param username - Username
-   * @param answer - Answer text
-   */
-  submitAnswer(roomId: string, userId: string, username: string, answer: string): void {
-    const answerData: WSAnswerSubmitData = {
-      room_id: roomId,
-      user_id: userId,
+  /*if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('[WebSocket] Cannot submit answer: not connected');
+      return;
+    }
+
+    const request: WebSocketRequest = {
+      type: 'answer',
+      channel: '', // Not used for answer
+      data: {
+        roomId: roomId,
+        userId: userId,
+        username: username,
+        answer: answer
+      }
+    };
+
+    try {
+      this.ws.send(JSON.stringify(request));
+      console.log(`[WebSocket] Submitted answer to room ${roomId}`);
+    } catch (error) {
+      console.error('[WebSocket] Failed to submit answer:', error);
+    }ser_id: userId,
       username: username,
       answer: answer
     };
@@ -313,6 +334,129 @@ export class WebSocketService {
       type: 'answer',
       data: answerData
     });
+  }
+
+  /**
+   * Send lobby chat message
+   * @param userId - User ID
+   * @param username - Username
+   * @param message - Message content
+   */
+  sendLobbyChatMessage(userId: string, username: string, message: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('[WebSocket] Cannot send lobby chat: not connected');
+      return;
+    }
+
+    const request: WebSocketRequest = {
+      type: 'lobby_chat',
+      channel: 'lobby',
+      data: {
+        userId: userId,
+        username: username,
+        message: message
+      }
+    };
+
+    try {
+      this.ws.send(JSON.stringify(request));
+      console.log('[WebSocket] Sent lobby chat message');
+    } catch (error) {
+      console.error('[WebSocket] Failed to send lobby chat:', error);
+    }
+  }
+
+  /**
+   * Send game action (e.g., start game, ready, etc.)
+   * @param roomId - Room ID
+   * @param action - Action type
+   * @param data - Additional data
+   */
+  sendGameAction(roomId: string, action: string, data?: any): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('[WebSocket] Cannot send game action: not connected');
+      return;
+    }
+
+    const request: WebSocketRequest = {
+      type: 'game_action',
+      channel: '', // Not used
+      data: {
+        roomId: roomId,
+        action: action,
+        ...data
+      }
+    };
+
+    try {
+      this.ws.send(JSON.stringify(request));
+      console.log(`[WebSocket] Sent game action to room ${roomId}:`, action);
+    } catch (error) {
+      console.error('[WebSocket] Failed to send game action:', error);
+    }
+  }
+
+  /**
+   * Submit quiz answer
+   * @param roomId - Room ID
+   * @param username - Username
+   * @param answer - Answer (string or number)
+   * @param quizId - Quiz ID
+   */
+  sendQuizAnswer(roomId: string, username: string, answer: string | number, quizId: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('[WebSocket] Cannot send quiz answer: not connected');
+      return;
+    }
+
+    const request: WebSocketRequest = {
+      type: 'quiz_answer',
+      channel: '', // Not used
+      data: {
+        roomId: roomId,
+        username: username,
+        answer: answer,
+        quizId: quizId
+      }
+    };
+
+    try {
+      this.ws.send(JSON.stringify(request));
+      console.log(`[WebSocket] Sent quiz answer to room ${roomId}`);
+    } catch (error) {
+      console.error('[WebSocket] Failed to send quiz answer:', error);
+    }
+  }
+
+  /**
+   * Send wordchain word submission
+   * @param roomId - Room ID
+   * @param username - Username
+   * @param word - Submitted word
+   * @param lastWord - Previous word
+   */
+  sendWordchainSubmit(roomId: string, username: string, word: string, lastWord: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('[WebSocket] Cannot send wordchain submit: not connected');
+      return;
+    }
+
+    const request: WebSocketRequest = {
+      type: 'wordchain_submit',
+      channel: '', // Not used
+      data: {
+        username: username,
+        word: word,
+        lastWord: lastWord
+      }
+    };
+
+    try {
+      this.ws.send(JSON.stringify(request));
+      console.log(`[WebSocket] Sent wordchain submit to room ${roomId}: ${word}`);
+    } catch (error) {
+      console.error('[WebSocket] Failed to send wordchain submit:', error);
+    }
   }
 
   /**
@@ -366,31 +510,120 @@ export class WebSocketService {
 
   private handleMessage(event: MessageEvent): void {
     try {
-      const message: WebSocketResponse = JSON.parse(event.data);
+      const message = JSON.parse(event.data);
       
-      // Handle lobby chat history (special case - sent directly by server)
-      if (message.type === 'LOBBY_CHAT_HISTORY' || message.type === 'lobby_chat_history') {
-        console.log('[WebSocket] Received LOBBY_CHAT_HISTORY:', message);
-        const callback = this.subscriptions.get('lobby');
-        if (callback) {
-          callback(message);
+      console.log('[WebSocket] Received message:', message);
+      
+      // Handle new server format: { "type": "MESSAGE_TYPE", "payload": {...} }
+      if (message.type && message.payload) {
+        const messageType = message.type;
+        const payload = message.payload;
+
+        // Handle specific message types
+        switch (messageType) {
+          case 'LOBBY_CHAT':
+            console.log('[WebSocket] Received LOBBY_CHAT:', payload);
+            const lobbyCallback = this.subscriptions.get('lobby');
+            if (lobbyCallback) {
+              lobbyCallback({ type: 'LOBBY_CHAT', payload });
+            }
+            break;
+
+          case 'LOBBY_CHAT_HISTORY':
+            console.log('[WebSocket] Received LOBBY_CHAT_HISTORY:', payload);
+            const historyCallback = this.subscriptions.get('lobby');
+            if (historyCallback) {
+              historyCallback({ type: 'LOBBY_CHAT_HISTORY', payload });
+            }
+            break;
+
+          case 'CHAT_MESSAGE':
+            console.log('[WebSocket] Received CHAT_MESSAGE:', payload);
+            const roomId = payload.roomId;
+            if (roomId) {
+              const callback = this.subscriptions.get(`game/${roomId}`);
+              if (callback) {
+                callback({ type: 'CHAT_MESSAGE', payload });
+              }
+            }
+            break;
+
+          case 'DRAW_EVENT':
+            console.log('[WebSocket] Received DRAW_EVENT:', payload);
+            const drawRoomId = payload.roomId;
+            if (drawRoomId) {
+              const callback = this.subscriptions.get(`game/${drawRoomId}`);
+              if (callback) {
+                callback({ type: 'DRAW_EVENT', payload });
+              }
+            }
+            break;
+
+          case 'GAME_EVENT':
+            console.log('[WebSocket] Received GAME_EVENT:', payload);
+            const gameRoomId = payload.roomId;
+            if (gameRoomId) {
+              const callback = this.subscriptions.get(`game/${gameRoomId}`);
+              if (callback) {
+                callback({ type: 'GAME_EVENT', payload });
+              }
+            }
+            break;
+
+          case 'GAME_ACTION':
+            console.log('[WebSocket] Received GAME_ACTION:', payload);
+            const actionRoomId = payload.roomId;
+            if (actionRoomId) {
+              const callback = this.subscriptions.get(`game/${actionRoomId}`);
+              if (callback) {
+                callback({ type: 'GAME_ACTION', payload });
+              }
+            }
+            break;
+
+          case 'WORDCHAIN_RESULT':
+            console.log('[WebSocket] Received WORDCHAIN_RESULT:', payload);
+            const wordchainRoomId = payload.roomId;
+            if (wordchainRoomId) {
+              const callback = this.subscriptions.get(`game/${wordchainRoomId}`);
+              if (callback) {
+                callback({ type: 'WORDCHAIN_RESULT', payload });
+              }
+            }
+            break;
+
+          case 'WORDCHAIN_ROUND_END':
+            console.log('[WebSocket] Received WORDCHAIN_ROUND_END:', payload);
+            const roundEndRoomId = payload.roomId;
+            if (roundEndRoomId) {
+              const callback = this.subscriptions.get(`game/${roundEndRoomId}`);
+              if (callback) {
+                callback({ type: 'WORDCHAIN_ROUND_END', payload });
+              }
+            }
+            break;
+
+          case 'ERROR':
+            console.error('[WebSocket] Server error:', payload);
+            const errorHandlers = this.messageHandlers.get('ERROR');
+            if (errorHandlers) {
+              errorHandlers.forEach(handler => handler(payload));
+            }
+            break;
+
+          default:
+            console.log(`[WebSocket] Unknown message type: ${messageType}`, payload);
+            break;
         }
-        return;
-      }
-      
-      // Handle lobby chat messages (special case)
-      if (message.type === 'LOBBY_CHAT' || message.type === 'lobby_chat') {
-        console.log('[WebSocket] Received LOBBY_CHAT:', message);
-        const callback = this.subscriptions.get('lobby');
-        if (callback) {
-          callback(message);
+
+        // Also notify generic message handlers
+        const handlers = this.messageHandlers.get(messageType);
+        if (handlers) {
+          handlers.forEach(handler => handler(payload));
         }
-        return;
       }
-      
-      // Handle standard channel messages
-      if (message.type === 'message' && message.channel) {
-        // Parse data if it's a JSON string
+      // Handle old format for backward compatibility
+      else if (message.type === 'message' && message.channel) {
         let parsedData = message.data;
         if (typeof message.data === 'string') {
           try {
@@ -400,23 +633,13 @@ export class WebSocketService {
           }
         }
 
-        // Call channel-specific callback
         const callback = this.subscriptions.get(message.channel);
         if (callback) {
           callback(parsedData);
         }
 
-        // Handle typed message data based on WebSocket DTO types
         if (parsedData && typeof parsedData === 'object') {
           this.handleTypedMessage(message.channel, parsedData);
-        }
-      }
-      // Handle error responses
-      else if (message.type === 'error') {
-        console.error('[WebSocket] Server error:', message.data);
-        const errorHandlers = this.messageHandlers.get('ERROR');
-        if (errorHandlers) {
-          errorHandlers.forEach(handler => handler(message.data));
         }
       }
     } catch (error) {
@@ -426,6 +649,7 @@ export class WebSocketService {
 
   /**
    * Handle typed messages from server based on message structure
+   * @deprecated No longer used - messages are handled directly in handleMessage
    */
   private handleTypedMessage(_channel: string, data: any): void {
     // Detect message type from data structure
@@ -435,100 +659,10 @@ export class WebSocketService {
       if (handlers) {
         handlers.forEach(handler => handler(data.data || data));
       }
-
-      // Handle specific WebSocket DTO message types
-      switch (messageType) {
-        case 'game_state':
-          this.handleGameState(data.data as WSGameStateData);
-          break;
-        case 'chat':
-          this.handleChatMessage(data.data as WSChatMessageData);
-          break;
-        case 'drawing':
-          this.handleDrawing(data.data as WSDrawingData);
-          break;
-        case 'round_start':
-          this.handleRoundStart(data.data as WSRoundStartData);
-          break;
-        case 'round_end':
-          this.handleRoundEnd(data.data as WSRoundEndData);
-          break;
-        case 'correct_answer':
-          this.handleCorrectAnswer(data.data as WSCorrectAnswerData);
-          break;
-        case 'game_end':
-          this.handleGameEnd(data.data as WSGameEndData);
-          break;
-        case 'room_deleted':
-          this.handleRoomDeleted(data.data);
-          break;
-      }
     }
   }
 
-  private handleGameState(data: WSGameStateData): void {
-    console.log(`[WebSocket] Game state update: round ${data.current_round}, time left ${data.time_left}s`);
-    const handlers = this.messageHandlers.get('game_state');
-    if (handlers) {
-      handlers.forEach(handler => handler(data));
-    }
-  }
 
-  private handleChatMessage(data: WSChatMessageData): void {
-    console.log(`[WebSocket] Chat from ${data.username}: ${data.message}`);
-    const handlers = this.messageHandlers.get('chat_message');
-    if (handlers) {
-      handlers.forEach(handler => handler(data));
-    }
-  }
-
-  private handleDrawing(data: WSDrawingData): void {
-    console.log(`[WebSocket] Drawing event: ${data.action}`);
-    const handlers = this.messageHandlers.get('drawing');
-    if (handlers) {
-      handlers.forEach(handler => handler(data));
-    }
-  }
-
-  private handleRoundStart(data: WSRoundStartData): void {
-    console.log(`[WebSocket] Round ${data.round} started`);
-    const handlers = this.messageHandlers.get('round_start');
-    if (handlers) {
-      handlers.forEach(handler => handler(data));
-    }
-  }
-
-  private handleRoundEnd(data: WSRoundEndData): void {
-    console.log(`[WebSocket] Round ${data.round} ended`);
-    const handlers = this.messageHandlers.get('round_end');
-    if (handlers) {
-      handlers.forEach(handler => handler(data));
-    }
-  }
-
-  private handleCorrectAnswer(data: WSCorrectAnswerData): void {
-    console.log(`[WebSocket] Correct answer from ${data.username}: +${data.score} points`);
-    const handlers = this.messageHandlers.get('correct_answer');
-    if (handlers) {
-      handlers.forEach(handler => handler(data));
-    }
-  }
-
-  private handleGameEnd(data: WSGameEndData): void {
-    console.log(`[WebSocket] Game ended, winner: ${data.winner.username}`);
-    const handlers = this.messageHandlers.get('game_end');
-    if (handlers) {
-      handlers.forEach(handler => handler(data));
-    }
-  }
-
-  private handleRoomDeleted(data: any): void {
-    console.log(`[WebSocket] Room deleted:`, data);
-    const handlers = this.messageHandlers.get('room_deleted');
-    if (handlers) {
-      handlers.forEach(handler => handler(data));
-    }
-  }
 
   /**
    * Add a message handler for a specific message type

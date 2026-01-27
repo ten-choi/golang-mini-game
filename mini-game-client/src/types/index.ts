@@ -324,15 +324,21 @@ export interface ChatMessage {
 
 /** 게임 내에서 발생하는 이벤트 타입 */
 export type GameEventType =
+  | 'user_joined'
   | 'user_JOINED'
+  | 'user_left'
   | 'user_LEFT'
   | 'user_READY'
   | 'HOST_CHANGED'
+  | 'game_started'
+  | 'round_started'
   | 'ROUND_STARTED'
+  | 'round_ended'
   | 'ROUND_ENDED'
   | 'ANSWER_SUBMITTED'
   | 'CORRECT_ANSWER'
   | 'WRONG_ANSWER'
+  | 'game_ended'
   | 'GAME_ENDED';
 
 /** 게임 이벤트 상세 정보 */
@@ -378,7 +384,7 @@ export interface UserConnection {
 // ============================================
 
 export interface WebSocketRequest {
-  type: 'subscribe' | 'unsubscribe' | 'message' | 'identify';
+  type: 'subscribe' | 'unsubscribe' | 'message' | 'identify' | 'chat' | 'drawing' | 'lobby_chat' | 'game_action' | 'quiz_answer' | 'wordchain_submit' | 'get_lobby_messages' | 'answer';
   channel: string;
   data?: any;
 }
@@ -407,7 +413,7 @@ export interface ChatMessagePayload {
 
 /** Game event payload for WebSocket handlers (camelCase for frontend) */
 export interface GameEventPayload {
-  type: GameEventType;
+  eventType: GameEventType;
   roomId: string;
   userId?: string;
   username?: string;

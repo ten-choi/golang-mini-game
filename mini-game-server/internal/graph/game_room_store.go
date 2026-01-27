@@ -27,7 +27,7 @@ func publishLobbyUpdate() {
 	rooms := make([]*model.GameRoom, 0, len(gameRooms))
 	for _, room := range gameRooms {
 		// Skip empty rooms and finished games
-		if len(room.Users) > 0 && room.Status != model.GameStatusFinished {
+		if len(room.Users) > 0 && room.Status != model.GameRoomStatusFinished {
 			rooms = append(rooms, room)
 		}
 	}
@@ -83,7 +83,7 @@ func RemoveUserFromRoom(roomID, userID string) {
 	// Don't delete WAITING rooms even if empty - allow host to refresh
 	// Only delete if room was in PLAYING or FINISHED state
 	if len(room.Users) == 0 {
-		if room.Status != model.GameStatusWaiting {
+		if room.Status != model.GameRoomStatusWaiting {
 			delete(gameRooms, roomID)
 			log.Printf("[RemoveUserFromRoom] Room %s deleted (empty, status: %s)", roomID, room.Status)
 			go publishLobbyUpdate()
@@ -146,7 +146,7 @@ func GetGameRoomsByType(gameType *model.GameType) []*model.GameRoom {
 	result := []*model.GameRoom{}
 	for _, room := range gameRooms {
 		// Skip empty rooms and finished games
-		if len(room.Users) == 0 || room.Status == model.GameStatusFinished {
+		if len(room.Users) == 0 || room.Status == model.GameRoomStatusFinished {
 			continue
 		}
 		if gameType == nil || room.GameType == *gameType {
@@ -199,7 +199,7 @@ func CleanupStaleRooms() {
 		}
 
 		// Delete finished games older than 5 minutes
-		if room.Status == model.GameStatusFinished {
+		if room.Status == model.GameRoomStatusFinished {
 			shouldDelete = true
 			reason = "finished"
 		}
@@ -560,7 +560,7 @@ func EndWordchainRound(roomID string, reason string) {
 	// Check if game should end
 	if currentRound >= totalRounds {
 		// Reset room to WAITING state instead of FINISHED
-		room.Status = model.GameStatusWaiting
+		room.Status = model.GameRoomStatusWaiting
 		room.CurrentRound = 0
 		room.WordchainUsedWords = []string{}
 		emptyStr := ""

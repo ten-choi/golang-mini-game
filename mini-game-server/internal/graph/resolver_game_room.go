@@ -43,7 +43,7 @@ func (r *mutationResolver) CreateGameRoom(ctx context.Context, input model.Creat
 		ID:             roomID,
 		Name:           input.Name,
 		GameType:       input.GameType,
-		Status:         model.GameStatusWaiting,
+		Status:         model.GameRoomStatusWaiting,
 		CurrentRound:   0,
 		TotalRounds:    int32(input.TotalRounds),
 		RoundTimeLimit: roundTimeLimit,
@@ -226,7 +226,7 @@ func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model
 		return nil, fmt.Errorf("room not found")
 	}
 
-	room.Status = model.GameStatusPlaying
+	room.Status = model.GameRoomStatusPlaying
 	room.CurrentRound = 1
 
 	// Update the room in the map (important!)
@@ -305,7 +305,7 @@ func (r *queryResolver) GameRoom(ctx context.Context, id string) (*model.GameRoo
 }
 
 // GameRooms is the resolver for the gameRooms field.
-func (r *queryResolver) GameRooms(ctx context.Context, gameType *model.GameType, status *model.GameStatus, includePrivate *bool, hasSpace *bool, limit *int32, sortBy *string) ([]*model.GameRoom, error) {
+func (r *queryResolver) GameRooms(ctx context.Context, gameType *model.GameType, status *model.GameRoomStatus, includePrivate *bool, hasSpace *bool, limit *int32, sortBy *string) ([]*model.GameRoom, error) {
 	roomMutex.RLock()
 	defer roomMutex.RUnlock()
 
@@ -317,7 +317,7 @@ func (r *queryResolver) GameRooms(ctx context.Context, gameType *model.GameType,
 		}
 
 		// Skip finished games (should be cleaned up)
-		if room.Status == model.GameStatusFinished {
+		if room.Status == model.GameRoomStatusFinished {
 			continue
 		}
 
@@ -606,7 +606,7 @@ func (r *mutationResolver) StartRound(ctx context.Context, roomID string) (*mode
 		return nil, fmt.Errorf("room not found")
 	}
 
-	if room.Status != model.GameStatusPlaying {
+	if room.Status != model.GameRoomStatusPlaying {
 		return nil, fmt.Errorf("game is not in playing status")
 	}
 
@@ -665,7 +665,7 @@ func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.G
 		return nil, fmt.Errorf("room not found")
 	}
 
-	room.Status = model.GameStatusFinished
+	room.Status = model.GameRoomStatusFinished
 
 	// Delete the room from memory
 	delete(gameRooms, roomID)
@@ -880,7 +880,7 @@ func StartWordchainTurnTimer(roomID string) {
 	go func() {
 		roomMutex.Lock()
 		room, exists := gameRooms[roomID]
-		if !exists || room.Status != model.GameStatusPlaying {
+		if !exists || room.Status != model.GameRoomStatusPlaying {
 			roomMutex.Unlock()
 			return
 		}
@@ -897,7 +897,7 @@ func StartWordchainTurnTimer(roomID string) {
 		for i := timeLimit; i >= 0; i-- {
 			roomMutex.Lock()
 			room, exists := gameRooms[roomID]
-			if !exists || room.Status != model.GameStatusPlaying {
+			if !exists || room.Status != model.GameRoomStatusPlaying {
 				roomMutex.Unlock()
 				return
 			}

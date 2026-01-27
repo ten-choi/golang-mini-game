@@ -75,7 +75,7 @@ enum GameType {
 게임방의 현재 상태를 나타냅니다.
 클라이언트는 이 값에 따라 UI를 다르게 표시해야 합니다.
 """
-enum GameStatus {
+enum GameRoomStatus {
   "대기 중 (플레이어 모집 중, 게임 시작 전)"
   WAITING
   "게임 진행 중 (라운드 진행 중, 플레이어 입장 불가)"
@@ -111,7 +111,7 @@ type GameRoom {
   "게임 모드: OX, QA, 또는 WORDCHAIN"
   gameType: GameType!
   "현재 게임 상태"
-  status: GameStatus!
+  status: GameRoomStatus!
   "현재 라운드 번호 (1부터 시작)"
   currentRound: Int!
   "총 라운드 수 (기본값: 5)"
@@ -244,8 +244,8 @@ type OXQuiz {
   id: ID!
   "퀴즈 카테고리 (예: 과학, 역사)"
   category: String!
-  "난이도: easy, medium, hard"
-  difficulty: String!
+  "난이도: 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)"
+  difficulty: Int!
   "문제 텍스트"
   question: String!
   "정답: true 또는 false"
@@ -291,6 +291,46 @@ type GeneralQuiz {
   createdAt: Time!
   "마지막 업데이트 시각"
   updatedAt: Time!
+}
+
+"""
+OX 퀴즈 (정답 제외 버전) - 클라이언트 전송용
+게임 시작 시 여러 문제를 한 번에 전송할 때 사용합니다.
+정답은 서버에 저장되어 있으며, 클라이언트 제출 시 서버에서 검증합니다.
+"""
+type OXQuizWithoutAnswer {
+  "고유 퀴즈 ID"
+  id: ID!
+  "퀴즈 카테고리"
+  category: String!
+  "난이도: 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)"
+  difficulty: Int!
+  "문제 텍스트"
+  question: String!
+  "정답 설명 (선택사항)"
+  explanation: String
+}
+
+"""
+4지선다 퀴즈 (정답 제외 버전) - 클라이언트 전송용
+게임 시작 시 여러 문제를 한 번에 전송할 때 사용합니다.
+정답은 서버에 저장되어 있으며, 클라이언트 제출 시 서버에서 검증합니다.
+"""
+type QAQuizWithoutAnswer {
+  "고유 퀴즈 ID"
+  id: ID!
+  "퀴즈 카테고리"
+  category: String!
+  "난이도: 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)"
+  difficulty: Int!
+  "문제 텍스트"
+  question: String!
+  "4개의 선택지 배열"
+  options: [String!]!
+  "시각적 문제를 위한 이미지 URL (선택사항)"
+  imageUrl: String
+  "정답 설명 (선택사항)"
+  explanation: String
 }
 
 """
@@ -691,7 +731,7 @@ type Query {
   """
   gameRooms(
     gameType: GameType
-    status: GameStatus
+    status: GameRoomStatus
     includePrivate: Boolean
     hasSpace: Boolean
     limit: Int
@@ -801,6 +841,70 @@ type Query {
   ```
   """
   randomQAQuiz(roomId: ID): GeneralQuiz
+  
+  """
+  게임 시작 시 여러 개의 OX 퀴즈를 한 번에 조회합니다. (정답 제외)
+  
+  **주요 특징:**
+  - 정답은 서버에만 저장되어 클라이언트에 전송되지 않음
+  - 중복되지 않는 문제들을 한 번에 가져옴
+  - 네트워크 트래픽 최적화
+  
+  **사용 시나리오:**
+  1. 게임 시작 시 모든 라운드의 문제를 미리 조회
+  2. 클라이언트는 문제만 표시
+  3. 사용자가 답변 제출 시 서버에서 정답 검증
+  
+  **매개변수:**
+  - roomId: 게임방 ID (필수)
+  - count: 조회할 퀴즈 개수 (필수, 일반적으로 totalRounds와 동일)
+  
+  **예제:**
+  ```graphql
+  query {
+    randomOXQuizzes(roomId: "room-id", count: 5) {
+      id
+      category
+      difficulty
+      question
+    }
+  }
+  ```
+  """
+  randomOXQuizzes(roomId: ID!, count: Int!): [OXQuizWithoutAnswer!]!
+  
+  """
+  게임 시작 시 여러 개의 4지선다 퀴즈를 한 번에 조회합니다. (정답 제외)
+  
+  **주요 특징:**
+  - 정답은 서버에만 저장되어 클라이언트에 전송되지 않음
+  - 중복되지 않는 문제들을 한 번에 가져옴
+  - 네트워크 트래픽 최적화
+  
+  **사용 시나리오:**
+  1. 게임 시작 시 모든 라운드의 문제를 미리 조회
+  2. 클라이언트는 문제와 선택지만 표시
+  3. 사용자가 답변 제출 시 서버에서 정답 검증
+  
+  **매개변수:**
+  - roomId: 게임방 ID (필수)
+  - count: 조회할 퀴즈 개수 (필수, 일반적으로 totalRounds와 동일)
+  
+  **예제:**
+  ```graphql
+  query {
+    randomQAQuizzes(roomId: "room-id", count: 5) {
+      id
+      category
+      difficulty
+      question
+      options
+      imageUrl
+    }
+  }
+  ```
+  """
+  randomQAQuizzes(roomId: ID!, count: Int!): [QAQuizWithoutAnswer!]!
   
   # ===== Invitation Queries =====
   

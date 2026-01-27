@@ -39,14 +39,6 @@ type WSMessage struct {
 	Data    interface{} `json:"data"`    // Message data
 }
 
-// ChatMessagePayload represents the chat message payload structure
-type ChatMessagePayload struct {
-	RoomID   string `json:"roomId"`
-	UserID   string `json:"userId"`
-	Username string `json:"username"`
-	Message  string `json:"message"`
-}
-
 // WebSocket upgrader configuration
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -100,6 +92,83 @@ func handleGameAction(roomID string, data interface{}) {
 		"payload": data,
 	}
 	handlePublish(channel, actionPayload)
+}
+
+// handleQuizAnswer processes quiz answer submissions and awards points
+func handleQuizAnswer(roomID string, username string, data interface{}) {
+	answerData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid quiz answer data format")
+		return
+	}
+
+	quizID, _ := answerData["quizId"].(string)
+	userAnswer := answerData["answer"] // bool for OX, float64/int for QA
+
+	if quizID == "" {
+		log.Printf("Missing quizId in quiz answer")
+		return
+	}
+
+	// Get stored quiz info (answer + difficulty)
+	quizInfo, exists := graph.GetQuizInfo(roomID, quizID)
+	if !exists {
+		log.Printf("Quiz answer not found: room=%s, quiz=%s", roomID, quizID)
+		return
+	}
+
+	// Check if answer is correct
+	isCorrect := false
+	switch correctAnswer := quizInfo.Answer.(type) {
+	case bool: // OX Quiz
+		if userBool, ok := userAnswer.(bool); ok {
+			isCorrect = (userBool == correctAnswer)
+			log.Printf("[Quiz] OX - User: %v, Correct: %v, Match: %v", userBool, correctAnswer, isCorrect)
+		}
+	case int: // QA Quiz
+		if userFloat, ok := userAnswer.(float64); ok {
+			isCorrect = (int(userFloat) == correctAnswer)
+			log.Printf("[Quiz] QA - User: %d, Correct: %d, Match: %v", int(userFloat), correctAnswer, isCorrect)
+		}
+	}
+
+	log.Printf("[Quiz] Answer from %s in room %s: quizId=%s, correct=%v", username, roomID, quizID, isCorrect)
+
+	if isCorrect {
+		// Calculate score based on difficulty
+		score := graph.CalculateQuizScore(quizInfo.Difficulty)
+
+		// Add score to user
+		graph.AddScoreToUser(roomID, username, score)
+
+		// Broadcast correct answer notification
+		channel := common.ChannelGamePrefix + roomID
+		payload := map[string]interface{}{
+			"type": "QUIZ_RESULT",
+			"payload": map[string]interface{}{
+				"username":   username,
+				"quizId":     quizID,
+				"isCorrect":  true,
+				"score":      score,
+				"difficulty": quizInfo.Difficulty,
+			},
+		}
+		handlePublish(channel, payload)
+		log.Printf("[Quiz] ✅ %s got %d points (difficulty: %d)", username, score, quizInfo.Difficulty)
+	} else {
+		// Broadcast incorrect answer notification
+		channel := common.ChannelGamePrefix + roomID
+		payload := map[string]interface{}{
+			"type": "QUIZ_RESULT",
+			"payload": map[string]interface{}{
+				"username":  username,
+				"quizId":    quizID,
+				"isCorrect": false,
+			},
+		}
+		handlePublish(channel, payload)
+		log.Printf("[Quiz] ❌ %s got wrong answer", username)
+	}
 }
 
 // handleWordchainSubmit processes wordchain word submissions
@@ -285,6 +354,10 @@ func handleMessages(client *Client) {
 		case "wordchain_submit":
 			if client.roomID != "" {
 				handleWordchainSubmit(client.roomID, wsMsg.Data)
+			}
+		case "quiz_answer":
+			if client.roomID != "" {
+				handleQuizAnswer(client.roomID, client.UserName, wsMsg.Data)
 			}
 		case "identify":
 			handleIdentify(client, wsMsg.Data)

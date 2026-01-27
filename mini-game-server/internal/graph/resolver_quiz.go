@@ -47,7 +47,7 @@ func (r *queryResolver) RandomOXQuiz(ctx context.Context, roomID *string) (*mode
 	return &model.OXQuiz{
 		ID:          fmt.Sprintf("%d", quiz.ID),
 		Category:    quiz.Category,
-		Difficulty:  quiz.Difficulty,
+		Difficulty:  int32(quiz.Difficulty),
 		Question:    quiz.Question,
 		Answer:      quiz.Answer,
 		Explanation: &quiz.Explanation,
@@ -88,7 +88,7 @@ func (r *queryResolver) RandomQAQuiz(ctx context.Context, roomID *string) (*mode
 	return &model.GeneralQuiz{
 		ID:          fmt.Sprintf("%d", quiz.ID),
 		Category:    quiz.Category,
-		Difficulty:  quiz.Difficulty,
+		Difficulty:  int32(quiz.Difficulty),
 		Question:    quiz.Question,
 		Options:     quiz.Options,
 		Answer:      int32(quiz.Answer),
@@ -101,10 +101,199 @@ func (r *queryResolver) RandomQAQuiz(ctx context.Context, roomID *string) (*mode
 	}, nil
 }
 
+// RandomOXQuizzes is the resolver for the randomOXQuizzes field.
+func (r *queryResolver) RandomOXQuizzes(ctx context.Context, roomID string, count int32) ([]*model.OXQuizWithoutAnswer, error) {
+	var excludedIds []string
+
+	// Get the list of already used quiz IDs from the room
+	room, exists := GetGameRoom(roomID)
+	if exists && room.UsedQuizIds != nil {
+		excludedIds = room.UsedQuizIds
+	}
+
+	// Get multiple quizzes at once
+	quizzes, err := r.QuizService.GetRandomOXQuizzes(ctx, excludedIds, int(count))
+	if err != nil {
+		return nil, err
+	}
+
+	// Store answers on server and mark as used
+	if exists {
+		for _, quiz := range quizzes {
+			quizID := fmt.Sprintf("%d", quiz.ID)
+			room.UsedQuizIds = append(room.UsedQuizIds, quizID)
+
+			// Store answer and difficulty in server memory for later verification
+			storeQuizAnswer(roomID, quizID, quiz.Answer, quiz.Difficulty)
+		}
+		SetGameRoom(roomID, room)
+	}
+
+	// Return quizzes WITHOUT answers
+	result := make([]*model.OXQuizWithoutAnswer, len(quizzes))
+	for i, quiz := range quizzes {
+		result[i] = &model.OXQuizWithoutAnswer{
+			ID:          fmt.Sprintf("%d", quiz.ID),
+			Category:    quiz.Category,
+			Difficulty:  int32(quiz.Difficulty),
+			Question:    quiz.Question,
+			Explanation: &quiz.Explanation,
+		}
+	}
+
+	log.Printf("[Quiz] Loaded %d OX quizzes for room %s (answers stored server-side)", len(result), roomID)
+	return result, nil
+}
+
+// RandomQAQuizzes is the resolver for the randomQAQuizzes field.
+func (r *queryResolver) RandomQAQuizzes(ctx context.Context, roomID string, count int32) ([]*model.QAQuizWithoutAnswer, error) {
+	var excludedIds []string
+
+	// Get the list of already used quiz IDs from the room
+	room, exists := GetGameRoom(roomID)
+	if exists && room.UsedQuizIds != nil {
+		excludedIds = room.UsedQuizIds
+	}
+
+	// Get multiple quizzes at once
+	quizzes, err := r.QuizService.GetRandomQAQuizzes(ctx, excludedIds, int(count))
+	if err != nil {
+		return nil, err
+	}
+
+	// Store answers on server and mark as used
+	if exists {
+		for _, quiz := range quizzes {
+			quizID := fmt.Sprintf("%d", quiz.ID)
+			room.UsedQuizIds = append(room.UsedQuizIds, quizID)
+
+			// Store answer and difficulty in server memory for later verification
+			storeQuizAnswer(roomID, quizID, quiz.Answer, quiz.Difficulty)
+		}
+		SetGameRoom(roomID, room)
+	}
+
+	// Return quizzes WITHOUT answers
+	result := make([]*model.QAQuizWithoutAnswer, len(quizzes))
+	for i, quiz := range quizzes {
+		result[i] = &model.QAQuizWithoutAnswer{
+			ID:          fmt.Sprintf("%d", quiz.ID),
+			Category:    quiz.Category,
+			Difficulty:  int32(quiz.Difficulty),
+			Question:    quiz.Question,
+			Options:     quiz.Options,
+			ImageURL:    &quiz.ImageURL,
+			Explanation: &quiz.Explanation,
+		}
+	}
+
+	log.Printf("[Quiz] Loaded %d QA quizzes for room %s (answers stored server-side)", len(result), roomID)
+	return result, nil
+}
+
 // IsValidWord is the resolver for the isValidWord field.
 func (r *queryResolver) IsValidWord(ctx context.Context, word string) (bool, error) {
 	dict := dictionary.GetInstance()
 	return dict.IsValidWord(word), nil
+}
+
+// QuizInfo stores quiz answer and difficulty for verification
+type QuizInfo struct {
+	Answer     interface{}
+	Difficulty int // 1-5
+}
+
+// Pre-loaded quizzes storage (in-memory) - stores quiz answers for verification
+var quizAnswers = make(map[string]map[string]*QuizInfo) // roomID -> quizID -> QuizInfo
+var quizAnswersMutex sync.RWMutex
+
+// storeQuizAnswer stores a quiz answer and difficulty for later verification
+func storeQuizAnswer(roomID string, quizID string, answer interface{}, difficulty int) {
+	quizAnswersMutex.Lock()
+	defer quizAnswersMutex.Unlock()
+
+	if quizAnswers[roomID] == nil {
+		quizAnswers[roomID] = make(map[string]*QuizInfo)
+	}
+	quizAnswers[roomID][quizID] = &QuizInfo{
+		Answer:     answer,
+		Difficulty: difficulty,
+	}
+	log.Printf("[Quiz] Stored answer for room %s, quiz %s, difficulty %d", roomID, quizID, difficulty)
+}
+
+// getQuizInfo retrieves stored quiz information (answer and difficulty)
+func getQuizInfo(roomID string, quizID string) (*QuizInfo, bool) {
+	quizAnswersMutex.RLock()
+	defer quizAnswersMutex.RUnlock()
+
+	if roomAnswers, exists := quizAnswers[roomID]; exists {
+		info, ok := roomAnswers[quizID]
+		return info, ok
+	}
+	return nil, false
+}
+
+// getQuizAnswer retrieves a stored quiz answer (legacy compatibility)
+func getQuizAnswer(roomID string, quizID string) (interface{}, bool) {
+	info, ok := getQuizInfo(roomID, quizID)
+	if !ok {
+		return nil, false
+	}
+	return info.Answer, true
+}
+
+// calculateQuizScore calculates score based on difficulty (1-5 -> 50-250 points)
+func calculateQuizScore(difficulty int) int32 {
+	// Validate level range (1-5)
+	if difficulty < 1 {
+		difficulty = 1
+	} else if difficulty > 5 {
+		difficulty = 5
+	}
+
+	// Calculate score: difficulty × 50
+	score := int32(difficulty * 50)
+	log.Printf("[Quiz] Difficulty %d -> %d points", difficulty, score)
+	return score
+}
+
+// GetQuizInfo (public) retrieves stored quiz information for WebSocket usage
+func GetQuizInfo(roomID string, quizID string) (*QuizInfo, bool) {
+	return getQuizInfo(roomID, quizID)
+}
+
+// CalculateQuizScore (public) calculates score based on difficulty for WebSocket usage
+func CalculateQuizScore(difficulty int) int32 {
+	return calculateQuizScore(difficulty)
+}
+
+// AddScoreToUser adds score to user in game room
+func AddScoreToUser(roomID string, username string, score int32) {
+	room, exists := GetGameRoom(roomID)
+	if !exists {
+		log.Printf("[Quiz] Room not found: %s", roomID)
+		return
+	}
+
+	for _, user := range room.Users {
+		if user.Name == username {
+			user.Score += score
+			log.Printf("[Quiz] Added %d points to %s (total: %d)", score, username, user.Score)
+			break
+		}
+	}
+
+	SetGameRoom(roomID, room)
+}
+
+// cleanupQuizAnswers removes stored answers for a room
+func cleanupQuizAnswers(roomID string) {
+	quizAnswersMutex.Lock()
+	defer quizAnswersMutex.Unlock()
+
+	delete(quizAnswers, roomID)
+	log.Printf("[Quiz] Cleaned up quiz answers for room %s", roomID)
 }
 
 // Pre-loaded quizzes storage (in-memory)
@@ -122,7 +311,7 @@ func startQuizGame(ctx context.Context, roomID string, gameType model.GameType, 
 		log.Printf("[Quiz] ERROR: Room %s not found, aborting quiz game", roomID)
 		return
 	}
-	if room.Status != model.GameStatusPlaying {
+	if room.Status != model.GameRoomStatusPlaying {
 		log.Printf("[Quiz] ERROR: Room %s status is %s (not PLAYING), aborting quiz game", roomID, room.Status)
 		return
 	}
@@ -186,7 +375,7 @@ func preloadQuizzes(ctx context.Context, roomID string, gameType model.GameType,
 				"answer":      quiz.Answer,
 				"explanation": quiz.Explanation,
 			}
-			log.Printf("[Quiz Pre-Loading] ✓ Round %d: OX quiz loaded (ID: %s, Question: %.50s...)", i+1, quizID, quiz.Question)
+			log.Printf("[Quiz Pre-Loading] 笨・Round %d: OX quiz loaded (ID: %s, Question: %.50s...)", i+1, quizID, quiz.Question)
 
 		} else if gameType == model.GameTypeQa {
 			quiz, err := quizService.GetRandomQAQuiz(ctx, excludedIds)
@@ -208,13 +397,13 @@ func preloadQuizzes(ctx context.Context, roomID string, gameType model.GameType,
 				"explanation": quiz.Explanation,
 				"imageUrl":    quiz.ImageURL,
 			}
-			log.Printf("[Quiz Pre-Loading] ✓ Round %d: QA quiz loaded (ID: %s, Options: %d, Question: %.50s...)", i+1, quizID, len(quiz.Options), quiz.Question)
+			log.Printf("[Quiz Pre-Loading] 笨・Round %d: QA quiz loaded (ID: %s, Options: %d, Question: %.50s...)", i+1, quizID, len(quiz.Options), quiz.Question)
 		}
 
 		quizzes = append(quizzes, quizData)
 	}
 
-	log.Printf("[Quiz Pre-Loading] ✓ COMPLETED! Successfully pre-loaded %d quizzes for room %s", len(quizzes), roomID)
+	log.Printf("[Quiz Pre-Loading] 笨・COMPLETED! Successfully pre-loaded %d quizzes for room %s", len(quizzes), roomID)
 
 	// Update room with all used quiz IDs
 	if exists {
@@ -227,26 +416,26 @@ func preloadQuizzes(ctx context.Context, roomID string, gameType model.GameType,
 
 // sendPreloadedQuiz sends a pre-loaded quiz to clients
 func sendPreloadedQuiz(roomID string, roundIndex int) {
-	log.Printf("[Quiz Delivery] 📤 Sending pre-loaded quiz for room %s, round %d (index: %d)", roomID, roundIndex+1, roundIndex)
+	log.Printf("[Quiz Delivery] 豆 Sending pre-loaded quiz for room %s, round %d (index: %d)", roomID, roundIndex+1, roundIndex)
 
 	preloadedQuizzesMutex.RLock()
 	quizzes, exists := preloadedQuizzes[roomID]
 	preloadedQuizzesMutex.RUnlock()
 
 	if !exists {
-		log.Printf("[Quiz Delivery] ❌ ERROR: No pre-loaded quizzes found for room %s", roomID)
+		log.Printf("[Quiz Delivery] 笶・ERROR: No pre-loaded quizzes found for room %s", roomID)
 		return
 	}
 
 	if roundIndex >= len(quizzes) {
-		log.Printf("[Quiz Delivery] ❌ ERROR: Round index %d out of range (total quizzes: %d) for room %s", roundIndex, len(quizzes), roomID)
+		log.Printf("[Quiz Delivery] 笶・ERROR: Round index %d out of range (total quizzes: %d) for room %s", roundIndex, len(quizzes), roomID)
 		return
 	}
 
 	quizData := quizzes[roundIndex]
 
-	log.Printf("[Quiz Delivery] ✓ Quiz found - Type: %s, ID: %s", quizData["type"], quizData["id"])
-	log.Printf("[Quiz Delivery] ✓ Question: %.80s...", quizData["question"])
+	log.Printf("[Quiz Delivery] 笨・Quiz found - Type: %s, ID: %s", quizData["type"], quizData["id"])
+	log.Printf("[Quiz Delivery] 笨・Question: %.80s...", quizData["question"])
 
 	// Broadcast quiz to all users via WebSocket
 	message := map[string]interface{}{
@@ -254,7 +443,7 @@ func sendPreloadedQuiz(roomID string, roundIndex int) {
 		"data": quizData,
 	}
 
-	log.Printf("[Quiz Delivery] 📡 Broadcasting quiz to all users in room %s", roomID)
+	log.Printf("[Quiz Delivery] 藤 Broadcasting quiz to all users in room %s", roomID)
 
 	// Publish to Valkey for WebSocket distribution
 	jsonData, err := json.Marshal(message)
@@ -296,7 +485,7 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 
 		// Check if room still exists and is playing
 		room, exists := GetGameRoom(roomID)
-		if !exists || room.Status != model.GameStatusPlaying {
+		if !exists || room.Status != model.GameRoomStatusPlaying {
 			log.Printf("[Quiz] Timer stopped for room %s (room ended)", roomID)
 			return
 		}
@@ -308,7 +497,7 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 
 	// Move to next round or end game
 	room, exists := GetGameRoom(roomID)
-	if !exists || room.Status != model.GameStatusPlaying {
+	if !exists || room.Status != model.GameRoomStatusPlaying {
 		cleanupPreloadedQuizzes(roomID)
 		return
 	}
@@ -317,7 +506,7 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 	if room.CurrentRound >= room.TotalRounds {
 		// Game finished
 		log.Printf("[Quiz] Game finished for room %s", roomID)
-		room.Status = model.GameStatusFinished
+		room.Status = model.GameRoomStatusFinished
 		SetGameRoom(roomID, room)
 		publishRoomUpdateToWebSocket(roomID, room)
 		cleanupPreloadedQuizzes(roomID)

@@ -13,6 +13,8 @@ import (
 type QuizService interface {
 	GetRandomOXQuiz(ctx context.Context, excludedIds []string) (*models.OXQuiz, error)
 	GetRandomQAQuiz(ctx context.Context, excludedIds []string) (*models.GeneralQuiz, error)
+	GetRandomOXQuizzes(ctx context.Context, excludedIds []string, count int) ([]*models.OXQuiz, error)
+	GetRandomQAQuizzes(ctx context.Context, excludedIds []string, count int) ([]*models.GeneralQuiz, error)
 	IsValidWord(ctx context.Context, word string) (bool, error)
 }
 
@@ -31,6 +33,14 @@ func (s *quizService) GetRandomOXQuiz(ctx context.Context, excludedIds []string)
 
 func (s *quizService) GetRandomQAQuiz(ctx context.Context, excludedIds []string) (*models.GeneralQuiz, error) {
 	return s.repo.GetRandomQAQuiz(ctx, excludedIds)
+}
+
+func (s *quizService) GetRandomOXQuizzes(ctx context.Context, excludedIds []string, count int) ([]*models.OXQuiz, error) {
+	return s.repo.GetRandomOXQuizzes(ctx, excludedIds, count)
+}
+
+func (s *quizService) GetRandomQAQuizzes(ctx context.Context, excludedIds []string, count int) ([]*models.GeneralQuiz, error) {
+	return s.repo.GetRandomQAQuizzes(ctx, excludedIds, count)
 }
 
 func (s *quizService) IsValidWord(ctx context.Context, word string) (bool, error) {

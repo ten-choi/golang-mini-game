@@ -29,7 +29,7 @@ type Quiz struct {
 	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Type       QuizType           `db:"type" json:"type"`             // 퀴즈 타입 (ox, guess)
 	Category   string             `db:"category" json:"category"`     // 카테고리 (동물, 과일, 음식 등)
-	Difficulty string             `db:"difficulty" json:"difficulty"` // 난이도 (easy, medium, hard)
+	Difficulty int                `db:"difficulty" json:"difficulty"` // 난이도 (1-5)
 	Question   string             `db:"question" json:"question"`     // 문제/주제
 	//TODO 보기 선택지 ox문제는 o랑 x가 들어가면 되고 4지선다는 4지선다용 보기가 필요
 	Answer      interface{} `db:"answer" json:"answer"`           // 정답 (OX는 bool, Guess는 string)
@@ -44,7 +44,7 @@ type Quiz struct {
 type OXQuiz struct {
 	ID          int64     `db:"id" json:"id"`
 	Category    string    `db:"category" json:"category"`
-	Difficulty  string    `db:"difficulty" json:"difficulty"`   // easy, medium, hard
+	Difficulty  int       `db:"difficulty" json:"difficulty"`   // 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)
 	Question    string    `db:"question" json:"question"`       // 예: "사과는 과일이다"
 	Answer      bool      `db:"answer" json:"answer"`           // true (O) 또는 false (X)
 	Explanation string    `db:"explanation" json:"explanation"` // 정답 설명
@@ -58,7 +58,7 @@ type OXQuiz struct {
 type GuessQuiz struct {
 	ID           int64             `db:"id" json:"id"`
 	Category     string            `db:"category" json:"category"`         // 동물, 과일, 음식 등
-	Difficulty   string            `db:"difficulty" json:"difficulty"`     // easy, medium, hard
+	Difficulty   int               `db:"difficulty" json:"difficulty"`     // 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)
 	Topic        string            `db:"topic" json:"topic"`               // 정답 주제 (예: "사과")
 	Translations map[string]string `db:"translations" json:"translations"` // 다국어 번역
 	Hint         string            `db:"hint" json:"hint"`                 // 힌트 (예: "과일 (2자)")
@@ -73,7 +73,7 @@ type GuessQuiz struct {
 type GeneralQuiz struct {
 	ID          int64     `db:"id" json:"id"`
 	Category    string    `db:"category" json:"category"`              // 역사, 과학, 스포츠 등
-	Difficulty  string    `db:"difficulty" json:"difficulty"`          // easy, medium, hard
+	Difficulty  int       `db:"difficulty" json:"difficulty"`          // 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)
 	Question    string    `db:"question" json:"question"`              // 문제 (예: "대한민국의 수도는?")
 	Options     []string  `db:"options" json:"options"`                // 선택지 (4개)
 	Answer      int       `db:"answer" json:"answer"`                  // 정답 인덱스 (0-3)
@@ -85,20 +85,34 @@ type GeneralQuiz struct {
 	UpdatedAt   time.Time `bson:"updated_at" json:"updatedAt"`
 }
 
-// QuizDifficulty는 퀴즈 난이도를 나타냅니다
-type QuizDifficulty string
-
+// QuizDifficulty 상수 정의 (1-5)
 const (
-	DifficultyEasy   QuizDifficulty = "easy"
-	DifficultyMedium QuizDifficulty = "medium"
-	DifficultyHard   QuizDifficulty = "hard"
+	DifficultyEasy     = 1 // 쉬움
+	DifficultyNormal   = 2 // 보통
+	DifficultyHard     = 3 // 어려움
+	DifficultyVeryHard = 4 // 매우 어려움
+	DifficultyExtreme  = 5 // 극악
 )
 
-// IsValid는 QuizDifficulty가 유효한 값인지 검증합니다
-func (d QuizDifficulty) IsValid() bool {
-	switch d {
-	case DifficultyEasy, DifficultyMedium, DifficultyHard:
-		return true
+// IsValidDifficulty는 난이도 값이 유효한지 검증합니다 (1-5)
+func IsValidDifficulty(difficulty int) bool {
+	return difficulty >= DifficultyEasy && difficulty <= DifficultyExtreme
+}
+
+// GetDifficultyName은 난이도 숫자를 문자열로 변환합니다
+func GetDifficultyName(difficulty int) string {
+	switch difficulty {
+	case DifficultyEasy:
+		return "Easy"
+	case DifficultyNormal:
+		return "Normal"
+	case DifficultyHard:
+		return "Hard"
+	case DifficultyVeryHard:
+		return "Very Hard"
+	case DifficultyExtreme:
+		return "Extreme"
+	default:
+		return "Unknown"
 	}
-	return false
 }

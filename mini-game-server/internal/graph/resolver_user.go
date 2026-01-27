@@ -16,7 +16,7 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 	// GraphQL input -> Service DTO
 	dto := service.CreateUserDTO{
 		HangeID: input.HangeID,
-		Name: func() string { //3항 연산이 없어서 이렇게 작성함
+		Name: func() string { //3﨑ｭ ・ｰ・ｰ・ｴ ・・牟・・・ｴ・・ｲ・・卓┳﨑ｨ
 			if input.Name == nil {
 				return input.HangeID
 			}

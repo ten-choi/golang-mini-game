@@ -41,28 +41,41 @@ const QuizRoom: React.FC = () => {
     const gameSubscription = wsService.subscribe(`game/${roomId}`, (data) => {
       console.log('[QuizRoom] Received game message:', data);
       console.log('[QuizRoom] Message type:', data.type);
-      console.log('[QuizRoom] Message data:', data.data);
       
-      if (data.type === 'update' || data.type === 'room_update') {
-        // If we have the full room data, update it directly
+      // Handle new server format: { type: "MESSAGE_TYPE", payload: {...} }
+      if (data.type === 'GAME_EVENT' && data.payload) {
+        const payload = data.payload;
+        console.log('[QuizRoom] Game event:', payload.eventType);
+        
+        if (payload.eventType === 'quiz') {
+          console.log('[QuizRoom] Quiz event received from server');
+          handleQuiz({ data: payload.data });
+        } else if (payload.eventType === 'timer') {
+          handleTimer(payload.data);
+        } else {
+          loadRoom();
+        }
+      } else if (data.type === 'CHAT_MESSAGE' && data.payload) {
+        const payload = data.payload;
+        setChatMessages(prev => [...prev, {
+          username: payload.username,
+          text: payload.message,
+          type: 'chat'
+        }]);
+      }
+      // Handle legacy format for backward compatibility
+      else if (data.type === 'update' || data.type === 'room_update') {
         if (data.data) {
           console.log('[QuizRoom] Updating room from WebSocket. Users count:', data.data.users?.length);
           setRoom(data.data);
         } else {
-          // Fallback: reload room data from API
           console.log('[QuizRoom] No data in message, reloading from API');
           loadRoom();
         }
-      }
-      
-      // Handle quiz message
-      if (data.type === 'quiz') {
+      } else if (data.type === 'quiz') {
         console.log('[QuizRoom] ========== QUIZ RECEIVED FROM SUBSCRIPTION ==========');
         handleQuiz(data);
-      }
-      
-      // Handle timer message
-      if (data.type === 'timer') {
+      } else if (data.type === 'timer') {
         handleTimer(data);
       }
     });
@@ -214,12 +227,9 @@ const QuizRoom: React.FC = () => {
     
     setAnswered(true);
 
-    // Send answer to WebSocket
-    wsService.sendMessage(roomId, 'answer', {
-      username: username,
-      answer: selectedAnswer,
-      quiz_id: (currentQuiz as any)._id
-    });
+    // Send answer using new format
+    const quizId = (currentQuiz as any)._id || (currentQuiz as any).id;
+    wsService.sendQuizAnswer(roomId, username, selectedAnswer, quizId);
 
     // Add system message
     setChatMessages(prev => [...prev, {

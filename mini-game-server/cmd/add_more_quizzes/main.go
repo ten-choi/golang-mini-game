@@ -3,286 +3,391 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
-	"draw-and-guess-server/internal/config"
-	"draw-and-guess-server/internal/database"
-	"draw-and-guess-server/internal/models"
-
 	"github.com/bwmarrin/snowflake"
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// OXQuiz struct
+type OXQuiz struct {
+	ID          int64     `bson:"_id"`
+	Category    string    `bson:"category"`
+	Difficulty  int       `bson:"difficulty"`
+	Question    string    `bson:"question"`
+	Answer      bool      `bson:"answer"`
+	Explanation string    `bson:"explanation"`
+	UsageCount  int       `bson:"usage_count"`
+	IsActive    bool      `bson:"is_active"`
+	CreatedAt   time.Time `bson:"created_at"`
+	UpdatedAt   time.Time `bson:"updated_at"`
+}
+
+// GeneralQuiz struct
+type GeneralQuiz struct {
+	ID          int64     `bson:"_id"`
+	Category    string    `bson:"category"`
+	Difficulty  int       `bson:"difficulty"`
+	Question    string    `bson:"question"`
+	Options     []string  `bson:"options"`
+	Answer      int       `bson:"answer"`
+	Explanation string    `bson:"explanation"`
+	ImageURL    string    `bson:"image_url"`
+	UsageCount  int       `bson:"usage_count"`
+	IsActive    bool      `bson:"is_active"`
+	CreatedAt   time.Time `bson:"created_at"`
+	UpdatedAt   time.Time `bson:"updated_at"`
+}
+
 func main() {
-	// Initialize configuration
-	config.Init()
+	log.Println("Starting quiz addition script...")
+
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using environment variables")
+	}
+
+	// Get MongoDB configuration from environment
+	mongoURI := os.Getenv("MONGO_URI")
+	if mongoURI == "" {
+		mongoURI = "mongodb://localhost:27017"
+	}
+
+	dbName := os.Getenv("MONGO_DB")
+	if dbName == "" {
+		dbName = "draw_and_guess_db"
+	}
 
 	// Connect to MongoDB
-	err := database.Connect()
-	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
-	}
-	log.Println("✓ Connected to MongoDB")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	// Initialize Snowflake ID generator
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		log.Fatalf("MongoDB connection failed: %v", err)
+	}
+	defer client.Disconnect(ctx)
+
+	if err := client.Ping(ctx, nil); err != nil {
+		log.Fatalf("MongoDB ping failed: %v", err)
+	}
+
+	log.Println("MongoDB connected successfully")
+
+	db := client.Database(dbName)
+
+	// Get collections
+	oxCollection := db.Collection("ox_quizzes")
+	qaCollection := db.Collection("general_quizzes")
+
+	// Initialize Snowflake node for ID generation
 	node, err := snowflake.NewNode(1)
 	if err != nil {
-		log.Fatalf("Failed to create Snowflake node: %v", err)
+		log.Fatalf("Failed to create snowflake node: %v", err)
 	}
-	log.Println("✓ Snowflake ID generator initialized")
 
-	ctx := context.Background()
-	db := database.Client.Database("draw_and_guess_db")
-	oxCollection := db.Collection("ox_quizzes")
-	qaCollection := db.Collection("qa_quizzes")
+	ctx = context.Background()
 
-	// Check current count
+	// Check current counts
 	oxCount, _ := oxCollection.CountDocuments(ctx, bson.M{})
 	qaCount, _ := qaCollection.CountDocuments(ctx, bson.M{})
 	log.Printf("Current counts - OX: %d, QA: %d", oxCount, qaCount)
 
 	// Add more OX quizzes
-	oxQuizzes := []models.OXQuiz{
+	oxQuizzes := []OXQuiz{
 		{
 			ID:          node.Generate().Int64(),
 			Category:    "역사",
-			Difficulty:  "easy",
+			Difficulty:  1,
 			Question:    "세종대왕이 한글을 창제하였다.",
 			Answer:      true,
 			Explanation: "세종대왕이 1443년에 훈민정음(한글)을 창제하였습니다.",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
 			Category:    "지리",
-			Difficulty:  "easy",
+			Difficulty:  1,
 			Question:    "에베레스트는 세계에서 가장 높은 산이다.",
 			Answer:      true,
 			Explanation: "에베레스트 산은 해발 8,849m로 세계에서 가장 높은 산입니다.",
-		},
-		{
-			ID:          node.Generate().Int64(),
-			Category:    "상식",
-			Difficulty:  "easy",
-			Question:    "일주일은 8일이다.",
-			Answer:      false,
-			Explanation: "일주일은 7일입니다 (월, 화, 수, 목, 금, 토, 일).",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
 			Category:    "과학",
-			Difficulty:  "easy",
-			Question:    "다이아몬드는 탄소로 이루어져 있다.",
-			Answer:      true,
-			Explanation: "다이아몬드는 탄소 원자가 결정 구조를 이루고 있습니다.",
-		},
-		{
-			ID:          node.Generate().Int64(),
-			Category:    "문화",
-			Difficulty:  "easy",
-			Question:    "피카소는 프랑스 화가이다.",
+			Difficulty:  1,
+			Question:    "태양계는 8개의 행성이다.",
 			Answer:      false,
-			Explanation: "파블로 피카소는 스페인 출신의 화가입니다.",
+			Explanation: "태양계는 7개의 행성입니다 (명왕성이 제외됨, 2006년).",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
-			Category:    "상식",
-			Difficulty:  "easy",
+			Category:    "기술",
+			Difficulty:  1,
+			Question:    "인터넷은 군사용으로 처음 개발되었다.",
+			Answer:      true,
+			Explanation: "인터넷은 미국 국방부가 개발한 ARPANET에서 시작되었습니다.",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			ID:          node.Generate().Int64(),
+			Category:    "기술",
+			Difficulty:  1,
+			Question:    "블루투스는 무선 통신 기술이다.",
+			Answer:      true,
+			Explanation: "블루투스는 단거리 무선 통신 표준 기술입니다.",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			ID:          node.Generate().Int64(),
+			Category:    "지리",
+			Difficulty:  1,
 			Question:    "한국의 수도는 서울이다.",
 			Answer:      true,
 			Explanation: "대한민국의 수도는 서울특별시입니다.",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
-			Category:    "과학",
-			Difficulty:  "easy",
+			Category:    "기술",
+			Difficulty:  1,
 			Question:    "태양은 동쪽에서 떠서 서쪽으로 진다.",
 			Answer:      true,
 			Explanation: "지구의 자전 방향 때문에 태양은 동쪽에서 떠서 서쪽으로 집니다.",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
-			Category:    "과학",
-			Difficulty:  "medium",
-			Question:    "물은 섭씨 100도에서 끓는다.",
+			Category:    "기술",
+			Difficulty:  2,
+			Question:    "물의 끓는 점은 100도이다.",
 			Answer:      true,
-			Explanation: "표준 기압(1기압)에서 물은 100°C에서 끓습니다.",
+			Explanation: "표준 대기압에서 물의 끓는 점은 100°C입니다.",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
-			Category:    "과학",
-			Difficulty:  "easy",
-			Question:    "사람의 심장은 오른쪽 가슴에 있다.",
+			Category:    "기술",
+			Difficulty:  2,
+			Question:    "지구의 중심은 액체로 이루어져있다.",
 			Answer:      false,
-			Explanation: "심장은 가슴의 중앙에서 약간 왼쪽에 위치합니다.",
+			Explanation: "지구의 중심은 고체 상태의 내핵과 액체 상태의 외핵으로 이루어져 있습니다.",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			ID:          node.Generate().Int64(),
+			Category:    "스포츠",
+			Difficulty:  2,
+			Question:    "올림픽은 4년마다 개최된다.",
+			Answer:      true,
+			Explanation: "하계 올림픽과 동계 올림픽 모두 4년마다 개최됩니다.",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 	}
 
 	// Insert OX quizzes
 	for _, quiz := range oxQuizzes {
-		time.Sleep(10 * time.Millisecond) // Small delay to ensure unique IDs
 		_, err := oxCollection.InsertOne(ctx, quiz)
 		if err != nil {
 			log.Printf("Failed to insert OX quiz: %v", err)
-		} else {
-			question := quiz.Question
-			if len(question) > 30 {
-				question = question[:30]
-			}
-			log.Printf("✓ Inserted OX quiz: %s (ID: %d)", question, quiz.ID)
+			continue
 		}
+		log.Printf("Added OX quiz: %s", quiz.Question)
 	}
 
-	// Add more QA quizzes
-	qaQuizzes := []models.GeneralQuiz{
-		{
-			ID:          node.Generate().Int64(),
-			Category:    "상식",
-			Difficulty:  "easy",
-			Question:    "다음 중 김치의 주재료는?",
-			Options:     []string{"배추", "양파", "감자", "당근"},
-			Answer:      0,
-			Explanation: "김치는 주로 배추를 절여서 만듭니다.",
-		},
-		{
-			ID:          node.Generate().Int64(),
-			Category:    "경제",
-			Difficulty:  "easy",
-			Question:    "한국의 화폐 단위는?",
-			Options:     []string{"원", "엔", "달러", "유로"},
-			Answer:      0,
-			Explanation: "대한민국의 화폐 단위는 원(₩)입니다.",
-		},
-		{
-			ID:          node.Generate().Int64(),
-			Category:    "과학",
-			Difficulty:  "easy",
-			Question:    "지구의 위성은?",
-			Options:     []string{"달", "화성", "금성", "목성"},
-			Answer:      0,
-			Explanation: "지구의 유일한 자연 위성은 달입니다.",
-		},
+	// Add QA quizzes
+	qaQuizzes := []GeneralQuiz{
 		{
 			ID:          node.Generate().Int64(),
 			Category:    "역사",
-			Difficulty:  "medium",
-			Question:    "조선을 건국한 인물은?",
-			Options:     []string{"이성계", "세종대왕", "정조", "광개토대왕"},
+			Difficulty:  1,
+			Question:    "대한민국의 수도는?",
+			Options:     []string{"서울", "부산", "대전", "인천"},
 			Answer:      0,
-			Explanation: "이성계(태조)가 1392년에 조선을 건국했습니다.",
-		},
-		{
-			ID:          node.Generate().Int64(),
-			Category:    "지리",
-			Difficulty:  "easy",
-			Question:    "프랑스의 수도는?",
-			Options:     []string{"파리", "런던", "베를린", "로마"},
-			Answer:      0,
-			Explanation: "프랑스의 수도는 파리입니다.",
-		},
-		{
-			ID:          node.Generate().Int64(),
-			Category:    "음악",
-			Difficulty:  "medium",
-			Question:    "피아노의 건반은 몇 개?",
-			Options:     []string{"88개", "76개", "61개", "100개"},
-			Answer:      0,
-			Explanation: "표준 피아노는 88개의 건반을 가지고 있습니다.",
-		},
-		{
-			ID:          node.Generate().Int64(),
-			Category:    "스포츠",
-			Difficulty:  "easy",
-			Question:    "올림픽은 몇 년마다 개최되나?",
-			Options:     []string{"4년", "2년", "5년", "3년"},
-			Answer:      0,
-			Explanation: "하계/동계 올림픽 모두 4년마다 개최됩니다.",
+			Explanation: "대한민국의 수도는 서울특별시입니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
 			Category:    "과학",
-			Difficulty:  "medium",
-			Question:    "빛의 속도는 대략?",
-			Options:     []string{"30만 km/s", "10만 km/s", "50만 km/s", "100만 km/s"},
+			Difficulty:  2,
+			Question:    "물의 화학식은?",
+			Options:     []string{"H2O", "CO2", "O2", "H2SO4"},
 			Answer:      0,
-			Explanation: "빛의 속도는 약 299,792km/s입니다.",
-		},
-		{
-			ID:          node.Generate().Int64(),
-			Category:    "미술",
-			Difficulty:  "easy",
-			Question:    "모나리자를 그린 화가는?",
-			Options:     []string{"레오나르도 다 빈치", "피카소", "고흐", "모네"},
-			Answer:      0,
-			Explanation: "모나리자는 레오나르도 다 빈치의 대표작입니다.",
+			Explanation: "물의 화학식은 H2O(수소 2개, 산소 1개)입니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
 			Category:    "수학",
-			Difficulty:  "easy",
-			Question:    "원주율(π)은 대략?",
-			Options:     []string{"3.14", "2.71", "1.41", "4.20"},
-			Answer:      0,
-			Explanation: "원주율(π)은 약 3.14159...입니다.",
+			Difficulty:  1,
+			Question:    "2 + 2 = ?",
+			Options:     []string{"3", "4", "5", "6"},
+			Answer:      1,
+			Explanation: "2 더하기 2는 4입니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
-			Category:    "상식",
-			Difficulty:  "easy",
-			Question:    "1년은 몇 개월?",
-			Options:     []string{"12개월", "10개월", "14개월", "11개월"},
+			Category:    "지리",
+			Difficulty:  2,
+			Question:    "세계에서 가장 큰 대륙은?",
+			Options:     []string{"아시아", "아프리카", "유럽", "남미"},
 			Answer:      0,
-			Explanation: "1년은 12개월(1월~12월)입니다.",
+			Explanation: "아시아는 면적이 약 4,400만 km²로 세계에서 가장 큰 대륙입니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			ID:          node.Generate().Int64(),
+			Category:    "역사",
+			Difficulty:  3,
+			Question:    "제2차 세계대전이 끝난 해는?",
+			Options:     []string{"1943", "1944", "1945", "1946"},
+			Answer:      2,
+			Explanation: "제2차 세계대전은 1945년에 종료되었습니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			ID:          node.Generate().Int64(),
+			Category:    "과학",
+			Difficulty:  3,
+			Question:    "빛의 속도는 약 얼마인가?",
+			Options:     []string{"30만 km/s", "10만 km/s", "50만 km/s", "100만 km/s"},
+			Answer:      0,
+			Explanation: "진공에서 빛의 속도는 약 30만 km/s (정확히는 299,792,458 m/s)입니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
 			Category:    "기술",
-			Difficulty:  "medium",
-			Question:    "인터넷 프로토콜은?",
-			Options:     []string{"TCP/IP", "HTTP/2", "FTP/S", "SMTP"},
-			Answer:      0,
-			Explanation: "TCP/IP는 인터넷의 기본 통신 프로토콜입니다.",
+			Difficulty:  4,
+			Question:    "최초의 프로그래밍 언어는?",
+			Options:     []string{"FORTRAN", "COBOL", "Assembly", "Plankalkül"},
+			Answer:      3,
+			Explanation: "Plankalkül은 1942-1945년 사이에 콘라드 추제가 설계한 최초의 고급 프로그래밍 언어입니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
-			Category:    "동물",
-			Difficulty:  "easy",
-			Question:    "한국의 국가 동물은?",
-			Options:     []string{"호랑이", "곰", "사자", "독수리"},
-			Answer:      0,
-			Explanation: "호랑이는 대한민국의 상징 동물입니다.",
+			Category:    "스포츠",
+			Difficulty:  2,
+			Question:    "축구 경기에서 한 팀은 몇 명의 선수로 구성되는가?",
+			Options:     []string{"9명", "10명", "11명", "12명"},
+			Answer:      2,
+			Explanation: "축구 경기는 각 팀당 골키퍼를 포함한 11명의 선수로 진행됩니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 		{
 			ID:          node.Generate().Int64(),
-			Category:    "영화",
-			Difficulty:  "medium",
-			Question:    "2020년 아카데미 작품상 수상작은?",
-			Options:     []string{"기생충", "어벤져스", "겨울왕국", "타이타닉"},
-			Answer:      0,
-			Explanation: "기생충은 2020년 아카데미 작품상을 수상한 한국 영화입니다.",
+			Category:    "예술",
+			Difficulty:  3,
+			Question:    "모나리자를 그린 화가는?",
+			Options:     []string{"피카소", "고흐", "레오나르도 다빈치", "모네"},
+			Answer:      2,
+			Explanation: "모나리자는 레오나르도 다빈치가 1503-1519년에 그린 작품입니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			ID:          node.Generate().Int64(),
+			Category:    "음악",
+			Difficulty:  2,
+			Question:    "피아노의 건반은 총 몇 개인가?",
+			Options:     []string{"76개", "88개", "92개", "100개"},
+			Answer:      1,
+			Explanation: "표준 피아노는 88개의 건반(52개 흰 건반, 36개 검은 건반)으로 구성됩니다.",
+			ImageURL:    "",
+			UsageCount:  0,
+			IsActive:    true,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		},
 	}
 
 	// Insert QA quizzes
 	for _, quiz := range qaQuizzes {
-		time.Sleep(10 * time.Millisecond) // Small delay to ensure unique IDs
 		_, err := qaCollection.InsertOne(ctx, quiz)
 		if err != nil {
 			log.Printf("Failed to insert QA quiz: %v", err)
-		} else {
-			question := quiz.Question
-			if len(question) > 30 {
-				question = question[:30]
-			}
-			log.Printf("✓ Inserted QA quiz: %s (ID: %d)", question, quiz.ID)
+			continue
 		}
+		log.Printf("Added QA quiz: %s", quiz.Question)
 	}
 
 	// Final count
 	oxCount, _ = oxCollection.CountDocuments(ctx, bson.M{})
 	qaCount, _ = qaCollection.CountDocuments(ctx, bson.M{})
-	log.Printf("\n========================================")
-	log.Printf("✓ Quiz addition completed!")
-	log.Printf("Total OX Quizzes in DB: %d", oxCount)
-	log.Printf("Total QA Quizzes in DB: %d", qaCount)
-	log.Printf("========================================")
+	log.Printf("Final counts - OX: %d, QA: %d", oxCount, qaCount)
+	log.Println("Quiz addition completed successfully!")
 }

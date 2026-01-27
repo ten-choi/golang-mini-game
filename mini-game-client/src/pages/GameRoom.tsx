@@ -15,7 +15,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 const GameRoom: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const { language: preferredLanguage, t } = useLanguage();
+  const { t } = useLanguage();
   const [user] = useState<User | null>(() => {
     const userData = sessionStorage.getItem('user');
     return userData ? JSON.parse(userData) : null;
@@ -62,26 +62,54 @@ const GameRoom: React.FC = () => {
     
     loadRoom();
 
-    // Subscribe to game channel
+    // Subscribe to game channel - handle new server format
     const gameSubscription = wsService.subscribe(`game/${roomId}`, (data) => {
       console.log('[GameRoom] Received game message:', data);
       
-      if (data.type === 'update' || data.type === 'room_update') {
-        // If we have the full room data, update it directly
+      // Handle new server format: { type: "MESSAGE_TYPE", payload: {...} }
+      if (data.type === 'CHAT_MESSAGE' && data.payload) {
+        const payload = data.payload;
+        setChatMessages((prev) => [...prev, {
+          username: payload.username || 'System',
+          text: payload.message,
+          type: 'chat'
+        }]);
+      } else if (data.type === 'GAME_EVENT' && data.payload) {
+        const payload = data.payload;
+        console.log('[GameRoom] Game event:', payload.eventType);
+        
+        switch (payload.eventType) {
+          case 'user_joined':
+          case 'user_left':
+          case 'game_started':
+          case 'round_started':
+          case 'round_ended':
+          case 'game_ended':
+            loadRoom();
+            break;
+        }
+      } else if (data.type === 'GAME_ACTION' && data.payload) {
+        const payload = data.payload;
+        if (payload.action === 'update') {
+          loadRoom();
+        }
+      } else if (data.type === 'DRAW_EVENT' && data.payload) {
+        // Drawing events are handled by DrawingCanvas component
+        console.log('[GameRoom] Draw event received:', data.payload.action);
+      }
+      // Handle legacy format for backward compatibility
+      else if (data.type === 'update' || data.type === 'room_update') {
         if (data.data) {
           console.log('[GameRoom] Updating room from WebSocket:', data.data);
           setRoom(data.data);
           
-          // Update isDrawer based on new room data
           if (data.data.hostUserId) {
             setIsDrawer(data.data.hostUserId === user?.id);
           }
         } else {
-          // Fallback: reload room data from API
           loadRoom();
         }
         
-        // Update timer from WebSocket if available
         if (data.time_left !== undefined) {
           setTimeLeft(data.time_left);
         }
@@ -89,7 +117,6 @@ const GameRoom: React.FC = () => {
           setMessage(t.gameRoom.gameFinished);
         }
       } else if (data.type === 'timer_update') {
-        // Timer update from WebSocket
         if (data.data) {
           setTimeLeft(data.data.time_left);
           if (data.data.status === 'FINISHED') {
@@ -109,9 +136,9 @@ const GameRoom: React.FC = () => {
       }]);
     });
 
-    // Handle GAME_EVENT messages (WSSuccessMessage format)
+    // Handle GAME_EVENT messages
     const gameEventHandler = (payload: GameEventPayload) => {
-      console.log('[GameRoom] Game event:', payload.eventType);
+      console.log('[GameRoom] Game event handler:', payload.eventType);
       
       switch (payload.eventType) {
         case 'user_joined':
@@ -125,7 +152,7 @@ const GameRoom: React.FC = () => {
       }
     };
 
-    // Handle CHAT_MESSAGE messages (WSSuccessMessage format)
+    // Handle CHAT_MESSAGE messages
     const chatMessageHandler = (payload: ChatMessagePayload) => {
       setChatMessages((prev) => [...prev, {
         username: payload.username || 'System',
@@ -262,34 +289,8 @@ const GameRoom: React.FC = () => {
     if (!chatInput.trim() || !roomId) return;
 
     // Use new WebSocket chat message format
-    wsService.sendChatMessage(roomId, username, username, chatInput);
-
-    // If user (not drawer) and game is playing, check if it's correct answer
-    if (room?.hostUserId !== user?.id && room?.status === 'PLAYING') {
-      try {
-        const response = await apiService.handleChatMessage(roomId, username, chatInput);
-        
-        if (response.result.is_correct) {
-          setMessage(`${t.gameRoom.correctAnswer} 🎉`);
-          
-          // Send system message about correct answer
-          wsService.sendChatMessage(roomId, 'system', t.gameRoom.system, 
-            `${username}${t.gameRoom.answeredCorrectly} 🎉`);
-          
-          // Trigger game state update
-          wsService.sendMessage(roomId, 'game', {
-            type: 'update'
-          });
-          
-          setTimeout(() => {
-            setMessage('');
-            loadRoom();
-          }, 2000);
-        }
-      } catch (error) {
-        console.error('Failed to check answer:', error);
-      }
-    }
+    const userId = user?.id || username;
+    wsService.sendChatMessage(roomId, userId, username, chatInput);
 
     setChatInput('');
   };
@@ -314,7 +315,7 @@ const GameRoom: React.FC = () => {
     return <div style={styles.loading}>{t.gameRoom.loading}</div>;
   }
 
-  const myuser = room.users.find((p: GameUser) => p.userId === user?.id);
+  // const myuser = room.users.find((p: GameUser) => p.userId === user?.id);
   const sortedusers = [...room.users].sort((a, b) => b.score - a.score);
 
   return (

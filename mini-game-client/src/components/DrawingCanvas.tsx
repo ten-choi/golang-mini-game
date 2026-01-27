@@ -66,7 +66,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
             if (!prev) return null;
             return {
               ...prev,
-              points: [...prev.points, ...payload.points],
+              points: [...prev.points, ...(payload.points || [])],
             };
           });
         } else if (payload.action === 'end') {
@@ -191,19 +191,12 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     setCurrentStroke([point]);
     currentStrokeId.current = generateStrokeId();
 
-    // Send drawing event using new format
+    // Send drawing event using new server format
     wsService.sendDrawingEvent(uuid, username, 'start', {
       strokeId: currentStrokeId.current,
       points: [point],
       color: selectedColor,
       lineWidth: 4
-    });
-
-    // Legacy format for backward compatibility
-    wsService.sendMessage(uuid, 'draw', {
-      type: 'start',
-      color: selectedColor,
-      point: { x: point.x, y: point.y },
     });
   };
 
@@ -213,18 +206,12 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
     const point = getCanvasPoint(e);
     setCurrentStroke((prev) => [...prev, point]);
 
-    // Send drawing event using new format
+    // Send drawing event using new server format
     wsService.sendDrawingEvent(uuid, username, 'draw', {
       strokeId: currentStrokeId.current,
       points: [point],
       color: selectedColor,
       lineWidth: 4
-    });
-
-    // Legacy format for backward compatibility
-    wsService.sendMessage(uuid, 'draw', {
-      type: 'draw',
-      point: { x: point.x, y: point.y },
     });
   };
 
@@ -233,14 +220,9 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
 
     setIsDrawing(false);
     
-    // Send drawing event using new format
+    // Send drawing event using new server format
     wsService.sendDrawingEvent(uuid, username, 'end', {
       strokeId: currentStrokeId.current
-    });
-
-    // Legacy format for backward compatibility
-    wsService.sendMessage(uuid, 'draw', {
-      type: 'end',
     });
 
     // Add current stroke to completed strokes

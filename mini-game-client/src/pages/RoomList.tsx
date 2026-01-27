@@ -64,35 +64,41 @@ const RoomList: React.FC = () => {
     const subscription = wsService.subscribe('lobby', (data) => {
       console.log('[RoomList] Lobby update received:', data);
       
-      // 서버에서 보낸 lobby_update 메시지 처리
-      if (data.type === 'lobby_update' || data.type === 'room_list_update') {
-        if (data.data && Array.isArray(data.data)) {
-          console.log('[RoomList] Updating rooms from WebSocket:', data.data.length, 'rooms');
-          console.log('[RoomList] Updated room details:', data.data.map(r => ({ id: r.id, users: r.users?.length || 0, status: r.status })));
-          setRooms(data.data);
-        } else {
-          // 데이터가 없으면 API에서 다시 로드
-          console.warn('[RoomList] No data in lobby update, reloading from API');
-          loadRooms();
-        }
-      }
-      
-      // 로비 채팅 히스토리 수신
-      if ((data.type === 'LOBBY_CHAT_HISTORY' || data.type === 'lobby_chat_history') && data.messages) {
-        console.log('[RoomList] Received chat history:', data.messages.length, 'messages');
-        setLobbyChatMessages(data.messages.map((msg: any) => ({
+      // Handle new server format: { type: "MESSAGE_TYPE", payload: {...} }
+      if (data.type === 'LOBBY_CHAT' && data.payload) {
+        const payload = data.payload;
+        const username = payload.username || 'Unknown';
+        const message = payload.message || '';
+        console.log('[RoomList] Received lobby chat:', username, message);
+        setLobbyChatMessages(prev => [...prev, { username, message }]);
+      } else if (data.type === 'LOBBY_CHAT_HISTORY' && data.payload) {
+        const messages = data.payload.messages || [];
+        console.log('[RoomList] Received chat history:', messages.length, 'messages');
+        setLobbyChatMessages(messages.map((msg: any) => ({
           username: msg.userName || msg.username || 'Unknown',
           message: msg.message
         })));
       }
-      
-      // 로비 채팅 메시지 처리
-      if (data.type === 'LOBBY_CHAT' || data.type === 'lobby_chat') {
-        // data.payload에서 메시지 추출
+      // Handle legacy format for backward compatibility
+      else if (data.type === 'lobby_update' || data.type === 'room_list_update') {
+        if (data.data && Array.isArray(data.data)) {
+          console.log('[RoomList] Updating rooms from WebSocket:', data.data.length, 'rooms');
+          setRooms(data.data);
+        } else {
+          console.warn('[RoomList] No data in lobby update, reloading from API');
+          loadRooms();
+        }
+      } else if (data.type === 'lobby_chat_history' && data.messages) {
+        console.log('[RoomList] Received chat history (legacy):', data.messages.length, 'messages');
+        setLobbyChatMessages(data.messages.map((msg: any) => ({
+          username: msg.userName || msg.username || 'Unknown',
+          message: msg.message
+        })));
+      } else if (data.type === 'lobby_chat') {
         const payload = data.payload || {};
         const username = payload.username || 'Unknown';
         const message = payload.message || '';
-        console.log('[RoomList] Received lobby chat:', username, message, 'Full data:', data);
+        console.log('[RoomList] Received lobby chat (legacy):', username, message);
         setLobbyChatMessages(prev => [...prev, { username, message }]);
       }
     });
@@ -197,19 +203,9 @@ const RoomList: React.FC = () => {
   const handleSendLobbyChat = () => {
     if (!chatInput.trim() || !user) return;
 
-    // WebSocket을 통해 직접 lobby_chat 메시지 전송
-    if (wsService['ws'] && wsService['ws'].readyState === WebSocket.OPEN) {
-      wsService['ws'].send(JSON.stringify({
-        type: 'lobby_chat',
-        channel: 'lobby',
-        data: {
-          userId: user.id,
-          username: user.name,
-          message: chatInput.trim()
-        }
-      }));
-      console.log('[RoomList] Sent lobby chat from', user.name, ':', chatInput.trim());
-    }
+    // Use the new WebSocket service method
+    wsService.sendLobbyChatMessage(user.id, user.name, chatInput.trim());
+    console.log('[RoomList] Sent lobby chat from', user.name, ':', chatInput.trim());
 
     setChatInput('');
   };
