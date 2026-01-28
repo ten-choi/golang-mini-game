@@ -56,7 +56,10 @@ export interface UpdateUserInput {
 export type GameType = 'OX' | 'QA' | 'WORDCHAIN' | 'DRAWING';
 
 /** 게임방 상태 */
-export type GameStatus = 'WAITING' | 'PLAYING' | 'FINISHED';
+export type GameRoomStatus = 'WAITING' | 'PLAYING' | 'FINISHED';
+
+/** @deprecated 하위 호환성을 위해 유지. GameRoomStatus 사용 권장 */
+export type GameStatus = GameRoomStatus;
 
 /** 게임방 내 사용자 정보 */
 export interface GameUser {
@@ -79,7 +82,7 @@ export interface GameRoom {
   /** 게임 모드: OX, QA, 또는 WORDCHAIN */
   gameType: GameType;
   /** 현재 게임 상태 */
-  status: GameStatus;
+  status: GameRoomStatus;
   /** 현재 라운드 번호 (1부터 시작) */
   currentRound: number;
   /** 총 라운드 수 (기본값: 5) */
@@ -185,8 +188,8 @@ export interface OXQuiz {
   id: string;
   /** 퀴즈 카테고리 */
   category: string;
-  /** 난이도: easy, medium, hard */
-  difficulty: string;
+  /** 난이도: 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme) */
+  difficulty: number;
   /** 문제 텍스트 */
   question: string;
   /** 정답: true 또는 false */
@@ -209,8 +212,8 @@ export interface GeneralQuiz {
   id: string;
   /** 퀴즈 카테고리 */
   category: string;
-  /** 난이도: easy, medium, hard */
-  difficulty: string;
+  /** 난이도: 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme) */
+  difficulty: number;
   /** 문제 텍스트 */
   question: string;
   /** 4개의 선택지 배열 */
@@ -555,7 +558,7 @@ export interface GameState {
   users: GameUser[];
   roundNumber: number;
   timeLeft: number;
-  gameStatus: GameStatus;
+  gameStatus: GameRoomStatus;
 }
 
 export interface CanvasState {

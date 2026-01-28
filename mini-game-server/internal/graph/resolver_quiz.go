@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/graph/model"
 	"draw-and-guess-server/internal/service"
 	"draw-and-guess-server/internal/valkey"
@@ -347,7 +348,7 @@ func preloadQuizzes(ctx context.Context, roomID string, gameType model.GameType,
 
 			quizData = map[string]interface{}{
 				"id":          quizID,
-				"type":        "OX",
+				"type":        common.GameTypeOX,
 				"category":    quiz.Category,
 				"difficulty":  quiz.Difficulty,
 				"question":    quiz.Question,
@@ -367,7 +368,7 @@ func preloadQuizzes(ctx context.Context, roomID string, gameType model.GameType,
 
 			quizData = map[string]interface{}{
 				"id":          quizID,
-				"type":        "QA",
+				"type":        common.GameTypeQA,
 				"category":    quiz.Category,
 				"difficulty":  quiz.Difficulty,
 				"question":    quiz.Question,
@@ -438,7 +439,7 @@ func sendPreloadedQuiz(roomID string, roundIndex int) {
 	}
 
 	// Add options for QA quiz
-	if quizData["type"] == "QA" {
+	if quizData["type"] == common.GameTypeQA {
 		quizWithoutAnswer["options"] = quizData["options"]
 		if imageUrl, exists := quizData["imageUrl"]; exists {
 			quizWithoutAnswer["imageUrl"] = imageUrl
@@ -575,8 +576,8 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 		SetGameRoom(roomID, room)
 		publishRoomUpdateToWebSocket(roomID, room)
 
-		// Send next pre-loaded quiz after a short delay
-		time.Sleep(2 * time.Second)
+		// Wait before next round to let players see the answer
+		time.Sleep(common.RoundDelaySeconds * time.Second)
 		log.Printf("[Quiz] Sending next pre-loaded quiz for room %s, round %d", roomID, room.CurrentRound)
 		sendPreloadedQuiz(roomID, int(room.CurrentRound)-1) // CurrentRound is 1-indexed
 		go startQuizTimer(ctx, roomID, gameType, roundTimeLimit, quizService)
@@ -637,7 +638,7 @@ func sendNextQuiz(ctx context.Context, roomID string, gameType model.GameType, q
 
 		quizData = map[string]interface{}{
 			"id":          fmt.Sprintf("%d", quiz.ID),
-			"type":        "OX",
+			"type":        common.GameTypeOX,
 			"category":    quiz.Category,
 			"difficulty":  quiz.Difficulty,
 			"question":    quiz.Question,
@@ -665,7 +666,7 @@ func sendNextQuiz(ctx context.Context, roomID string, gameType model.GameType, q
 
 		quizData = map[string]interface{}{
 			"id":          fmt.Sprintf("%d", quiz.ID),
-			"type":        "QA",
+			"type":        common.GameTypeQA,
 			"category":    quiz.Category,
 			"difficulty":  quiz.Difficulty,
 			"question":    quiz.Question,

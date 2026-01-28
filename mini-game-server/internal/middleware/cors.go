@@ -13,7 +13,9 @@ func CORS() gin.HandlerFunc {
 		AllowOrigins: []string{
 			"https://studio.apollographql.com",
 			"https://sandbox.apollo.dev",
-			"http://10.33.255.58:8080",
+			"http://10.33.255.95:8080",
+			"http://10.33.255.95:80",
+			"http://10.33.255.96:80",
 			"http://localhost:8080",
 			"http://localhost:3000",
 			"http://localhost:5174",

@@ -152,7 +152,7 @@ export const GET_GAME_ROOMS = `
   ${GAME_USER_FIELDS}
   query GetGameRooms(
     $gameType: GameType
-    $status: GameStatus
+    $status: GameRoomStatus
     $includePrivate: Boolean
     $hasSpace: Boolean
     $limit: Int
@@ -264,10 +264,10 @@ export const GET_RANDOM_QA_QUIZ = `
   }
 `;
 
-// user Stats Queries
-export const GET_user_STATS = `
-  query GetuserStats($username: String!, $gameType: String) {
-    userStats(username: $username, gameType: $gameType) {
+// User Stats Queries
+export const GET_USER_STATS = `
+  query GetUserStats($userId: ID!, $gameType: String) {
+    userStats(userId: $userId, gameType: $gameType) {
       username
       gameType
       totalGames
@@ -314,8 +314,8 @@ export const GET_RANDOM_WORDCHAIN_PROMPT = `
 `;
 
 export const VALIDATE_WORD = `
-  query ValidateWord($word: String!) {
-    validateWord(word: $word)
+  query IsValidWord($word: String!) {
+    isValidWord(word: $word)
   }
 `;
 
@@ -335,16 +335,16 @@ export const CREATE_USER = `
 
 export const UPDATE_USER = `
   ${USER_FIELDS}
-  mutation UpdateUser($id: ID!, $input: UpdateUserInput!) {
-    updateUser(id: $id, input: $input) {
+  mutation UpdateUser($userName: String!, $input: UpdateUserInput!) {
+    updateUser(userName: $userName, input: $input) {
       ...UserFields
     }
   }
 `;
 
 export const DELETE_USER = `
-  mutation DeleteUser($id: ID!) {
-    deleteUser(id: $id)
+  mutation DeleteUser($userName: String!) {
+    deleteUser(userName: $userName)
   }
 `;
 
@@ -360,8 +360,8 @@ export const CREATE_GAME_ROOM = `
 
 export const UPDATE_GAME_ROOM = `
   ${GAME_ROOM_DETAIL_FIELDS}
-  mutation UpdateGameRoom($id: ID!, $input: UpdateGameRoomInput!) {
-    updateGameRoom(id: $id, input: $input) {
+  mutation UpdateGameRoom($roomId: ID!, $input: UpdateGameRoomInput!) {
+    updateGameRoom(roomId: $roomId, input: $input) {
       ...GameRoomDetailFields
     }
   }
@@ -398,15 +398,15 @@ export const LEAVE_GAME_ROOM = `
 `;
 
 export const DELETE_GAME_ROOM = `
-  mutation DeleteGameRoom($id: ID!) {
-    deleteGameRoom(id: $id)
+  mutation DeleteGameRoom($roomId: ID!) {
+    deleteGameRoom(roomId: $roomId)
   }
 `;
 
-export const READY_user = `
+export const SET_READY = `
   ${GAME_ROOM_DETAIL_FIELDS}
-  mutation Readyuser($roomId: ID!, $userId: ID!) {
-    readyuser(roomId: $roomId, userId: $userId) {
+  mutation SetReady($roomId: ID!, $userId: ID!, $ready: Boolean!) {
+    setReady(roomId: $roomId, userId: $userId, ready: $ready) {
       ...GameRoomDetailFields
     }
   }
@@ -463,8 +463,8 @@ export const END_GAME = `
 
 export const TRANSFER_HOST = `
   ${GAME_ROOM_DETAIL_FIELDS}
-  mutation TransferHost($roomId: ID!, $currentHostUserId: ID!, $newHostUserId: ID!) {
-    transferHost(roomId: $roomId, currentHostUserId: $currentHostUserId, newHostUserId: $newHostUserId) {
+  mutation TransferHost($roomId: ID!, $newHostUserId: ID!) {
+    transferHost(roomId: $roomId, newHostUserId: $newHostUserId) {
       ...GameRoomDetailFields
     }
   }
@@ -472,8 +472,8 @@ export const TRANSFER_HOST = `
 
 // Chat Mutation
 export const SEND_CHAT = `
-  mutation SendChat($roomId: ID!, $userId: ID!, $message: String!) {
-    sendChat(roomId: $roomId, userId: $userId, message: $message) {
+  mutation SendChat($roomId: ID!, $username: String!, $message: String!) {
+    sendChat(roomId: $roomId, username: $username, message: $message) {
       id
       roomId
       username
@@ -485,30 +485,11 @@ export const SEND_CHAT = `
 `;
 
 // ============================================
-// Wordchain Mutations
+// Wordchain-specific operations (using submitAnswer mutation)
 // ============================================
 
-export const SUBMIT_WORDCHAIN_WORD = `
-  mutation SubmitWordchainWord($roomId: ID!, $userId: ID!, $word: String!) {
-    submitWordchainWord(roomId: $roomId, userId: $userId, word: $word) {
-      success
-      isCorrect
-      earnedScore
-      totalScore
-      correctAnswer
-      explanation
-    }
-  }
-`;
-
-export const SKIP_WORDCHAIN_TURN = `
-  ${GAME_ROOM_DETAIL_FIELDS}
-  mutation SkipWordchainTurn($roomId: ID!, $userId: ID!) {
-    skipWordchainTurn(roomId: $roomId, userId: $userId) {
-      ...GameRoomDetailFields
-    }
-  }
-`;
+// Note: For wordchain game, use SUBMIT_ANSWER mutation with word as answer
+// No separate SUBMIT_WORDCHAIN_WORD mutation exists in schema
 
 // ============================================
 // GraphQL Subscriptions

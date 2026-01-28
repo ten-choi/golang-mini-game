@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"draw-and-guess-server/internal/common"
 	"draw-and-guess-server/internal/graph/model"
 )
 
@@ -18,7 +19,7 @@ func (r *queryResolver) UserStats(ctx context.Context, userID string, gameType *
 
 	stats := []*model.UserStats{}
 
-	gameTypes := []string{"WORDCHAIN", "OX", "QA"}
+	gameTypes := []string{common.GameTypeWordchain, common.GameTypeOX, common.GameTypeQA}
 	if gameType != nil {
 		gameTypes = []string{*gameType}
 	}
