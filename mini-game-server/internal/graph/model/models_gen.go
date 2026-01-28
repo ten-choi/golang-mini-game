@@ -71,7 +71,7 @@ type CreateUserInput struct {
 	HangeID string `json:"hangeId"`
 	// 고유 사용자명 (3-20자) (선택사항)
 	Name *string `json:"name,omitempty"`
-	// 프로필 이미지 URL (선택사항)
+	// profile image URL (Optional) if provided s3igned URL
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 

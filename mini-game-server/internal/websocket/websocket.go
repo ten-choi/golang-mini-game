@@ -84,16 +84,6 @@ func handleDrawingMessage(roomID string, data interface{}) {
 	handlePublish(channel, drawingPayload)
 }
 
-// handleGameAction processes game action messages
-func handleGameAction(roomID string, data interface{}) {
-	channel := common.ChannelGamePrefix + roomID
-	actionPayload := map[string]interface{}{
-		"type":    "GAME_ACTION",
-		"payload": data,
-	}
-	handlePublish(channel, actionPayload)
-}
-
 // handleQuizAnswer processes quiz answer submissions and awards points
 func handleQuizAnswer(roomID string, data interface{}) {
 	answerData, ok := data.(map[string]interface{})
@@ -357,10 +347,6 @@ func handleMessages(client *Client) {
 		case "drawing":
 			if client.roomID != "" {
 				handleDrawingMessage(client.roomID, wsMsg.Data)
-			}
-		case "game_action":
-			if client.roomID != "" {
-				handleGameAction(client.roomID, wsMsg.Data)
 			}
 		case "wordchain_submit":
 			if client.roomID != "" {

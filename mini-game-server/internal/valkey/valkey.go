@@ -125,3 +125,89 @@ func GetLobbyChatHistory(ctx context.Context, count int64) ([]map[string]interfa
 
 	return chatHistory, nil
 }
+
+// SaveRoomChatMessage saves a room chat message to Valkey list (max 500 messages per room)
+func SaveRoomChatMessage(ctx context.Context, roomID, userID, username, message string) error {
+	if Client == nil {
+		return fmt.Errorf("valkey client is not initialized")
+	}
+
+	// Create chat message JSON
+	chatMsg := map[string]interface{}{
+		"roomId":    roomID,
+		"userId":    userID,
+		"username":  username,
+		"message":   message,
+		"timestamp": time.Now().Unix(),
+	}
+
+	// Convert to JSON string
+	msgBytes, err := json.Marshal(chatMsg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal chat message: %w", err)
+	}
+
+	// Room-specific key
+	key := fmt.Sprintf("room:%s:chat:messages", roomID)
+
+	// Add to list (LPUSH adds to the head)
+	if err := Client.LPush(ctx, key, msgBytes).Err(); err != nil {
+		return fmt.Errorf("failed to save room chat message: %w", err)
+	}
+
+	// Keep only the latest 500 messages per room
+	if err := Client.LTrim(ctx, key, 0, 499).Err(); err != nil {
+		return fmt.Errorf("failed to trim room chat messages: %w", err)
+	}
+
+	return nil
+}
+
+// GetRoomChatHistory retrieves the last N room chat messages
+func GetRoomChatHistory(ctx context.Context, roomID string, count int64) ([]map[string]interface{}, error) {
+	if Client == nil {
+		return nil, fmt.Errorf("valkey client is not initialized")
+	}
+
+	if count > 500 {
+		count = 500
+	}
+
+	key := fmt.Sprintf("room:%s:chat:messages", roomID)
+
+	// Get messages from list (LRANGE 0 count-1)
+	msgs, err := Client.LRange(ctx, key, 0, count-1).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get room chat history: %w", err)
+	}
+
+	// Parse JSON messages
+	var chatHistory []map[string]interface{}
+	for i := len(msgs) - 1; i >= 0; i-- { // Reverse to show oldest first
+		var msg map[string]interface{}
+		if err := json.Unmarshal([]byte(msgs[i]), &msg); err != nil {
+			log.Printf("Failed to unmarshal room chat message: %v", err)
+			continue
+		}
+		chatHistory = append(chatHistory, msg)
+	}
+
+	return chatHistory, nil
+}
+
+// DeleteRoomChatHistory deletes all chat messages for a specific room
+func DeleteRoomChatHistory(ctx context.Context, roomID string) error {
+	if Client == nil {
+		return fmt.Errorf("valkey client is not initialized")
+	}
+
+	key := fmt.Sprintf("room:%s:chat:messages", roomID)
+
+	// Delete the key
+	if err := Client.Del(ctx, key).Err(); err != nil {
+		return fmt.Errorf("failed to delete room chat history: %w", err)
+	}
+
+	log.Printf("[Valkey] Deleted chat history for room %s", roomID)
+	return nil
+}

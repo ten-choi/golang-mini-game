@@ -120,4 +120,5 @@ func gracefulShutdown(srv *http.Server, logger *common.Logger) {
 	}
 
 	logger.Info("✓ Server exited gracefully")
+	logger.Sync() // Flush any buffered log entries
 }

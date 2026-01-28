@@ -16,7 +16,7 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 	// GraphQL input -> Service DTO
 	dto := service.CreateUserDTO{
 		HangeID: input.HangeID,
-		Name: func() string { //3﨑ｭ ・ｰ・ｰ・ｴ ・・牟・・・ｴ・・ｲ・・卓┳﨑ｨ
+		Name: func() string {
 			if input.Name == nil {
 				return input.HangeID
 			}
