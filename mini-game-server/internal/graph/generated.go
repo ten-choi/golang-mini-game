@@ -90,6 +90,19 @@ type ComplexityRoot struct {
 		Username    func(childComplexity int) int
 	}
 
+	GameRanking struct {
+		Name   func(childComplexity int) int
+		Rank   func(childComplexity int) int
+		Score  func(childComplexity int) int
+		UserID func(childComplexity int) int
+	}
+
+	GameResult struct {
+		Rankings func(childComplexity int) int
+		Room     func(childComplexity int) int
+		Winner   func(childComplexity int) int
+	}
+
 	GameRoom struct {
 		CreatedAt              func(childComplexity int) int
 		CurrentRound           func(childComplexity int) int
@@ -182,21 +195,19 @@ type ComplexityRoot struct {
 	}
 
 	OXQuizWithoutAnswer struct {
-		Category    func(childComplexity int) int
-		Difficulty  func(childComplexity int) int
-		Explanation func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Question    func(childComplexity int) int
+		Category   func(childComplexity int) int
+		Difficulty func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Question   func(childComplexity int) int
 	}
 
 	QAQuizWithoutAnswer struct {
-		Category    func(childComplexity int) int
-		Difficulty  func(childComplexity int) int
-		Explanation func(childComplexity int) int
-		ID          func(childComplexity int) int
-		ImageURL    func(childComplexity int) int
-		Options     func(childComplexity int) int
-		Question    func(childComplexity int) int
+		Category   func(childComplexity int) int
+		Difficulty func(childComplexity int) int
+		ID         func(childComplexity int) int
+		ImageURL   func(childComplexity int) int
+		Options    func(childComplexity int) int
+		Question   func(childComplexity int) int
 	}
 
 	Query struct {
@@ -209,9 +220,7 @@ type ComplexityRoot struct {
 		MyCurrentRoom         func(childComplexity int, username string) int
 		MyInvitations         func(childComplexity int, userID string, status *model.InviteStatus) int
 		RandomOXQuiz          func(childComplexity int, roomID *string) int
-		RandomOXQuizzes       func(childComplexity int, roomID string, count int32) int
 		RandomQAQuiz          func(childComplexity int, roomID *string) int
-		RandomQAQuizzes       func(childComplexity int, roomID string, count int32) int
 		RandomWordchainPrompt func(childComplexity int) int
 		UserByHangeID         func(childComplexity int, hangeID string) int
 		UserByName            func(childComplexity int, name string) int
@@ -292,7 +301,7 @@ type MutationResolver interface {
 	StartGame(ctx context.Context, roomID string) (*model.GameRoom, error)
 	StartRound(ctx context.Context, roomID string) (*model.GameRoom, error)
 	SubmitAnswer(ctx context.Context, roomID string, userID string, answer string) (*model.AnswerResult, error)
-	EndGame(ctx context.Context, roomID string) (*model.GameRoom, error)
+	EndGame(ctx context.Context, roomID string) (*model.GameResult, error)
 	SendChat(ctx context.Context, roomID string, username string, message string) (*model.ChatMessage, error)
 }
 type QueryResolver interface {
@@ -304,8 +313,6 @@ type QueryResolver interface {
 	MyCurrentRoom(ctx context.Context, username string) (*model.GameRoom, error)
 	RandomOXQuiz(ctx context.Context, roomID *string) (*model.OXQuiz, error)
 	RandomQAQuiz(ctx context.Context, roomID *string) (*model.GeneralQuiz, error)
-	RandomOXQuizzes(ctx context.Context, roomID string, count int32) ([]*model.OXQuizWithoutAnswer, error)
-	RandomQAQuizzes(ctx context.Context, roomID string, count int32) ([]*model.QAQuizWithoutAnswer, error)
 	MyInvitations(ctx context.Context, userID string, status *model.InviteStatus) ([]*model.Invitation, error)
 	Invitation(ctx context.Context, id string) (*model.Invitation, error)
 	UserStats(ctx context.Context, userID string, gameType *string) ([]*model.UserStats, error)
@@ -513,6 +520,50 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.GameEvent.Username(childComplexity), true
+
+	case "GameRanking.name":
+		if e.complexity.GameRanking.Name == nil {
+			break
+		}
+
+		return e.complexity.GameRanking.Name(childComplexity), true
+	case "GameRanking.rank":
+		if e.complexity.GameRanking.Rank == nil {
+			break
+		}
+
+		return e.complexity.GameRanking.Rank(childComplexity), true
+	case "GameRanking.score":
+		if e.complexity.GameRanking.Score == nil {
+			break
+		}
+
+		return e.complexity.GameRanking.Score(childComplexity), true
+	case "GameRanking.userId":
+		if e.complexity.GameRanking.UserID == nil {
+			break
+		}
+
+		return e.complexity.GameRanking.UserID(childComplexity), true
+
+	case "GameResult.rankings":
+		if e.complexity.GameResult.Rankings == nil {
+			break
+		}
+
+		return e.complexity.GameResult.Rankings(childComplexity), true
+	case "GameResult.room":
+		if e.complexity.GameResult.Room == nil {
+			break
+		}
+
+		return e.complexity.GameResult.Room(childComplexity), true
+	case "GameResult.winner":
+		if e.complexity.GameResult.Winner == nil {
+			break
+		}
+
+		return e.complexity.GameResult.Winner(childComplexity), true
 
 	case "GameRoom.createdAt":
 		if e.complexity.GameRoom.CreatedAt == nil {
@@ -1065,12 +1116,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OXQuizWithoutAnswer.Difficulty(childComplexity), true
-	case "OXQuizWithoutAnswer.explanation":
-		if e.complexity.OXQuizWithoutAnswer.Explanation == nil {
-			break
-		}
-
-		return e.complexity.OXQuizWithoutAnswer.Explanation(childComplexity), true
 	case "OXQuizWithoutAnswer.id":
 		if e.complexity.OXQuizWithoutAnswer.ID == nil {
 			break
@@ -1096,12 +1141,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.QAQuizWithoutAnswer.Difficulty(childComplexity), true
-	case "QAQuizWithoutAnswer.explanation":
-		if e.complexity.QAQuizWithoutAnswer.Explanation == nil {
-			break
-		}
-
-		return e.complexity.QAQuizWithoutAnswer.Explanation(childComplexity), true
 	case "QAQuizWithoutAnswer.id":
 		if e.complexity.QAQuizWithoutAnswer.ID == nil {
 			break
@@ -1221,17 +1260,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.RandomOXQuiz(childComplexity, args["roomId"].(*string)), true
-	case "Query.randomOXQuizzes":
-		if e.complexity.Query.RandomOXQuizzes == nil {
-			break
-		}
-
-		args, err := ec.field_Query_randomOXQuizzes_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.RandomOXQuizzes(childComplexity, args["roomId"].(string), args["count"].(int32)), true
 	case "Query.randomQAQuiz":
 		if e.complexity.Query.RandomQAQuiz == nil {
 			break
@@ -1243,17 +1271,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.RandomQAQuiz(childComplexity, args["roomId"].(*string)), true
-	case "Query.randomQAQuizzes":
-		if e.complexity.Query.RandomQAQuizzes == nil {
-			break
-		}
-
-		args, err := ec.field_Query_randomQAQuizzes_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.RandomQAQuizzes(childComplexity, args["roomId"].(string), args["count"].(int32)), true
 	case "Query.randomWordchainPrompt":
 		if e.complexity.Query.RandomWordchainPrompt == nil {
 			break
@@ -2177,22 +2194,6 @@ func (ec *executionContext) field_Query_randomOXQuiz_args(ctx context.Context, r
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_randomOXQuizzes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalNID2string)
-	if err != nil {
-		return nil, err
-	}
-	args["roomId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "count", ec.unmarshalNInt2int32)
-	if err != nil {
-		return nil, err
-	}
-	args["count"] = arg1
-	return args, nil
-}
-
 func (ec *executionContext) field_Query_randomQAQuiz_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2201,22 +2202,6 @@ func (ec *executionContext) field_Query_randomQAQuiz_args(ctx context.Context, r
 		return nil, err
 	}
 	args["roomId"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_randomQAQuizzes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalNID2string)
-	if err != nil {
-		return nil, err
-	}
-	args["roomId"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "count", ec.unmarshalNInt2int32)
-	if err != nil {
-		return nil, err
-	}
-	args["count"] = arg1
 	return args, nil
 }
 
@@ -3255,6 +3240,257 @@ func (ec *executionContext) fieldContext_GameEvent_timestamp(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _GameRanking_rank(ctx context.Context, field graphql.CollectedField, obj *model.GameRanking) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameRanking_rank,
+		func(ctx context.Context) (any, error) {
+			return obj.Rank, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameRanking_rank(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameRanking",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GameRanking_userId(ctx context.Context, field graphql.CollectedField, obj *model.GameRanking) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameRanking_userId,
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameRanking_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameRanking",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GameRanking_name(ctx context.Context, field graphql.CollectedField, obj *model.GameRanking) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameRanking_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameRanking_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameRanking",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GameRanking_score(ctx context.Context, field graphql.CollectedField, obj *model.GameRanking) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameRanking_score,
+		func(ctx context.Context) (any, error) {
+			return obj.Score, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameRanking_score(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameRanking",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GameResult_room(ctx context.Context, field graphql.CollectedField, obj *model.GameResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameResult_room,
+		func(ctx context.Context) (any, error) {
+			return obj.Room, nil
+		},
+		nil,
+		ec.marshalNGameRoom2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoom,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameResult_room(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_GameRoom_id(ctx, field)
+			case "name":
+				return ec.fieldContext_GameRoom_name(ctx, field)
+			case "gameType":
+				return ec.fieldContext_GameRoom_gameType(ctx, field)
+			case "status":
+				return ec.fieldContext_GameRoom_status(ctx, field)
+			case "currentRound":
+				return ec.fieldContext_GameRoom_currentRound(ctx, field)
+			case "totalRounds":
+				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
+			case "roundTimeLimit":
+				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
+			case "users":
+				return ec.fieldContext_GameRoom_users(ctx, field)
+			case "maxUsers":
+				return ec.fieldContext_GameRoom_maxUsers(ctx, field)
+			case "hostUserId":
+				return ec.fieldContext_GameRoom_hostUserId(ctx, field)
+			case "usedQuizIds":
+				return ec.fieldContext_GameRoom_usedQuizIds(ctx, field)
+			case "isPrivate":
+				return ec.fieldContext_GameRoom_isPrivate(ctx, field)
+			case "password":
+				return ec.fieldContext_GameRoom_password(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_GameRoom_createdAt(ctx, field)
+			case "wordchainLastWord":
+				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
+			case "wordchainUsedWords":
+				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
+			case "currentTurnUserId":
+				return ec.fieldContext_GameRoom_currentTurnUserId(ctx, field)
+			case "wordchainTurnStartTime":
+				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GameResult_rankings(ctx context.Context, field graphql.CollectedField, obj *model.GameResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameResult_rankings,
+		func(ctx context.Context) (any, error) {
+			return obj.Rankings, nil
+		},
+		nil,
+		ec.marshalNGameRanking2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRankingᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameResult_rankings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "rank":
+				return ec.fieldContext_GameRanking_rank(ctx, field)
+			case "userId":
+				return ec.fieldContext_GameRanking_userId(ctx, field)
+			case "name":
+				return ec.fieldContext_GameRanking_name(ctx, field)
+			case "score":
+				return ec.fieldContext_GameRanking_score(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GameRanking", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GameResult_winner(ctx context.Context, field graphql.CollectedField, obj *model.GameResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GameResult_winner,
+		func(ctx context.Context) (any, error) {
+			return obj.Winner, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GameResult_winner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GameResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _GameRoom_id(ctx context.Context, field graphql.CollectedField, obj *model.GameRoom) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3971,7 +4207,7 @@ func (ec *executionContext) _GeneralQuiz_difficulty(ctx context.Context, field g
 			return obj.Difficulty, nil
 		},
 		nil,
-		ec.marshalNString2string,
+		ec.marshalNInt2int32,
 		true,
 		true,
 	)
@@ -3984,7 +4220,7 @@ func (ec *executionContext) fieldContext_GeneralQuiz_difficulty(_ context.Contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5767,7 +6003,7 @@ func (ec *executionContext) _Mutation_endGame(ctx context.Context, field graphql
 			return ec.resolvers.Mutation().EndGame(ctx, fc.Args["roomId"].(string))
 		},
 		nil,
-		ec.marshalNGameRoom2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoom,
+		ec.marshalNGameResult2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameResult,
 		true,
 		true,
 	)
@@ -5781,44 +6017,14 @@ func (ec *executionContext) fieldContext_Mutation_endGame(ctx context.Context, f
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "id":
-				return ec.fieldContext_GameRoom_id(ctx, field)
-			case "name":
-				return ec.fieldContext_GameRoom_name(ctx, field)
-			case "gameType":
-				return ec.fieldContext_GameRoom_gameType(ctx, field)
-			case "status":
-				return ec.fieldContext_GameRoom_status(ctx, field)
-			case "currentRound":
-				return ec.fieldContext_GameRoom_currentRound(ctx, field)
-			case "totalRounds":
-				return ec.fieldContext_GameRoom_totalRounds(ctx, field)
-			case "roundTimeLimit":
-				return ec.fieldContext_GameRoom_roundTimeLimit(ctx, field)
-			case "users":
-				return ec.fieldContext_GameRoom_users(ctx, field)
-			case "maxUsers":
-				return ec.fieldContext_GameRoom_maxUsers(ctx, field)
-			case "hostUserId":
-				return ec.fieldContext_GameRoom_hostUserId(ctx, field)
-			case "usedQuizIds":
-				return ec.fieldContext_GameRoom_usedQuizIds(ctx, field)
-			case "isPrivate":
-				return ec.fieldContext_GameRoom_isPrivate(ctx, field)
-			case "password":
-				return ec.fieldContext_GameRoom_password(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_GameRoom_createdAt(ctx, field)
-			case "wordchainLastWord":
-				return ec.fieldContext_GameRoom_wordchainLastWord(ctx, field)
-			case "wordchainUsedWords":
-				return ec.fieldContext_GameRoom_wordchainUsedWords(ctx, field)
-			case "currentTurnUserId":
-				return ec.fieldContext_GameRoom_currentTurnUserId(ctx, field)
-			case "wordchainTurnStartTime":
-				return ec.fieldContext_GameRoom_wordchainTurnStartTime(ctx, field)
+			case "room":
+				return ec.fieldContext_GameResult_room(ctx, field)
+			case "rankings":
+				return ec.fieldContext_GameResult_rankings(ctx, field)
+			case "winner":
+				return ec.fieldContext_GameResult_winner(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type GameRoom", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type GameResult", field.Name)
 		},
 	}
 	defer func() {
@@ -5958,7 +6164,7 @@ func (ec *executionContext) _OXQuiz_difficulty(ctx context.Context, field graphq
 			return obj.Difficulty, nil
 		},
 		nil,
-		ec.marshalNString2string,
+		ec.marshalNInt2int32,
 		true,
 		true,
 	)
@@ -5971,7 +6177,7 @@ func (ec *executionContext) fieldContext_OXQuiz_difficulty(_ context.Context, fi
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6248,7 +6454,7 @@ func (ec *executionContext) _OXQuizWithoutAnswer_difficulty(ctx context.Context,
 			return obj.Difficulty, nil
 		},
 		nil,
-		ec.marshalNString2string,
+		ec.marshalNInt2int32,
 		true,
 		true,
 	)
@@ -6261,7 +6467,7 @@ func (ec *executionContext) fieldContext_OXQuizWithoutAnswer_difficulty(_ contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6284,35 +6490,6 @@ func (ec *executionContext) _OXQuizWithoutAnswer_question(ctx context.Context, f
 }
 
 func (ec *executionContext) fieldContext_OXQuizWithoutAnswer_question(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "OXQuizWithoutAnswer",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _OXQuizWithoutAnswer_explanation(ctx context.Context, field graphql.CollectedField, obj *model.OXQuizWithoutAnswer) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_OXQuizWithoutAnswer_explanation,
-		func(ctx context.Context) (any, error) {
-			return obj.Explanation, nil
-		},
-		nil,
-		ec.marshalOString2ᚖstring,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_OXQuizWithoutAnswer_explanation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "OXQuizWithoutAnswer",
 		Field:      field,
@@ -6393,7 +6570,7 @@ func (ec *executionContext) _QAQuizWithoutAnswer_difficulty(ctx context.Context,
 			return obj.Difficulty, nil
 		},
 		nil,
-		ec.marshalNString2string,
+		ec.marshalNInt2int32,
 		true,
 		true,
 	)
@@ -6406,7 +6583,7 @@ func (ec *executionContext) fieldContext_QAQuizWithoutAnswer_difficulty(_ contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6487,35 +6664,6 @@ func (ec *executionContext) _QAQuizWithoutAnswer_imageUrl(ctx context.Context, f
 }
 
 func (ec *executionContext) fieldContext_QAQuizWithoutAnswer_imageUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "QAQuizWithoutAnswer",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _QAQuizWithoutAnswer_explanation(ctx context.Context, field graphql.CollectedField, obj *model.QAQuizWithoutAnswer) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_QAQuizWithoutAnswer_explanation,
-		func(ctx context.Context) (any, error) {
-			return obj.Explanation, nil
-		},
-		nil,
-		ec.marshalOString2ᚖstring,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_QAQuizWithoutAnswer_explanation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "QAQuizWithoutAnswer",
 		Field:      field,
@@ -7072,116 +7220,6 @@ func (ec *executionContext) fieldContext_Query_randomQAQuiz(ctx context.Context,
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_randomQAQuiz_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_randomOXQuizzes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_randomOXQuizzes,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().RandomOXQuizzes(ctx, fc.Args["roomId"].(string), fc.Args["count"].(int32))
-		},
-		nil,
-		ec.marshalNOXQuizWithoutAnswer2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐOXQuizWithoutAnswerᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_randomOXQuizzes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_OXQuizWithoutAnswer_id(ctx, field)
-			case "category":
-				return ec.fieldContext_OXQuizWithoutAnswer_category(ctx, field)
-			case "difficulty":
-				return ec.fieldContext_OXQuizWithoutAnswer_difficulty(ctx, field)
-			case "question":
-				return ec.fieldContext_OXQuizWithoutAnswer_question(ctx, field)
-			case "explanation":
-				return ec.fieldContext_OXQuizWithoutAnswer_explanation(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type OXQuizWithoutAnswer", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_randomOXQuizzes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_randomQAQuizzes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_randomQAQuizzes,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().RandomQAQuizzes(ctx, fc.Args["roomId"].(string), fc.Args["count"].(int32))
-		},
-		nil,
-		ec.marshalNQAQuizWithoutAnswer2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐQAQuizWithoutAnswerᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_randomQAQuizzes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_QAQuizWithoutAnswer_id(ctx, field)
-			case "category":
-				return ec.fieldContext_QAQuizWithoutAnswer_category(ctx, field)
-			case "difficulty":
-				return ec.fieldContext_QAQuizWithoutAnswer_difficulty(ctx, field)
-			case "question":
-				return ec.fieldContext_QAQuizWithoutAnswer_question(ctx, field)
-			case "options":
-				return ec.fieldContext_QAQuizWithoutAnswer_options(ctx, field)
-			case "imageUrl":
-				return ec.fieldContext_QAQuizWithoutAnswer_imageUrl(ctx, field)
-			case "explanation":
-				return ec.fieldContext_QAQuizWithoutAnswer_explanation(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type QAQuizWithoutAnswer", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_randomQAQuizzes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -11311,6 +11349,109 @@ func (ec *executionContext) _GameEvent(ctx context.Context, sel ast.SelectionSet
 	return out
 }
 
+var gameRankingImplementors = []string{"GameRanking"}
+
+func (ec *executionContext) _GameRanking(ctx context.Context, sel ast.SelectionSet, obj *model.GameRanking) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gameRankingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GameRanking")
+		case "rank":
+			out.Values[i] = ec._GameRanking_rank(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._GameRanking_userId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._GameRanking_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "score":
+			out.Values[i] = ec._GameRanking_score(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var gameResultImplementors = []string{"GameResult"}
+
+func (ec *executionContext) _GameResult(ctx context.Context, sel ast.SelectionSet, obj *model.GameResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gameResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GameResult")
+		case "room":
+			out.Values[i] = ec._GameResult_room(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rankings":
+			out.Values[i] = ec._GameResult_rankings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "winner":
+			out.Values[i] = ec._GameResult_winner(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var gameRoomImplementors = []string{"GameRoom"}
 
 func (ec *executionContext) _GameRoom(ctx context.Context, sel ast.SelectionSet, obj *model.GameRoom) graphql.Marshaler {
@@ -11930,8 +12071,6 @@ func (ec *executionContext) _OXQuizWithoutAnswer(ctx context.Context, sel ast.Se
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "explanation":
-			out.Values[i] = ec._OXQuizWithoutAnswer_explanation(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -11993,8 +12132,6 @@ func (ec *executionContext) _QAQuizWithoutAnswer(ctx context.Context, sel ast.Se
 			}
 		case "imageUrl":
 			out.Values[i] = ec._QAQuizWithoutAnswer_imageUrl(ctx, field, obj)
-		case "explanation":
-			out.Values[i] = ec._QAQuizWithoutAnswer_explanation(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -12186,50 +12323,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_randomQAQuiz(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "randomOXQuizzes":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_randomOXQuizzes(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "randomQAQuizzes":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_randomQAQuizzes(ctx, field)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
 				return res
 			}
 
@@ -13148,6 +13241,74 @@ func (ec *executionContext) marshalNGameEventType2drawᚑandᚑguessᚑserverᚋ
 	return v
 }
 
+func (ec *executionContext) marshalNGameRanking2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRankingᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GameRanking) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNGameRanking2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRanking(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNGameRanking2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRanking(ctx context.Context, sel ast.SelectionSet, v *model.GameRanking) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GameRanking(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGameResult2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameResult(ctx context.Context, sel ast.SelectionSet, v model.GameResult) graphql.Marshaler {
+	return ec._GameResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNGameResult2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameResult(ctx context.Context, sel ast.SelectionSet, v *model.GameResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GameResult(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNGameRoom2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGameRoom(ctx context.Context, sel ast.SelectionSet, v model.GameRoom) graphql.Marshaler {
 	return ec._GameRoom(ctx, sel, &v)
 }
@@ -13382,114 +13543,6 @@ func (ec *executionContext) unmarshalNInviteStatus2drawᚑandᚑguessᚑserver�
 
 func (ec *executionContext) marshalNInviteStatus2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐInviteStatus(ctx context.Context, sel ast.SelectionSet, v model.InviteStatus) graphql.Marshaler {
 	return v
-}
-
-func (ec *executionContext) marshalNOXQuizWithoutAnswer2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐOXQuizWithoutAnswerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OXQuizWithoutAnswer) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNOXQuizWithoutAnswer2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐOXQuizWithoutAnswer(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNOXQuizWithoutAnswer2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐOXQuizWithoutAnswer(ctx context.Context, sel ast.SelectionSet, v *model.OXQuizWithoutAnswer) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._OXQuizWithoutAnswer(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNQAQuizWithoutAnswer2ᚕᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐQAQuizWithoutAnswerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.QAQuizWithoutAnswer) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNQAQuizWithoutAnswer2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐQAQuizWithoutAnswer(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNQAQuizWithoutAnswer2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐQAQuizWithoutAnswer(ctx context.Context, sel ast.SelectionSet, v *model.QAQuizWithoutAnswer) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._QAQuizWithoutAnswer(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {

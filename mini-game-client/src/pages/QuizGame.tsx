@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { GeneralQuiz, OXQuiz } from '../types';
-import { useLanguage } from '../i18n/LanguageContext';
 
 type QuizType = 'general' | 'ox';
 
 const QuizGame: React.FC = () => {
   const { type } = useParams<{ type: QuizType }>();
   const navigate = useNavigate();
-  const { t } = useLanguage();
-  const [username] = useState(sessionStorage.getItem('username') || 'Guest');
+  // const { t } = useLanguage();
+  // const [username] = useState(sessionStorage.getItem('username') || 'Guest');
   
   // 게임 상태
   const [quizzes, setQuizzes] = useState<(GeneralQuiz | OXQuiz)[]>([]);
@@ -193,7 +192,11 @@ const getTestGeneralQuizzes = (): GeneralQuiz[] => [
     options: ['서울', '부산', '대구', '인천'],
     answer: 0,
     explanation: '대한민국의 수도는 서울입니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as GeneralQuiz,
   {
     id: '2',
     category: '과학',
@@ -202,7 +205,11 @@ const getTestGeneralQuizzes = (): GeneralQuiz[] => [
     options: ['H2O', 'CO2', 'O2', 'NaCl'],
     answer: 0,
     explanation: '물의 화학식은 H2O입니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as GeneralQuiz,
   {
     id: '3',
     category: '역사',
@@ -211,7 +218,11 @@ const getTestGeneralQuizzes = (): GeneralQuiz[] => [
     options: ['이순신', '세종대왕', '김구', '유관순'],
     answer: 1,
     explanation: '세종대왕이 훈민정음(한글)을 창제했습니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as GeneralQuiz,
   {
     id: '4',
     category: '동물',
@@ -220,7 +231,11 @@ const getTestGeneralQuizzes = (): GeneralQuiz[] => [
     options: ['사자', '표범', '치타', '말'],
     answer: 2,
     explanation: '치타는 시속 최대 120km로 달릴 수 있는 가장 빠른 육지 동물입니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as GeneralQuiz,
   {
     id: '5',
     category: '과학',
@@ -229,7 +244,11 @@ const getTestGeneralQuizzes = (): GeneralQuiz[] => [
     options: ['지구', '화성', '목성', '토성'],
     answer: 2,
     explanation: '목성은 태양계에서 가장 큰 행성입니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as GeneralQuiz,
 ];
 
 const getTestOXQuizzes = (): OXQuiz[] => [
@@ -240,7 +259,11 @@ const getTestOXQuizzes = (): OXQuiz[] => [
     question: '사과는 과일이다',
     answer: true,
     explanation: '사과는 과일입니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as OXQuiz,
   {
     id: '2',
     category: '동물',
@@ -248,7 +271,11 @@ const getTestOXQuizzes = (): OXQuiz[] => [
     question: '펭귄은 날 수 있다',
     answer: false,
     explanation: '펭귄은 날지 못하는 새입니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as OXQuiz,
   {
     id: '3',
     category: '과학',
@@ -256,7 +283,11 @@ const getTestOXQuizzes = (): OXQuiz[] => [
     question: '지구는 태양 주위를 돈다',
     answer: true,
     explanation: '지구는 태양 주위를 공전합니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as OXQuiz,
   {
     id: '4',
     category: '동물',
@@ -264,7 +295,11 @@ const getTestOXQuizzes = (): OXQuiz[] => [
     question: '거미는 곤충이다',
     answer: false,
     explanation: '거미는 거미강에 속하며 곤충이 아닙니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as OXQuiz,
   {
     id: '5',
     category: '과학',
@@ -272,7 +307,11 @@ const getTestOXQuizzes = (): OXQuiz[] => [
     question: '빛의 속도는 소리의 속도보다 느리다',
     answer: false,
     explanation: '빛의 속도는 소리의 속도보다 훨씬 빠릅니다.',
-  },
+    usageCount: 0,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as OXQuiz,
 ];
 
 const styles: { [key: string]: React.CSSProperties } = {

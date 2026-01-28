@@ -101,96 +101,6 @@ func (r *queryResolver) RandomQAQuiz(ctx context.Context, roomID *string) (*mode
 	}, nil
 }
 
-// RandomOXQuizzes is the resolver for the randomOXQuizzes field.
-func (r *queryResolver) RandomOXQuizzes(ctx context.Context, roomID string, count int32) ([]*model.OXQuizWithoutAnswer, error) {
-	var excludedIds []string
-
-	// Get the list of already used quiz IDs from the room
-	room, exists := GetGameRoom(roomID)
-	if exists && room.UsedQuizIds != nil {
-		excludedIds = room.UsedQuizIds
-	}
-
-	// Get multiple quizzes at once
-	quizzes, err := r.QuizService.GetRandomOXQuizzes(ctx, excludedIds, int(count))
-	if err != nil {
-		return nil, err
-	}
-
-	// Store answers on server and mark as used
-	if exists {
-		for _, quiz := range quizzes {
-			quizID := fmt.Sprintf("%d", quiz.ID)
-			room.UsedQuizIds = append(room.UsedQuizIds, quizID)
-
-			// Store answer and difficulty in server memory for later verification
-			storeQuizAnswer(roomID, quizID, quiz.Answer, quiz.Difficulty)
-		}
-		SetGameRoom(roomID, room)
-	}
-
-	// Return quizzes WITHOUT answers
-	result := make([]*model.OXQuizWithoutAnswer, len(quizzes))
-	for i, quiz := range quizzes {
-		result[i] = &model.OXQuizWithoutAnswer{
-			ID:          fmt.Sprintf("%d", quiz.ID),
-			Category:    quiz.Category,
-			Difficulty:  int32(quiz.Difficulty),
-			Question:    quiz.Question,
-			Explanation: &quiz.Explanation,
-		}
-	}
-
-	log.Printf("[Quiz] Loaded %d OX quizzes for room %s (answers stored server-side)", len(result), roomID)
-	return result, nil
-}
-
-// RandomQAQuizzes is the resolver for the randomQAQuizzes field.
-func (r *queryResolver) RandomQAQuizzes(ctx context.Context, roomID string, count int32) ([]*model.QAQuizWithoutAnswer, error) {
-	var excludedIds []string
-
-	// Get the list of already used quiz IDs from the room
-	room, exists := GetGameRoom(roomID)
-	if exists && room.UsedQuizIds != nil {
-		excludedIds = room.UsedQuizIds
-	}
-
-	// Get multiple quizzes at once
-	quizzes, err := r.QuizService.GetRandomQAQuizzes(ctx, excludedIds, int(count))
-	if err != nil {
-		return nil, err
-	}
-
-	// Store answers on server and mark as used
-	if exists {
-		for _, quiz := range quizzes {
-			quizID := fmt.Sprintf("%d", quiz.ID)
-			room.UsedQuizIds = append(room.UsedQuizIds, quizID)
-
-			// Store answer and difficulty in server memory for later verification
-			storeQuizAnswer(roomID, quizID, quiz.Answer, quiz.Difficulty)
-		}
-		SetGameRoom(roomID, room)
-	}
-
-	// Return quizzes WITHOUT answers
-	result := make([]*model.QAQuizWithoutAnswer, len(quizzes))
-	for i, quiz := range quizzes {
-		result[i] = &model.QAQuizWithoutAnswer{
-			ID:          fmt.Sprintf("%d", quiz.ID),
-			Category:    quiz.Category,
-			Difficulty:  int32(quiz.Difficulty),
-			Question:    quiz.Question,
-			Options:     quiz.Options,
-			ImageURL:    &quiz.ImageURL,
-			Explanation: &quiz.Explanation,
-		}
-	}
-
-	log.Printf("[Quiz] Loaded %d QA quizzes for room %s (answers stored server-side)", len(result), roomID)
-	return result, nil
-}
-
 // IsValidWord is the resolver for the isValidWord field.
 func (r *queryResolver) IsValidWord(ctx context.Context, word string) (bool, error) {
 	dict := dictionary.GetInstance()
@@ -206,6 +116,10 @@ type QuizInfo struct {
 // Pre-loaded quizzes storage (in-memory) - stores quiz answers for verification
 var quizAnswers = make(map[string]map[string]*QuizInfo) // roomID -> quizID -> QuizInfo
 var quizAnswersMutex sync.RWMutex
+
+// Pending scores that will be applied when round ends
+var pendingScores = make(map[string]map[string]int32) // roomID -> username -> score to add
+var pendingScoresMutex sync.RWMutex
 
 // storeQuizAnswer stores a quiz answer and difficulty for later verification
 func storeQuizAnswer(roomID string, quizID string, answer interface{}, difficulty int) {
@@ -268,9 +182,36 @@ func CalculateQuizScore(difficulty int) int32 {
 	return calculateQuizScore(difficulty)
 }
 
-// AddScoreToUser adds score to user in game room
+// AddScoreToUser adds score to user in game room (thread-safe)
 func AddScoreToUser(roomID string, username string, score int32) {
-	room, exists := GetGameRoom(roomID)
+	addScoreToUser(roomID, username, score, true)
+}
+
+// AddScoreToUserSilent adds score to pending scores without broadcasting (for quiz answers)
+func AddScoreToUserSilent(roomID string, username string, score int32) {
+	addScoreToUser(roomID, username, score, false)
+}
+
+// addScoreToUser internal function that handles score addition with optional broadcast
+func addScoreToUser(roomID string, username string, score int32, broadcast bool) {
+	if !broadcast {
+		// Store in pending scores (will be applied at ROUND_ENDED)
+		pendingScoresMutex.Lock()
+		defer pendingScoresMutex.Unlock()
+
+		if pendingScores[roomID] == nil {
+			pendingScores[roomID] = make(map[string]int32)
+		}
+		pendingScores[roomID][username] += score
+		log.Printf("[Quiz] Added %d points to pending scores for %s (pending total: %d)", score, username, pendingScores[roomID][username])
+		return
+	}
+
+	// Immediate score update with broadcast
+	roomMutex.Lock()
+	defer roomMutex.Unlock()
+
+	room, exists := gameRooms[roomID]
 	if !exists {
 		log.Printf("[Quiz] Room not found: %s", roomID)
 		return
@@ -284,7 +225,10 @@ func AddScoreToUser(roomID string, username string, score int32) {
 		}
 	}
 
-	SetGameRoom(roomID, room)
+	gameRooms[roomID] = room
+
+	// Broadcast updated room state to all clients
+	go publishRoomUpdateToWebSocket(roomID, room)
 }
 
 // cleanupQuizAnswers removes stored answers for a room
@@ -294,6 +238,44 @@ func cleanupQuizAnswers(roomID string) {
 
 	delete(quizAnswers, roomID)
 	log.Printf("[Quiz] Cleaned up quiz answers for room %s", roomID)
+}
+
+// applyPendingScores applies all pending scores to the room and clears them
+func applyPendingScores(roomID string) {
+	pendingScoresMutex.Lock()
+	defer pendingScoresMutex.Unlock()
+
+	scoresToApply, exists := pendingScores[roomID]
+	if !exists || len(scoresToApply) == 0 {
+		log.Printf("[Quiz] No pending scores to apply for room %s", roomID)
+		return
+	}
+
+	// Apply all pending scores atomically
+	roomMutex.Lock()
+	room, roomExists := gameRooms[roomID]
+	if !roomExists {
+		roomMutex.Unlock()
+		log.Printf("[Quiz] Room not found when applying pending scores: %s", roomID)
+		return
+	}
+
+	for username, score := range scoresToApply {
+		for _, user := range room.Users {
+			if user.Name == username {
+				user.Score += score
+				log.Printf("[Quiz] ✅ Applied pending score: %s +%d points (total: %d)", username, score, user.Score)
+				break
+			}
+		}
+	}
+
+	gameRooms[roomID] = room
+	roomMutex.Unlock()
+
+	// Clear pending scores for this room
+	delete(pendingScores, roomID)
+	log.Printf("[Quiz] Cleared pending scores for room %s", roomID)
 }
 
 // Pre-loaded quizzes storage (in-memory)
@@ -324,10 +306,7 @@ func startQuizGame(ctx context.Context, roomID string, gameType model.GameType, 
 		return
 	}
 
-	// Store pre-loaded quizzes
-	preloadedQuizzesMutex.Lock()
-	preloadedQuizzes[roomID] = quizzes
-	preloadedQuizzesMutex.Unlock()
+	log.Printf("[Quiz] Stored %d pre-loaded quizzes in memory for room %s", len(quizzes), roomID)
 
 	log.Printf("[Quiz] Successfully pre-loaded %d quizzes", len(quizzes))
 	log.Printf("[Quiz] Room found and playing, sending first quiz...")
@@ -411,6 +390,11 @@ func preloadQuizzes(ctx context.Context, roomID string, gameType model.GameType,
 		SetGameRoom(roomID, room)
 	}
 
+	// Store preloaded quizzes with mutex protection
+	preloadedQuizzesMutex.Lock()
+	preloadedQuizzes[roomID] = quizzes
+	preloadedQuizzesMutex.Unlock()
+
 	return quizzes, nil
 }
 
@@ -437,10 +421,33 @@ func sendPreloadedQuiz(roomID string, roundIndex int) {
 	log.Printf("[Quiz Delivery] 笨・Quiz found - Type: %s, ID: %s", quizData["type"], quizData["id"])
 	log.Printf("[Quiz Delivery] 笨・Question: %.80s...", quizData["question"])
 
-	// Broadcast quiz to all users via WebSocket
+	// Store quiz answer for verification
+	quizID := quizData["id"].(string)
+	answer := quizData["answer"]
+	difficulty := quizData["difficulty"].(int)
+	storeQuizAnswer(roomID, quizID, answer, difficulty)
+	log.Printf("[Quiz Delivery] 笨・Stored answer for quiz %s (difficulty: %d)", quizID, difficulty)
+
+	// Broadcast quiz to all users via WebSocket (without answer and explanation)
+	quizWithoutAnswer := map[string]interface{}{
+		"id":         quizData["id"],
+		"type":       quizData["type"],
+		"category":   quizData["category"],
+		"difficulty": quizData["difficulty"],
+		"question":   quizData["question"],
+	}
+
+	// Add options for QA quiz
+	if quizData["type"] == "QA" {
+		quizWithoutAnswer["options"] = quizData["options"]
+		if imageUrl, exists := quizData["imageUrl"]; exists {
+			quizWithoutAnswer["imageUrl"] = imageUrl
+		}
+	}
+
 	message := map[string]interface{}{
 		"type": "quiz",
-		"data": quizData,
+		"data": quizWithoutAnswer,
 	}
 
 	log.Printf("[Quiz Delivery] 藤 Broadcasting quiz to all users in room %s", roomID)
@@ -481,19 +488,69 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 
 	// Countdown
 	for i := int(timeLimit) - 1; i >= 0; i-- {
-		time.Sleep(1 * time.Second)
-
-		// Check if room still exists and is playing
-		room, exists := GetGameRoom(roomID)
-		if !exists || room.Status != model.GameRoomStatusPlaying {
-			log.Printf("[Quiz] Timer stopped for room %s (room ended)", roomID)
+		select {
+		case <-ctx.Done():
+			log.Printf("[Quiz] Timer cancelled for room %s (context done)", roomID)
 			return
-		}
+		case <-time.After(1 * time.Second):
+			// Check if room still exists and is playing
+			room, exists := GetGameRoom(roomID)
+			if !exists || room.Status != model.GameRoomStatusPlaying {
+				log.Printf("[Quiz] Timer stopped for room %s (room ended)", roomID)
+				return
+			}
 
-		sendTimerUpdate(channelName, i)
+			sendTimerUpdate(channelName, i)
+		}
 	}
 
 	log.Printf("[Quiz] Timer finished for room %s", roomID)
+
+	// Apply pending scores before revealing
+	applyPendingScores(roomID)
+
+	// Get current quiz info to reveal answer
+	preloadedQuizzesMutex.RLock()
+	quizzes, quizzesExist := preloadedQuizzes[roomID]
+	preloadedQuizzesMutex.RUnlock()
+
+	// Publish ROUND_ENDED with correct answer and scoreboard
+	if quizzesExist {
+		room, exists := GetGameRoom(roomID)
+		if exists && room.CurrentRound > 0 && int(room.CurrentRound) <= len(quizzes) {
+			currentQuizIndex := int(room.CurrentRound) - 1
+			currentQuiz := quizzes[currentQuizIndex]
+
+			// Prepare scoreboard with all users' current scores
+			scoreboard := make([]map[string]interface{}, 0, len(room.Users))
+			for _, user := range room.Users {
+				scoreboard = append(scoreboard, map[string]interface{}{
+					"userId": user.UserID,
+					"name":   user.Name,
+					"score":  user.Score,
+				})
+			}
+
+			// Broadcast ROUND_ENDED with correct answer and scoreboard
+			channelName := fmt.Sprintf("game/%s", roomID)
+			message := map[string]interface{}{
+				"type": "ROUND_ENDED",
+				"data": map[string]interface{}{
+					"round":         room.CurrentRound,
+					"quizId":        currentQuiz["id"],
+					"correctAnswer": currentQuiz["answer"],
+					"explanation":   currentQuiz["explanation"],
+					"scoreboard":    scoreboard,
+				},
+			}
+
+			jsonData, err := json.Marshal(message)
+			if err == nil {
+				valkey.Client.Publish(context.Background(), channelName, jsonData)
+				log.Printf("[Quiz] Published ROUND_ENDED for room %s round %d with answer and scoreboard", roomID, room.CurrentRound)
+			}
+		}
+	}
 
 	// Move to next round or end game
 	room, exists := GetGameRoom(roomID)

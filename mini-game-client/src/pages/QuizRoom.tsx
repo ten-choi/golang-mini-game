@@ -42,20 +42,35 @@ const QuizRoom: React.FC = () => {
       console.log('[QuizRoom] Received game message:', data);
       console.log('[QuizRoom] Message type:', data.type);
       
-      // Handle new server format: { type: "MESSAGE_TYPE", payload: {...} }
-      if (data.type === 'GAME_EVENT' && data.payload) {
+      // Handle messages from graph package (format: {type: "quiz", quiz: {...}})
+      if (data.type === 'quiz') {
+        console.log('[QuizRoom] ========== QUIZ RECEIVED FROM SUBSCRIPTION ==========');
+        handleQuiz(data);
+      } else if (data.type === 'timer') {
+        handleTimer(data);
+      } else if (data.type === 'room_deleted') {
+        console.log('[QuizRoom] Room deleted:', data.data);
+        alert('방이 삭제되었습니다.');
+        navigate('/room-list');
+      }
+      // Handle websocket handler messages (format: {type: "QUIZ_RESULT", payload: {...}})
+      else if (data.type === 'QUIZ_RESULT' && data.payload) {
         const payload = data.payload;
-        console.log('[QuizRoom] Game event:', payload.eventType);
-        
-        if (payload.eventType === 'quiz') {
-          console.log('[QuizRoom] Quiz event received from server');
-          handleQuiz({ data: payload.data });
-        } else if (payload.eventType === 'timer') {
-          handleTimer(payload.data);
+        if (payload.isCorrect) {
+          setChatMessages(prev => [...prev, {
+            username: t.gameRoom.system,
+            text: `${payload.username}님 정답! +${payload.score}점 (난이도: ${payload.difficulty})`,
+            type: 'system'
+          }]);
         } else {
-          loadRoom();
+          setChatMessages(prev => [...prev, {
+            username: t.gameRoom.system,
+            text: `${payload.username}님 오답`,
+            type: 'system'
+          }]);
         }
-      } else if (data.type === 'CHAT_MESSAGE' && data.payload) {
+      }
+      else if (data.type === 'CHAT_MESSAGE' && data.payload) {
         const payload = data.payload;
         setChatMessages(prev => [...prev, {
           username: payload.username,
@@ -63,7 +78,7 @@ const QuizRoom: React.FC = () => {
           type: 'chat'
         }]);
       }
-      // Handle legacy format for backward compatibility
+      // Legacy format
       else if (data.type === 'update' || data.type === 'room_update') {
         if (data.data) {
           console.log('[QuizRoom] Updating room from WebSocket. Users count:', data.data.users?.length);
@@ -72,11 +87,6 @@ const QuizRoom: React.FC = () => {
           console.log('[QuizRoom] No data in message, reloading from API');
           loadRoom();
         }
-      } else if (data.type === 'quiz') {
-        console.log('[QuizRoom] ========== QUIZ RECEIVED FROM SUBSCRIPTION ==========');
-        handleQuiz(data);
-      } else if (data.type === 'timer') {
-        handleTimer(data);
       }
     });
 
@@ -132,24 +142,15 @@ const QuizRoom: React.FC = () => {
       }
     };
 
-    // Handle room deletion
-    const handleRoomDeleted = (data: any) => {
-      console.log('[QuizRoom] Room has been deleted:', data);
-      alert('방이 삭제되었습니다.');
-      navigate('/room-list');
-    };
-
     wsService.addMessageHandler('chat', handleChat);
     wsService.addMessageHandler('quiz', handleQuiz);
     wsService.addMessageHandler('timer', handleTimer);
-    wsService.addMessageHandler('room_deleted', handleRoomDeleted);
 
     return () => {
       if (gameSubscription) gameSubscription.unsubscribe();
       wsService.removeMessageHandler('chat', handleChat);
       wsService.removeMessageHandler('quiz', handleQuiz);
       wsService.removeMessageHandler('timer', handleTimer);
-      wsService.removeMessageHandler('room_deleted', handleRoomDeleted);
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [roomId]);

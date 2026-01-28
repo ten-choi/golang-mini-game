@@ -27,7 +27,7 @@ var (
 type Client struct {
 	conn          *websocket.Conn // WebSocket connection
 	roomID        string          // Room ID that the client belongs to
-	UserName      string          // Client's username
+	UserID        string          // Client's user ID
 	subscriptions map[string]bool // List of subscribed channels
 	mu            sync.Mutex      // Mutex for thread-safe struct field access
 }
@@ -95,18 +95,44 @@ func handleGameAction(roomID string, data interface{}) {
 }
 
 // handleQuizAnswer processes quiz answer submissions and awards points
-func handleQuizAnswer(roomID string, username string, data interface{}) {
+func handleQuizAnswer(roomID string, data interface{}) {
 	answerData, ok := data.(map[string]interface{})
 	if !ok {
 		log.Printf("Invalid quiz answer data format")
 		return
 	}
 
+	userID, _ := answerData["userId"].(string)
 	quizID, _ := answerData["quizId"].(string)
 	userAnswer := answerData["answer"] // bool for OX, float64/int for QA
 
+	if userID == "" {
+		log.Printf("Missing userId in quiz answer")
+		return
+	}
+
 	if quizID == "" {
 		log.Printf("Missing quizId in quiz answer")
+		return
+	}
+
+	// Get user's name from room
+	room, exists := graph.GetGameRoom(roomID)
+	if !exists {
+		log.Printf("Room not found: %s", roomID)
+		return
+	}
+
+	var username string
+	for _, user := range room.Users {
+		if user.UserID == userID {
+			username = user.Name
+			break
+		}
+	}
+
+	if username == "" {
+		log.Printf("User not found in room: userId=%s, roomId=%s", userID, roomID)
 		return
 	}
 
@@ -132,43 +158,28 @@ func handleQuizAnswer(roomID string, username string, data interface{}) {
 		}
 	}
 
-	log.Printf("[Quiz] Answer from %s in room %s: quizId=%s, correct=%v", username, roomID, quizID, isCorrect)
+	log.Printf("[Quiz] Answer from %s (userId: %s) in room %s: quizId=%s, correct=%v", username, userID, roomID, quizID, isCorrect)
 
+	// Add score silently (will be revealed at ROUND_ENDED)
 	if isCorrect {
-		// Calculate score based on difficulty
 		score := graph.CalculateQuizScore(quizInfo.Difficulty)
-
-		// Add score to user
-		graph.AddScoreToUser(roomID, username, score)
-
-		// Broadcast correct answer notification
-		channel := common.ChannelGamePrefix + roomID
-		payload := map[string]interface{}{
-			"type": "QUIZ_RESULT",
-			"payload": map[string]interface{}{
-				"username":   username,
-				"quizId":     quizID,
-				"isCorrect":  true,
-				"score":      score,
-				"difficulty": quizInfo.Difficulty,
-			},
-		}
-		handlePublish(channel, payload)
-		log.Printf("[Quiz] ✅ %s got %d points (difficulty: %d)", username, score, quizInfo.Difficulty)
+		graph.AddScoreToUserSilent(roomID, username, score)
+		log.Printf("[Quiz] ✅ %s will get %d points (difficulty: %d) - score added to pending, waiting for round end", username, score, quizInfo.Difficulty)
 	} else {
-		// Broadcast incorrect answer notification
-		channel := common.ChannelGamePrefix + roomID
-		payload := map[string]interface{}{
-			"type": "QUIZ_RESULT",
-			"payload": map[string]interface{}{
-				"username":  username,
-				"quizId":    quizID,
-				"isCorrect": false,
-			},
-		}
-		handlePublish(channel, payload)
-		log.Printf("[Quiz] ❌ %s got wrong answer", username)
+		log.Printf("[Quiz] ❌ %s got wrong answer - no points, waiting for round end", username)
 	}
+
+	// Send answer submission confirmation only (no correct/incorrect info)
+	channel := common.ChannelGamePrefix + roomID
+	payload := map[string]interface{}{
+		"type": "ANSWER_SUBMITTED",
+		"payload": map[string]interface{}{
+			"userId": userID,
+			"quizId": quizID,
+		},
+	}
+	handlePublish(channel, payload)
+	log.Printf("[Quiz] 📝 Answer submitted by %s - waiting for timer to reveal results", username)
 }
 
 // handleWordchainSubmit processes wordchain word submissions
@@ -293,9 +304,9 @@ func handleMessages(client *Client) {
 	// Clean up client on function exit
 	defer func() {
 		// Auto-remove player from room on disconnect
-		if client.roomID != "" && client.roomID != common.ChannelLobby && client.UserName != "" {
-			log.Printf("Auto-removing user %s from room %s due to WebSocket disconnect", client.UserName, client.roomID)
-			removeUserFromRoom(client.roomID, client.UserName)
+		if client.roomID != "" && client.roomID != common.ChannelLobby && client.UserID != "" {
+			log.Printf("Auto-removing user %s from room %s due to WebSocket disconnect", client.UserID, client.roomID)
+			removeUserFromRoom(client.roomID, client.UserID)
 		}
 
 		mutex.Lock()
@@ -357,10 +368,8 @@ func handleMessages(client *Client) {
 			}
 		case "quiz_answer":
 			if client.roomID != "" {
-				handleQuizAnswer(client.roomID, client.UserName, wsMsg.Data)
+				handleQuizAnswer(client.roomID, wsMsg.Data)
 			}
-		case "identify":
-			handleIdentify(client, wsMsg.Data)
 		default:
 			log.Printf("Unknown message type: %s", wsMsg.Type)
 		}
@@ -372,7 +381,7 @@ func handleSubscribe(client *Client, channel string) {
 	// Add to client subscriptions
 	client.mu.Lock()
 	client.subscriptions[channel] = true
-	username := client.UserName
+	userID := client.UserID
 	if client.roomID == "" && len(channel) > 0 {
 		// Extract room ID from channel (e.g. "game/room-uuid" -> "room-uuid")
 		parts := splitChannel(channel)
@@ -395,31 +404,31 @@ func handleSubscribe(client *Client, channel string) {
 	// Log subscription based on channel type (lobby or game room)
 	if channel == common.ChannelLobby {
 		logger := common.GetLogger()
-		logger.Info("[Subscribe] 🏠 LOBBY - User '%s' subscribed to lobby", username)
+		logger.Info("[Subscribe] 🏠 LOBBY - User '%s' subscribed to lobby", userID)
 	} else if len(channel) > len(common.ChannelGamePrefix) && channel[:len(common.ChannelGamePrefix)] == common.ChannelGamePrefix {
 		roomID := channel[len(common.ChannelGamePrefix):]
-		log.Printf("[Subscribe] 🎮 GAME ROOM - User '%s' subscribed to room: %s", username, roomID)
+		log.Printf("[Subscribe] 🎮 GAME ROOM - User '%s' subscribed to room: %s", userID, roomID)
 	} else {
-		log.Printf("[Subscribe] ✅ User '%s' subscribed to channel: %s", username, channel)
+		log.Printf("[Subscribe] ✅ User '%s' subscribed to channel: %s", userID, channel)
 	}
 }
 
 // handleUnsubscribe processes client's channel unsubscription request
 func handleUnsubscribe(client *Client, channel string) {
 	client.mu.Lock()
-	username := client.UserName
+	userID := client.UserID
 	delete(client.subscriptions, channel) // Remove from subscription list
 	client.mu.Unlock()
 
 	// Log unsubscription based on channel type (lobby or game room)
 	if channel == common.ChannelLobby {
 		logger := common.GetLogger()
-		logger.Info("[Unsubscribe] 🏠 LOBBY - User '%s' unsubscribed from lobby", username)
+		logger.Info("[Unsubscribe] 🏠 LOBBY - User '%s' unsubscribed from lobby", userID)
 	} else if len(channel) > len(common.ChannelGamePrefix) && channel[:len(common.ChannelGamePrefix)] == common.ChannelGamePrefix {
 		roomID := channel[len(common.ChannelGamePrefix):]
-		log.Printf("[Unsubscribe] 🎮 GAME ROOM - User '%s' unsubscribed from room: %s", username, roomID)
+		log.Printf("[Unsubscribe] 🎮 GAME ROOM - User '%s' unsubscribed from room: %s", userID, roomID)
 	} else {
-		log.Printf("[Unsubscribe] ❌ User '%s' unsubscribed from channel: %s", username, channel)
+		log.Printf("[Unsubscribe] ❌ User '%s' unsubscribed from channel: %s", userID, channel)
 	}
 
 	// Send unsubscription confirmation message to client
@@ -471,7 +480,7 @@ func handleChatMessage(client *Client, data interface{}) {
 
 	log.Printf("Chat message from %s in room %s: %s", username, roomID, message)
 
-	// Publish chat message to Valkey channel
+	// Publish chat message to Valkey channel (real-time only, no storage)
 	channel := common.ChannelGamePrefix + roomID
 	chatPayload := ChatMessagePayload{
 		RoomID:   roomID,
@@ -558,29 +567,7 @@ func splitChannel(channel string) []string {
 	return parts
 }
 
-// handleIdentify processes client identification information
-func handleIdentify(client *Client, data interface{}) {
-	identifyData, ok := data.(map[string]interface{})
-	if !ok {
-		log.Printf("Invalid identify data format")
-		return
-	}
-
-	username, _ := identifyData["username"].(string)
-	roomID, _ := identifyData["roomId"].(string)
-
-	if username != "" {
-		client.mu.Lock()
-		client.UserName = username
-		if roomID != "" && roomID != common.ChannelLobby {
-			client.roomID = roomID
-		}
-		client.mu.Unlock()
-		log.Printf("Client identified: username=%s, roomId=%s", username, roomID)
-	}
-}
-
-// removeUserFromRoom removes player from room
-func removeUserFromRoom(roomID, UserName string) {
-	graph.RemoveUserFromRoom(roomID, UserName)
+// removeUserFromRoom removes player from room by userID
+func removeUserFromRoom(roomID, userID string) {
+	graph.RemoveUserFromRoom(roomID, userID)
 }

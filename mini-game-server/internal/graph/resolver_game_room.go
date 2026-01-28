@@ -226,6 +226,19 @@ func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model
 		return nil, fmt.Errorf("room not found")
 	}
 
+	// Check if all users are ready
+	if len(room.Users) == 0 {
+		roomMutex.Unlock()
+		return nil, fmt.Errorf("cannot start game: no users in room")
+	}
+
+	for _, user := range room.Users {
+		if !user.IsReady {
+			roomMutex.Unlock()
+			return nil, fmt.Errorf("cannot start game: not all users are ready")
+		}
+	}
+
 	room.Status = model.GameRoomStatusPlaying
 	room.CurrentRound = 1
 
@@ -566,7 +579,7 @@ func (r *mutationResolver) TransferHost(ctx context.Context, roomID string, newH
 }
 
 // SetReady is the resolver for the setReady field.
-func (r *mutationResolver) SetReady(ctx context.Context, roomID string, Name string, ready bool) (*model.GameRoom, error) {
+func (r *mutationResolver) SetReady(ctx context.Context, roomID string, userID string, ready bool) (*model.GameRoom, error) {
 	roomMutex.Lock()
 	defer roomMutex.Unlock()
 
@@ -577,7 +590,7 @@ func (r *mutationResolver) SetReady(ctx context.Context, roomID string, Name str
 
 	// Find user and update ready status
 	for i, p := range room.Users {
-		if p.Name == Name {
+		if p.UserID == userID {
 			room.Users[i].IsReady = ready
 
 			// Update the room in the map (important!)
@@ -657,13 +670,16 @@ func (r *mutationResolver) SubmitAnswer(ctx context.Context, roomID string, Name
 }
 
 // EndGame is the resolver for the endGame field.
-func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.GameRoom, error) {
+func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.GameResult, error) {
 	roomMutex.Lock()
 	room, exists := gameRooms[roomID]
 	if !exists {
 		roomMutex.Unlock()
 		return nil, fmt.Errorf("room not found")
 	}
+
+	// Calculate rankings before changing status
+	rankings := calculateRankings(room.Users)
 
 	room.Status = model.GameRoomStatusFinished
 
@@ -676,16 +692,34 @@ func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.G
 		go cleanupPreloadedQuizzes(roomID)
 	}
 
+	// Determine winner
+	winner := ""
+	if len(rankings) > 0 {
+		winner = rankings[0].Name
+	}
+
 	// Publish update and deletion events
 	go func() {
 		GetPubSub().PublishRoomUpdate(room)
 		GetPubSub().PublishGameEnded(roomID, room)
 		publishLobbyUpdate()
+		// Broadcast game ended with rankings via WebSocket
+		publishGameEndedWithRankings(roomID, room, rankings)
 		// Notify that room is deleted via WebSocket
 		publishRoomDeletedToWebSocket(roomID)
 	}()
 
-	return room, nil
+	if len(rankings) > 0 {
+		log.Printf("[EndGame] Game ended for room %s. Winner: %s (%d points)", roomID, winner, rankings[0].Score)
+	} else {
+		log.Printf("[EndGame] Game ended for room %s. No rankings (empty room)", roomID)
+	}
+
+	return &model.GameResult{
+		Room:     room,
+		Rankings: rankings,
+		Winner:   winner,
+	}, nil
 }
 
 // SendChat is the resolver for the sendChat field.
@@ -922,6 +956,92 @@ func StartWordchainTurnTimer(roomID string) {
 		log.Printf("[Wordchain] Time's up for %s, ending round", *room.CurrentTurnUserID)
 		EndWordchainRound(roomID, fmt.Sprintf("%s ?? ??", *room.CurrentTurnUserID))
 	}()
+}
+
+// calculateRankings calculates player rankings based on scores
+func calculateRankings(users []*model.GameUser) []*model.GameRanking {
+	if len(users) == 0 {
+		return []*model.GameRanking{}
+	}
+
+	// Create a copy and sort by score (descending)
+	sorted := make([]*model.GameUser, len(users))
+	copy(sorted, users)
+
+	// Sort by score descending
+	for i := 0; i < len(sorted)-1; i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if sorted[i].Score < sorted[j].Score {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+
+	rankings := make([]*model.GameRanking, len(sorted))
+	currentRank := 1
+
+	for i, user := range sorted {
+		// Handle ties (same score = same rank)
+		if i > 0 && sorted[i].Score == sorted[i-1].Score {
+			// Same rank as previous
+			rankings[i] = &model.GameRanking{
+				Rank:   int32(currentRank),
+				UserID: user.UserID,
+				Name:   user.Name,
+				Score:  user.Score,
+			}
+		} else {
+			// New rank
+			currentRank = i + 1
+			rankings[i] = &model.GameRanking{
+				Rank:   int32(currentRank),
+				UserID: user.UserID,
+				Name:   user.Name,
+				Score:  user.Score,
+			}
+		}
+	}
+
+	log.Printf("[Rankings] Calculated rankings for %d users", len(rankings))
+	for i, r := range rankings {
+		log.Printf("[Rankings] #%d: Rank %d - %s (%d points)", i+1, r.Rank, r.Name, r.Score)
+	}
+
+	return rankings
+}
+
+// publishGameEndedWithRankings broadcasts game end event with rankings to WebSocket
+func publishGameEndedWithRankings(roomID string, room *model.GameRoom, rankings []*model.GameRanking) {
+	channel := common.ChannelGamePrefix + roomID
+
+	// Create the message payload
+	payload := map[string]interface{}{
+		"type": "GAME_ENDED",
+		"payload": map[string]interface{}{
+			"room":     room,
+			"rankings": rankings,
+			"winner":   "",
+		},
+	}
+
+	// Set winner if there are rankings
+	if len(rankings) > 0 {
+		payload["payload"].(map[string]interface{})["winner"] = rankings[0].Name
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal game ended message: %v", err)
+		return
+	}
+
+	// Publish to Valkey
+	if err := valkey.PublishMessage(context.Background(), channel, string(jsonData)); err != nil {
+		log.Printf("Failed to publish game ended to WebSocket: %v", err)
+	} else {
+		log.Printf("[GAME_ENDED] Published to channel %s with %d rankings", channel, len(rankings))
+	}
 }
 
 // publishRoomUpdateToWebSocket publishes room update to WebSocket clients via Valkey

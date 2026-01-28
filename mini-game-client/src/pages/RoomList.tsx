@@ -140,10 +140,10 @@ const RoomList: React.FC = () => {
     }
   };
 
-  const handleRefresh = () => {
-    setLoading(true);
-    loadRooms();
-  };
+  // const handleRefresh = () => {
+  //   setLoading(true);
+  //   loadRooms();
+  // };
 
   const handleCreateRoom = async () => {
     if (!user) {

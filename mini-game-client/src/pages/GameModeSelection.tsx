@@ -4,7 +4,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 
 const GameModeSelection: React.FC = () => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  useLanguage(); // Keep the hook for potential future use
   const username = sessionStorage.getItem('username');
 
   React.useEffect(() => {

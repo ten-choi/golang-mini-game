@@ -40,34 +40,36 @@ const WordchainRoom: React.FC = () => {
     const gameSubscription = wsService.subscribe(`game/${roomId}`, (data) => {
       console.log('[WordchainRoom] Received game message:', data);
       
-      // Handle new server format: { type: "MESSAGE_TYPE", payload: {...} }
-      if (data.type === 'WORDCHAIN_RESULT' && data.payload) {
-        const payload = data.payload;
-        console.log('[WordchainRoom] Word result:', payload);
-        if (payload.correct) {
+      // Handle messages from graph package (format: {type: "word_result", userName: ..., word: ..., correct: ...})
+      if (data.type === 'word_result') {
+        console.log('[WordchainRoom] Word result:', data);
+        if (data.correct) {
           setChatMessages(prev => [...prev, {
             username: t.gameRoom.system,
-            text: `${payload.username}님이 정답! "${payload.word}" (+100점)`,
+            text: `${data.userName}님이 정답! "${data.word}" (+100점)`,
             type: 'correct'
           }]);
-          setLastWord(payload.word);
+          setLastWord(data.word);
         } else {
           setChatMessages(prev => [...prev, {
             username: t.gameRoom.system,
-            text: `${payload.username}: "${payload.word}" - ${payload.reason}`,
+            text: `${data.userName}: "${data.word}" - ${data.reason}`,
             type: 'wrong'
           }]);
         }
-      } else if (data.type === 'WORDCHAIN_ROUND_END' && data.payload) {
-        const payload = data.payload;
-        console.log('[WordchainRoom] Round ended:', payload);
+      } else if (data.type === 'wordchain_prompt') {
+        console.log('[WordchainRoom] Received wordchain prompt:', data);
+        setCurrentPrompt(data.prompt);
+        setLastWord(data.lastWord || '');
+        setWordInput('');
+      } else if (data.type === 'round_end' && data.data) {
+        console.log('[WordchainRoom] Round ended:', data.data);
         setRoundEndInfo({
-          round: payload.round,
-          reason: payload.reason,
+          round: data.data.round,
+          reason: data.data.reason,
           countdown: 3
         });
         
-        // 3초 카운트다운
         let count = 3;
         const countdownInterval = setInterval(() => {
           count--;
@@ -75,34 +77,35 @@ const WordchainRoom: React.FC = () => {
           if (count <= 0) {
             clearInterval(countdownInterval);
             setRoundEndInfo(null);
-            loadRoom(); // 라운드 종료 후 방 정보 새로고침
+            loadRoom();
           }
         }, 1000);
-      } else if (data.type === 'CHAT_MESSAGE' && data.payload) {
+      } else if (data.type === 'game_end' && data.data) {
+        console.log('[WordchainRoom] Game ended:', data.data);
+        setRoundEndInfo(null);
+        
+        const sortedusers = [...data.data.users].sort((a, b) => b.score - a.score);
+        setGameEndInfo({
+          users: sortedusers,
+          message: data.data.message
+        });
+      }
+      // Handle room_deleted message
+      else if (data.type === 'room_deleted') {
+        console.log('[WordchainRoom] Room deleted:', data.data);
+        alert('방이 삭제되었습니다.');
+        navigate('/room-list');
+      }
+      // Handle websocket handler messages (format: {type: "CHAT_MESSAGE", payload: {...}})
+      else if (data.type === 'CHAT_MESSAGE' && data.payload) {
         const payload = data.payload;
         setChatMessages(prev => [...prev, {
           username: payload.username,
           text: payload.message,
           type: 'chat'
         }]);
-      } else if (data.type === 'GAME_EVENT' && data.payload) {
-        const payload = data.payload;
-        console.log('[WordchainRoom] Game event:', payload.eventType);
-        
-        if (payload.eventType === 'game_ended') {
-          console.log('[WordchainRoom] Game ended:', payload.data);
-          setRoundEndInfo(null);
-          
-          const sortedusers = [...payload.data.users].sort((a, b) => b.score - a.score);
-          setGameEndInfo({
-            users: sortedusers,
-            message: payload.data.message
-          });
-        } else {
-          loadRoom();
-        }
       }
-      // Handle legacy format for backward compatibility
+      // Legacy format
       else if (data.type === 'update' || data.type === 'room_update') {
         if (data.data) {
           setRoom(data.data);
