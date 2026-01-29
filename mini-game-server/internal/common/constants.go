@@ -23,7 +23,7 @@ const (
 
 // Game scoring constants
 const (
-	WordchainCorrectScore = 50  // Points awarded for correct wordchain answer
+	WordchainCorrectScore  = 50 // Points awarded for correct wordchain answer
 	QuizScorePerDifficulty = 50 // Points multiplier per difficulty level (difficulty × 50)
 	QuizMinDifficulty      = 1  // Minimum quiz difficulty level
 	QuizMaxDifficulty      = 5  // Maximum quiz difficulty level

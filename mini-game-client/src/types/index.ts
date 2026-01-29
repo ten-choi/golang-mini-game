@@ -387,7 +387,7 @@ export interface UserConnection {
 // ============================================
 
 export interface WebSocketRequest {
-  type: 'subscribe' | 'unsubscribe' | 'message' | 'identify' | 'chat' | 'drawing' | 'lobby_chat' | 'game_action' | 'quiz_answer' | 'wordchain_submit' | 'get_lobby_messages' | 'answer';
+  type: 'subscribe' | 'unsubscribe' | 'message' | 'identify' | 'set_user_id' | 'chat' | 'drawing' | 'lobby_chat' | 'game_action' | 'quiz_answer' | 'wordchain_submit' | 'get_lobby_messages' | 'answer';
   channel: string;
   data?: any;
 }

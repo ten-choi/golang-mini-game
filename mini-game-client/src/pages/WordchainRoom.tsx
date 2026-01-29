@@ -49,7 +49,7 @@ const WordchainRoom: React.FC = () => {
         if (data.correct) {
           setChatMessages(prev => [...prev, {
             username: t.gameRoom.system,
-            text: `${data.userName}님이 정답! "${data.word}" (+100점)`,
+            text: `${data.userName}님이 정답! "${data.word}" (+50점)`,
             type: 'correct'
           }]);
           setLastWord(data.word);
@@ -111,16 +111,29 @@ const WordchainRoom: React.FC = () => {
       }
       // Handle room update messages
       else if (data.type === 'update' || data.type === 'room_update' || data.type === 'ROOM_UPDATE') {
+        console.log('[WordchainRoom] Room update received:', data);
         if (data.data) {
+          console.log('[WordchainRoom] Updating room with data.data:', data.data);
           setRoom(data.data);
+          // Update lastWord if available in room data
+          if (data.data.wordchainLastWord) {
+            setLastWord(data.data.wordchainLastWord);
+          }
+          // Update timeLeft if status changed to PLAYING
+          if (data.data.status === 'PLAYING') {
+            setTimeLeft(data.data.roundTimeLimit);
+          }
         } else if (data.payload) {
+          console.log('[WordchainRoom] Updating room with data.payload:', data.payload);
           setRoom(data.payload);
         } else {
+          console.log('[WordchainRoom] Room update without data, reloading...');
           loadRoom();
         }
       }
       // Handle timer updates
       else if (data.type === 'timer' || data.type === 'TIMER') {
+        console.log('[WordchainRoom] Timer update:', data.timeLeft);
         setTimeLeft(data.timeLeft);
       }
     });
@@ -299,9 +312,9 @@ const WordchainRoom: React.FC = () => {
   };
 
   const handleSubmitWord = () => {
-    if (!wordInput.trim() || !roomId) return;
+    if (!wordInput.trim() || !roomId || !user) return;
 
-    wsService.sendWordchainSubmit(roomId, username, wordInput.trim(), lastWord);
+    wsService.sendWordchainSubmit(roomId, user.id, wordInput.trim(), lastWord);
     setWordInput('');
   };
 
@@ -375,7 +388,23 @@ const WordchainRoom: React.FC = () => {
           {room.status === 'WAITING' ? (
             <div style={styles.waitingArea}>
               <h3 style={styles.waitingTitle}>대기 중...</h3>
-              <p style={styles.waitingText}>호스트가 게임을 시작할 때까지 기다려주세요</p>
+              <p style={styles.waitingText}>
+                {isHost 
+                  ? '모든 플레이어가 준비되면 게임을 시작할 수 있습니다' 
+                  : '호스트가 게임을 시작할 때까지 기다려주세요'}
+              </p>
+              
+              {/* 플레이어 ready 상태 표시 */}
+              <div style={{margin: '20px 0', padding: '15px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px'}}>
+                <h4 style={{margin: '0 0 10px 0', color: 'white'}}>플레이어 준비 상태</h4>
+                {room.users.map((u) => (
+                  <div key={u.userId} style={{padding: '5px 0', color: 'white', display: 'flex', alignItems: 'center'}}>
+                    <span style={{flex: 1}}>{u.name}</span>
+                    <span style={{fontSize: '18px'}}>{u.isReady ? '✅ 준비완료' : '⏳ 대기중'}</span>
+                  </div>
+                ))}
+              </div>
+              
               <div style={styles.rules}>
                 <h4 style={styles.rulesTitle}>게임 규칙</h4>
                 <ul style={styles.rulesList}>
@@ -389,9 +418,13 @@ const WordchainRoom: React.FC = () => {
                 <button 
                   onClick={handleStartGame} 
                   style={styles.startButton}
-                  disabled={room.users.length < 2}
+                  disabled={room.users.length < 2 || !room.users.every(u => u.isReady)}
                 >
-                  {room.users.length < 2 ? '최소 2명 필요' : '게임 시작'}
+                  {room.users.length < 2 
+                    ? '최소 2명 필요' 
+                    : !room.users.every(u => u.isReady)
+                    ? '모든 플레이어가 준비될 때까지 대기중...'
+                    : '게임 시작'}
                 </button>
               )}
             </div>
@@ -494,6 +527,11 @@ const WordchainRoom: React.FC = () => {
                     <span style={styles.userName}>
                       {gameUser.userId === room.hostUserId && '👑 '}
                       {gameUser.name}
+                      {room.status === 'WAITING' && (
+                        <span style={{marginLeft: '8px', fontSize: '12px'}}>
+                          {gameUser.isReady ? '✅' : '⏳'}
+                        </span>
+                      )}
                     </span>
                   </div>
                   <span style={styles.userScore}>{gameUser.score}점</span>

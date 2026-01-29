@@ -442,10 +442,11 @@ func startWordchainGame(roomID string) {
 
 	// Initialize used words array with initial word
 	room.WordchainUsedWords = []string{initialWord}
+	currentRound := room.CurrentRound
 	roomMutex.Unlock()
 
 	// Broadcast initial word prompt (nil for prompt since we're just showing lastWord)
-	publishWordchainPromptToWebSocket(roomID, nil, initialWord)
+	publishWordchainPromptToWebSocket(roomID, nil, initialWord, currentRound)
 
 	// Publish room update to show changes
 	publishRoomUpdateToWebSocket(roomID, room)

@@ -35,10 +35,17 @@ if ($confirmation -ne 'Y' -and $confirmation -ne 'y') {
 }
 
 Write-Host ""
-Write-Host "📂 파일 복사 중..." -ForegroundColor Green
+Write-Host "�️  기존 파일 삭제 중 (.git 제외)..." -ForegroundColor Yellow
 
 try {
-    # 모든 파일과 폴더 복사 (덮어쓰기)
+    # 타겟 디렉토리의 .git을 제외한 모든 항목 삭제
+    Get-ChildItem -Path $targetDir -Exclude ".git" | Remove-Item -Recurse -Force -ErrorAction Stop
+    
+    Write-Host "✅ 기존 파일 삭제 완료" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "📂 파일 복사 중..." -ForegroundColor Green
+    
+    # 모든 파일과 폴더 복사
     Copy-Item -Path "$sourceDir\*" -Destination $targetDir -Recurse -Force -ErrorAction Stop
     
     Write-Host ""

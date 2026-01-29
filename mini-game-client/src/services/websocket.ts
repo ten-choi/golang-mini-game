@@ -77,8 +77,8 @@ export class WebSocketService {
 
     return new Promise((resolve, reject) => {
       try {
-        // Use lobby WebSocket by default
-        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws/lobby';
+        // Import env configuration
+        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
         
         console.log(`[WebSocket] Connecting to ${wsUrl}...`);
         this.ws = new WebSocket(wsUrl);
@@ -437,11 +437,11 @@ export class WebSocketService {
   /**
    * Send wordchain word submission
    * @param roomId - Room ID
-   * @param username - Username
+   * @param userId - User ID
    * @param word - Submitted word
    * @param lastWord - Previous word
    */
-  sendWordchainSubmit(roomId: string, username: string, word: string, lastWord: string): void {
+  sendWordchainSubmit(roomId: string, userId: string, word: string, lastWord: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error('[WebSocket] Cannot send wordchain submit: not connected');
       return;
@@ -451,7 +451,7 @@ export class WebSocketService {
       type: 'wordchain_submit',
       channel: '', // Not used
       data: {
-        username: username,
+        userId: userId,
         word: word,
         lastWord: lastWord
       }

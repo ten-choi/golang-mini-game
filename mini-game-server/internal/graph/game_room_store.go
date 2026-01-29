@@ -373,14 +373,15 @@ func publishGameEndToWebSocket(roomID string, room *model.GameRoom) {
 }
 
 // publishWordchainPromptToWebSocket publishes a wordchain prompt to users via WebSocket
-func publishWordchainPromptToWebSocket(roomID string, prompt *model.WordchainPrompt, lastWord string) {
+func publishWordchainPromptToWebSocket(roomID string, prompt *model.WordchainPrompt, lastWord string, currentRound int32) {
 	channel := "game/" + roomID
 
 	// Create the message payload
 	payload := map[string]interface{}{
-		"type":     "wordchain_prompt",
-		"prompt":   prompt,
-		"lastWord": lastWord,
+		"type":         "wordchain_prompt",
+		"prompt":       prompt,
+		"lastWord":     lastWord,
+		"currentRound": currentRound,
 	}
 
 	// Marshal to JSON
@@ -625,10 +626,11 @@ func startWordchainRound(roomID string) {
 
 	// Update the room in the map (important!)
 	gameRooms[roomID] = room
+	currentRound := room.CurrentRound
 	roomMutex.Unlock()
 
 	// Broadcast round start and initial word
-	publishWordchainPromptToWebSocket(roomID, nil, initialWord)
+	publishWordchainPromptToWebSocket(roomID, nil, initialWord, currentRound)
 	publishRoomUpdateToWebSocket(roomID, room)
 
 	// Start turn timer

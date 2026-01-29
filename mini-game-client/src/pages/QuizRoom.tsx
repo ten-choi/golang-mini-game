@@ -44,8 +44,15 @@ const QuizRoom: React.FC = () => {
       console.log('[QuizRoom] Received game message:', data);
       console.log('[QuizRoom] Message type:', data.type);
       
+      // Handle room_update messages
+      if (data.type === 'room_update' || data.type === 'update' || data.type === 'ROOM_UPDATE') {
+        console.log('[QuizRoom] Room update received:', data);
+        if (data.data) {
+          setRoom(data.data);
+        }
+      }
       // Handle messages from server (format: {type: "quiz", quiz: {...}})
-      if (data.type === 'quiz' && data.quiz) {
+      else if (data.type === 'quiz' && data.quiz) {
         console.log('[QuizRoom] ========== QUIZ RECEIVED FROM SUBSCRIPTION ==========');
         const quizData = data.quiz;
         console.log('✓ Quiz Type:', quizData.type);
@@ -138,6 +145,8 @@ const QuizRoom: React.FC = () => {
           console.log('[QuizRoom] User not in room, auto-rejoining...');
           try {
             await apiService.joinGameRoom(roomId, user.id);
+            // Auto-set ready after joining
+            await apiService.setReady(roomId, user.id, true);
             // Reload room to get updated user list
             const updatedRoom = await apiService.getGameRoom(roomId);
             if (updatedRoom) {
@@ -145,6 +154,21 @@ const QuizRoom: React.FC = () => {
             }
           } catch (joinError) {
             console.error('[QuizRoom] Failed to auto-rejoin:', joinError);
+          }
+        } else {
+          // Check if user is already ready, if not, set ready
+          const currentUser = gameRoom.users.find(p => p.userId === user.id);
+          if (currentUser && !currentUser.isReady && gameRoom.status === 'WAITING') {
+            console.log('[QuizRoom] Auto-setting user ready...');
+            try {
+              await apiService.setReady(roomId, user.id, true);
+              const updatedRoom = await apiService.getGameRoom(roomId);
+              if (updatedRoom) {
+                setRoom(updatedRoom);
+              }
+            } catch (readyError) {
+              console.error('[QuizRoom] Failed to set ready:', readyError);
+            }
           }
         }
       } else {
@@ -269,14 +293,34 @@ const QuizRoom: React.FC = () => {
           {room.status === 'WAITING' ? (
             <div style={styles.waitingArea}>
               <h3 style={styles.waitingTitle}>대기 중...</h3>
-              <p style={styles.waitingText}>호스트가 게임을 시작할 때까지 기다려주세요</p>
+              <p style={styles.waitingText}>
+                {isHost 
+                  ? '모든 플레이어가 준비되면 게임을 시작할 수 있습니다' 
+                  : '호스트가 게임을 시작할 때까지 기다려주세요'}
+              </p>
+              
+              {/* 플레이어 ready 상태 표시 */}
+              <div style={{margin: '20px 0', padding: '15px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px'}}>
+                <h4 style={{margin: '0 0 10px 0', color: 'white'}}>플레이어 준비 상태</h4>
+                {room.users.map((u) => (
+                  <div key={u.userId} style={{padding: '5px 0', color: 'white', display: 'flex', alignItems: 'center'}}>
+                    <span style={{flex: 1}}>{u.name}</span>
+                    <span style={{fontSize: '18px'}}>{u.isReady ? '✅ 준비완료' : '⏳ 대기중'}</span>
+                  </div>
+                ))}
+              </div>
+              
               {isHost && (
                 <button 
                   onClick={handleStartGame} 
                   style={styles.startButton}
-                  disabled={room.users.length < 2}
+                  disabled={room.users.length < 2 || !room.users.every(u => u.isReady)}
                 >
-                  {room.users.length < 2 ? '최소 2명 필요' : '게임 시작'}
+                  {room.users.length < 2 
+                    ? '최소 2명 필요' 
+                    : !room.users.every(u => u.isReady)
+                    ? '모든 플레이어가 준비될 때까지 대기중...'
+                    : '게임 시작'}
                 </button>
               )}
             </div>
