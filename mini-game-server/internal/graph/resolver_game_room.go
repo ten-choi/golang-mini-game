@@ -129,11 +129,7 @@ func (r *mutationResolver) JoinGameRoom(ctx context.Context, roomID string, user
 
 	// Publish events
 	go func() {
-		GetPubSub().PublishRoomUpdate(room)
-		GetPubSub().PublishUserJoined(roomID, newUser)
 		publishLobbyUpdate()
-
-		// Also publish to WebSocket via Valkey
 		publishRoomUpdateToWebSocket(roomID, room)
 	}()
 
@@ -209,8 +205,6 @@ func (r *mutationResolver) LeaveGameRoom(ctx context.Context, roomID string, use
 	// All publish operations in goroutine to avoid deadlock
 	go func() {
 		publishLobbyUpdate()
-		GetPubSub().PublishRoomUpdate(room)
-		GetPubSub().PublishUserLeft(roomID, leavingUser)
 		publishRoomUpdateToWebSocket(roomID, room)
 	}()
 
@@ -246,13 +240,20 @@ func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model
 	gameRooms[roomID] = room
 	roomMutex.Unlock()
 
+	// Update all users' status to ingame
+	for _, user := range room.Users {
+		statusKey := common.RedisKeyUserStatus + user.UserID
+		err := valkey.Client.Set(ctx, statusKey, common.UserStatusInGame, time.Duration(common.RedisUserStatusTTL)*time.Second).Err()
+		if err != nil {
+			log.Printf("[StartGame] Failed to set user %s status to ingame: %v", user.UserID, err)
+		} else {
+			log.Printf("[StartGame] User %s status set to ingame", user.UserID)
+		}
+	}
+
 	// Publish events
 	go func() {
-		GetPubSub().PublishRoomUpdate(room)
-		GetPubSub().PublishGameStarted(room)
 		publishLobbyUpdate()
-
-		// Also publish to WebSocket via Valkey
 		publishRoomUpdateToWebSocket(roomID, room)
 	}()
 
@@ -392,43 +393,31 @@ func (r *queryResolver) MyCurrentRoom(ctx context.Context, Name string) (*model.
 
 // GameRoomUpdated is the resolver for the gameRoomUpdated field.
 func (r *subscriptionResolver) GameRoomUpdated(ctx context.Context, roomID string) (<-chan *model.GameRoom, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToRoom(roomID, subscriberID)
-
-	// Unsubscribe when context is done
+	ch := make(chan *model.GameRoom)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromRoom(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // LobbyUpdated is the resolver for the lobbyUpdated field.
 func (r *subscriptionResolver) LobbyUpdated(ctx context.Context) (<-chan []*model.GameRoom, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToLobby(subscriberID)
-
-	// Unsubscribe when context is done
+	ch := make(chan []*model.GameRoom)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromLobby(subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // UserJoined is the resolver for the userJoined field.
 func (r *subscriptionResolver) UserJoined(ctx context.Context, roomID string) (<-chan *model.GameUser, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToUserJoined(roomID, subscriberID)
-
-	// Unsubscribe when context is done
+	ch := make(chan *model.GameUser)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromUserJoined(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
@@ -467,29 +456,21 @@ func startWordchainGame(roomID string) {
 
 // UserLeft is the resolver for the userLeft field.
 func (r *subscriptionResolver) UserLeft(ctx context.Context, roomID string) (<-chan *model.GameUser, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToUserLeft(roomID, subscriberID)
-
-	// Unsubscribe when context is done
+	ch := make(chan *model.GameUser)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromUserLeft(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // GameStarted is the resolver for the gameStarted field.
 func (r *subscriptionResolver) GameStarted(ctx context.Context, roomID string) (<-chan *model.GameRoom, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToGameStarted(roomID, subscriberID)
-
-	// Unsubscribe when context is done
+	ch := make(chan *model.GameRoom)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromGameStarted(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
@@ -532,8 +513,8 @@ func (r *mutationResolver) UpdateGameRoom(ctx context.Context, roomID string, in
 
 	// Publish update
 	go func() {
-		GetPubSub().PublishRoomUpdate(room)
 		publishLobbyUpdate()
+		publishRoomUpdateToWebSocket(roomID, room)
 	}()
 
 	return room, nil
@@ -568,11 +549,7 @@ func (r *mutationResolver) TransferHost(ctx context.Context, roomID string, newH
 
 	// Publish update
 	go func() {
-		GetPubSub().PublishRoomUpdate(room)
-		GetPubSub().PublishHostChanged(roomID, &model.GameUser{
-			UserID: newHostUserID,
-			Name:   "",
-		})
+		publishRoomUpdateToWebSocket(roomID, room)
 	}()
 
 	return room, nil
@@ -598,8 +575,7 @@ func (r *mutationResolver) SetReady(ctx context.Context, roomID string, userID s
 
 			// Publish update
 			go func() {
-				GetPubSub().PublishRoomUpdate(room)
-				GetPubSub().PublishUserReadyUpdated(roomID, room.Users[i])
+				publishRoomUpdateToWebSocket(roomID, room)
 			}()
 
 			return room, nil
@@ -627,8 +603,7 @@ func (r *mutationResolver) StartRound(ctx context.Context, roomID string) (*mode
 
 	// Publish update
 	go func() {
-		GetPubSub().PublishRoomUpdate(room)
-		GetPubSub().PublishRoundStarted(roomID, room)
+		publishRoomUpdateToWebSocket(roomID, room)
 	}()
 
 	return room, nil
@@ -683,6 +658,17 @@ func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.G
 
 	room.Status = model.GameRoomStatusFinished
 
+	// Update all users' status back to lobby
+	for _, user := range room.Users {
+		statusKey := common.RedisKeyUserStatus + user.UserID
+		err := valkey.Client.Set(ctx, statusKey, common.UserStatusLobby, time.Duration(common.RedisUserStatusTTL)*time.Second).Err()
+		if err != nil {
+			log.Printf("[EndGame] Failed to set user %s status to lobby: %v", user.UserID, err)
+		} else {
+			log.Printf("[EndGame] User %s status set to lobby", user.UserID)
+		}
+	}
+
 	// Delete the room from memory
 	delete(gameRooms, roomID)
 	roomMutex.Unlock()
@@ -700,8 +686,6 @@ func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.G
 
 	// Publish update and deletion events
 	go func() {
-		GetPubSub().PublishRoomUpdate(room)
-		GetPubSub().PublishGameEnded(roomID, room)
 		publishLobbyUpdate()
 		// Broadcast game ended with rankings via WebSocket
 		publishGameEndedWithRankings(roomID, room, rankings)
@@ -732,9 +716,7 @@ func (r *mutationResolver) SendChat(ctx context.Context, roomID string, userID s
 		Timestamp: time.Now(),
 	}
 
-	// Publish chat message
-	go GetPubSub().PublishChatMessage(roomID, chatMsg)
-
+	// Chat messages handled by WebSocket layer
 	return chatMsg, nil
 }
 
@@ -763,131 +745,101 @@ func (r *queryResolver) RandomWordchainPrompt(ctx context.Context) (*model.Wordc
 
 // GameRoomsUpdated is the resolver for the gameRoomsUpdated field.
 func (r *subscriptionResolver) GameRoomsUpdated(ctx context.Context) (<-chan []*model.GameRoom, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToLobby(subscriberID)
-
+	ch := make(chan []*model.GameRoom)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromLobby(subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // UserReadyUpdated is the resolver for the userReadyUpdated field.
 func (r *subscriptionResolver) UserReadyUpdated(ctx context.Context, roomID string) (<-chan *model.GameUser, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToUserReadyUpdated(roomID, subscriberID)
-
+	ch := make(chan *model.GameUser)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromUserReadyUpdated(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // HostChanged is the resolver for the hostChanged field.
 func (r *subscriptionResolver) HostChanged(ctx context.Context, roomID string) (<-chan *model.GameUser, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToHostChanged(roomID, subscriberID)
-
+	ch := make(chan *model.GameUser)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromHostChanged(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // RoundStarted is the resolver for the roundStarted field.
 func (r *subscriptionResolver) RoundStarted(ctx context.Context, roomID string) (<-chan *model.GameRoom, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToRoundStarted(roomID, subscriberID)
-
+	ch := make(chan *model.GameRoom)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromRoundStarted(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // RoundEnded is the resolver for the roundEnded field.
 func (r *subscriptionResolver) RoundEnded(ctx context.Context, roomID string) (<-chan *model.GameRoom, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToRoundEnded(roomID, subscriberID)
-
+	ch := make(chan *model.GameRoom)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromRoundEnded(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // GameEnded is the resolver for the gameEnded field.
 func (r *subscriptionResolver) GameEnded(ctx context.Context, roomID string) (<-chan *model.GameRoom, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToGameEnded(roomID, subscriberID)
-
+	ch := make(chan *model.GameRoom)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromGameEnded(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // ChatMessage is the resolver for the chatMessage field.
 func (r *subscriptionResolver) ChatMessage(ctx context.Context, roomID string) (<-chan *model.ChatMessage, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToChatMessage(roomID, subscriberID)
-
+	ch := make(chan *model.ChatMessage)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromChatMessage(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // GameEvent is the resolver for the gameEvent field.
 func (r *subscriptionResolver) GameEvent(ctx context.Context, roomID string) (<-chan *model.GameEvent, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToGameEvent(roomID, subscriberID)
-
+	ch := make(chan *model.GameEvent)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromGameEvent(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // Error is the resolver for the error field.
 func (r *subscriptionResolver) Error(ctx context.Context, roomID string) (<-chan *model.ErrorEvent, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToError(roomID, subscriberID)
-
+	ch := make(chan *model.ErrorEvent)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromError(roomID, subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 
 // MyEvents is the resolver for the myEvents field.
 func (r *subscriptionResolver) MyEvents(ctx context.Context, Name string) (<-chan *model.GameEvent, error) {
-	subscriberID := uuid.New().String()
-	ch := GetPubSub().SubscribeToGameEvent("", subscriberID) // Empty roomID for user-specific events
-
+	ch := make(chan *model.GameEvent)
 	go func() {
 		<-ctx.Done()
-		GetPubSub().UnsubscribeFromGameEvent("", subscriberID)
+		close(ch)
 	}()
-
 	return ch, nil
 }
 

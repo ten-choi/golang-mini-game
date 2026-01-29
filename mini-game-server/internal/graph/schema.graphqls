@@ -419,6 +419,30 @@ type UserStats {
   updatedAt: Time!
 }
 
+"""유저 통계 업데이트를 위한 입력 데이터"""
+input UpdateUserStatsInput {
+  "사용자 ID"
+  userId: ID!
+  "게임 타입 (OX, QA, WORDCHAIN 등)"
+  gameType: String!
+  "개인전 승리 추가 (선택사항)"
+  soloWins: Int
+  "개인전 패배 추가 (선택사항)"
+  soloLoses: Int
+  "개인전 최고 점수 (선택사항, 기존 최고점보다 높을 때만 업데이트)"
+  soloBestScore: Int
+  "팀전 승리 추가 (선택사항)"
+  teamWins: Int
+  "팀전 패배 추가 (선택사항)"
+  teamLoses: Int
+  "팀전 MVP 횟수 추가 (선택사항)"
+  teamMVPCnt: Int
+  "총 게임 수 추가"
+  totalGames: Int!
+  "총 점수 추가"
+  totalScore: Int!
+}
+
 # ============================================
 # Result Types
 # ============================================
@@ -790,145 +814,7 @@ type Query {
   
   # ===== Quiz Queries =====
   
-  """
-  랜덤 OX 퀴즈를 조회합니다. 이미 사용된 퀴즈는 제외됩니다.
-  
-  **사용 예시:**
-  - OX 게임 라운드 시작 시 퀴즈 가져오기
-  - 퀴즈 미리보기
-  
-  **매개변수:**
-  - roomId: (선택사항) 게임방 ID
-    - 제공 시: 해당 게임방에서 이미 사용된 퀴즈 제외
-    - 미제공 시: 완전 랜덤 퀴즈 반환
-  
-  **반환값:**
-  - OX 퀴즈 정보 또는 null (사용 가능한 퀴즈가 없는 경우)
-  
-  **주의사항:**
-  - 정답(answer)이 포함되어 있으므로 서버 측에서만 사용하거나
-  - 클라이언트에서는 정답을 제외하고 표시하세요
-  
-  **예제:**
-  ```graphql
-  query {
-    randomOXQuiz(roomId: "550e8400-e29b-41d4-a716-446655440000") {
-      id
-      category
-      difficulty
-      question
-      # answer는 클라이언트에 전달하지 않음
-    }
-  }
-  ```
-  """
-  randomOXQuiz(roomId: ID): OXQuiz
-  
-  """
-  랜덤 4지선다 퀴즈를 조회합니다. 이미 사용된 퀴즈는 제외됩니다.
-  
-  **사용 예시:**
-  - QA 게임 라운드 시작 시 퀴즈 가져오기
-  - 퀴즈 미리보기
-  
-  **매개변수:**
-  - roomId: (선택사항) 게임방 ID
-    - 제공 시: 해당 게임방에서 이미 사용된 퀴즈 제외
-    - 미제공 시: 완전 랜덤 퀴즈 반환
-  
-  **반환값:**
-  - 4지선다 퀴즈 정보 또는 null (사용 가능한 퀴즈가 없는 경우)
-  
-  **주의사항:**
-  - 정답(answer)이 포함되어 있으므로 서버 측에서만 사용하거나
-  - 클라이언트에서는 정답을 제외하고 표시하세요
-  
-  **예제:**
-  ```graphql
-  query {
-    randomQAQuiz(roomId: "550e8400-e29b-41d4-a716-446655440000") {
-      id
-      category
-      difficulty
-      question
-      options
-      imageUrl
-      # answer는 클라이언트에 전달하지 않음
-    }
-  }
-  ```
-  """
-  randomQAQuiz(roomId: ID): GeneralQuiz
-  
   # ===== Invitation Queries =====
-  
-  """
-  특정 사용자가 받은 초대 목록을 조회합니다.
-  
-  **사용 예시:**
-  - 초대 알림 화면
-  - 대기 중인 초대 개수 표시
-  
-  **매개변수:**
-  - userId: 조회할 사용자 ID
-  - status: (선택사항) 초대 상태 필터 (PENDING, ACCEPTED, REJECTED, EXPIRED)
-  
-  **반환값:**
-  - 초대 배열 (빈 배열 가능)
-  - 최신순으로 정렬
-  
-  **예제:**
-  ```graphql
-  # 대기 중인 초대만 조회
-  query {
-    myInvitations(userId: "user123", status: PENDING) {
-      id
-      room {
-        name
-        gameType
-      }
-      inviter {
-        name
-      }
-      createdAt
-      expiresAt
-    }
-  }
-  ```
-  """
-  myInvitations(userId: ID!, status: InviteStatus): [Invitation!]!
-  
-  """
-  특정 초대 정보를 조회합니다.
-  
-  **사용 예시:**
-  - 초대 링크를 통한 정보 확인
-  - 초대 상세 정보 표시
-  
-  **매개변수:**
-  - id: 초대 ID
-  
-  **반환값:**
-  - 초대 정보 또는 null (존재하지 않는 경우)
-  
-  **예제:**
-  ```graphql
-  query {
-    invitation(id: "inv-123") {
-      id
-      status
-      room {
-        name
-        gameType
-        users { name }
-      }
-      inviter { name }
-      expiresAt
-    }
-  }
-  ```
-  """
-  invitation(id: ID!): Invitation
   
   # ===== user Stats Queries =====
   
@@ -1219,6 +1105,37 @@ type Mutation {
   ```
   """
   deleteUser(userName: String!): Boolean!
+  
+  # ===== User Stats Mutations =====
+  
+  """
+  유저의 게임 통계를 저장/업데이트합니다.
+  
+  **사용 시점:**
+  - 게임 종료 후 결과 저장
+  - 플레이어 순위/점수 업데이트
+  
+  **매개변수:**
+  - input: 업데이트할 통계 정보
+  
+  **반환값:**
+  - true: 저장 성공
+  - false: 저장 실패
+  
+  **예제:**
+  ```graphql
+  mutation {
+    createUserStats(input: {
+      userId: "507f1f77bcf86cd799439011"
+      gameType: "OX"
+      soloWins: 1
+      totalGames: 1
+      totalScore: 500
+    })
+  }
+  ```
+  """
+  createUserStats(input: UpdateUserStatsInput!): Boolean!
   
   # ===== Game Room Mutations =====
   
@@ -2453,41 +2370,6 @@ type Subscription {
   ```
   """
   myEvents(username: String!): GameEvent!
-  
-  """
-  특정 사용자의 초대 알림을 구독합니다.
-  
-  **사용 시점:**
-  - 알림 센터
-  - 초대 배지 표시
-  
-  **이벤트 발생 시점:**
-  - inviteUser 또는 inviteUsers mutation 실행 후
-  
-  **매개변수:**
-  - userId: 구독할 사용자 ID
-  
-  **반환값:**
-  - 새로운 초대 정보
-  
-  **예제:**
-  ```graphql
-  subscription {
-    invitationReceived(userId: "user123") {
-      id
-      room {
-        name
-        gameType
-      }
-      inviter {
-        userName
-      }
-      expiresAt
-    }
-  }
-  ```
-  """
-  invitationReceived(userId: ID!): Invitation!
   
   # ===== Connection Status =====
   

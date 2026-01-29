@@ -71,7 +71,7 @@ type CreateUserInput struct {
 	HangeID string `json:"hangeId"`
 	// 고유 사용자명 (3-20자) (선택사항)
 	Name *string `json:"name,omitempty"`
-	// profile image URL (Optional) if provided s3igned URL
+	// 프로필 이미지 URL (선택사항)
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
@@ -355,6 +355,30 @@ type UpdateUserInput struct {
 	Level *int32 `json:"level,omitempty"`
 	// 새로운 일반 재화
 	Credit *int32 `json:"credit,omitempty"`
+}
+
+// 유저 통계 업데이트를 위한 입력 데이터
+type UpdateUserStatsInput struct {
+	// 사용자 ID
+	UserID string `json:"userId"`
+	// 게임 타입 (OX, QA, WORDCHAIN 등)
+	GameType string `json:"gameType"`
+	// 개인전 승리 추가 (선택사항)
+	SoloWins *int32 `json:"soloWins,omitempty"`
+	// 개인전 패배 추가 (선택사항)
+	SoloLoses *int32 `json:"soloLoses,omitempty"`
+	// 개인전 최고 점수 (선택사항, 기존 최고점보다 높을 때만 업데이트)
+	SoloBestScore *int32 `json:"soloBestScore,omitempty"`
+	// 팀전 승리 추가 (선택사항)
+	TeamWins *int32 `json:"teamWins,omitempty"`
+	// 팀전 패배 추가 (선택사항)
+	TeamLoses *int32 `json:"teamLoses,omitempty"`
+	// 팀전 MVP 횟수 추가 (선택사항)
+	TeamMVPCnt *int32 `json:"teamMVPCnt,omitempty"`
+	// 총 게임 수 추가
+	TotalGames int32 `json:"totalGames"`
+	// 총 점수 추가
+	TotalScore int32 `json:"totalScore"`
 }
 
 // 게임 플레이어 계정을 나타냅니다.

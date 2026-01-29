@@ -16,11 +16,11 @@ import (
 // UserRepository defines the interface for user data access
 type UserRepository interface {
 	GetByID(ctx context.Context, id string) (*models.User, error)
-	GetByUserName(ctx context.Context, UserName string) (*models.User, error)
+	GetByUserName(ctx context.Context, name string) (*models.User, error)
 	GetByHangeID(ctx context.Context, hangeID string) (*models.User, error) // 로그인용
 	GetAll(ctx context.Context) ([]*models.User, error)
 	Create(ctx context.Context, user *models.User) (*models.User, error)
-	Update(ctx context.Context, UserName string, avatarURL *string, level, credit *int) (*models.User, error)
+	Update(ctx context.Context, name string, avatarURL *string, level, credit *int) (*models.User, error)
 }
 
 type userRepository struct {
@@ -51,9 +51,9 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*models.User, 
 	return &user, nil
 }
 
-func (r *userRepository) GetByUserName(ctx context.Context, UserName string) (*models.User, error) {
+func (r *userRepository) GetByUserName(ctx context.Context, name string) (*models.User, error) {
 	var user models.User
-	err := r.collection.FindOne(ctx, bson.M{"UserName": UserName}).Decode(&user)
+	err := r.collection.FindOne(ctx, bson.M{"name": name}).Decode(&user)
 
 	if err == mongo.ErrNoDocuments {
 		return nil, common.NewNotFoundError("user not found")
@@ -107,7 +107,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) (*models
 	_, err := r.collection.InsertOne(ctx, user)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			return nil, common.NewInternalError("UserName already exists", err)
+			return nil, common.NewInternalError("name already exists", err)
 		}
 		return nil, common.NewInternalError("failed to create user", err)
 	}
@@ -115,7 +115,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) (*models
 	return user, nil
 }
 
-func (r *userRepository) Update(ctx context.Context, UserName string, avatarURL *string, level, credit *int) (*models.User, error) {
+func (r *userRepository) Update(ctx context.Context, name string, avatarURL *string, level, credit *int) (*models.User, error) {
 	update := bson.M{
 		"$set": bson.M{
 			"updated_at": time.Now(),
@@ -137,7 +137,7 @@ func (r *userRepository) Update(ctx context.Context, UserName string, avatarURL 
 	var user models.User
 	err := r.collection.FindOneAndUpdate(
 		ctx,
-		bson.M{"UserName": UserName},
+		bson.M{"name": name},
 		update,
 		opts,
 	).Decode(&user)

@@ -171,6 +171,7 @@ type ComplexityRoot struct {
 		JoinGameRoom   func(childComplexity int, roomID string, userID string, password *string) int
 		LeaveGameRoom  func(childComplexity int, roomID string, userID string) int
 		RejectInvite   func(childComplexity int, invitationID string) int
+		SaveUserStats  func(childComplexity int, input model.UpdateUserStatsInput) int
 		SendChat       func(childComplexity int, roomID string, username string, message string) int
 		SetReady       func(childComplexity int, roomID string, userID string, ready bool) int
 		StartGame      func(childComplexity int, roomID string) int
@@ -219,8 +220,6 @@ type ComplexityRoot struct {
 		Leaderboard           func(childComplexity int, gameType string, limit *int32) int
 		MyCurrentRoom         func(childComplexity int, username string) int
 		MyInvitations         func(childComplexity int, userID string, status *model.InviteStatus) int
-		RandomOXQuiz          func(childComplexity int, roomID *string) int
-		RandomQAQuiz          func(childComplexity int, roomID *string) int
 		RandomWordchainPrompt func(childComplexity int) int
 		UserByHangeID         func(childComplexity int, hangeID string) int
 		UserByName            func(childComplexity int, name string) int
@@ -287,6 +286,7 @@ type MutationResolver interface {
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
 	UpdateUser(ctx context.Context, userName string, input model.UpdateUserInput) (*model.User, error)
 	DeleteUser(ctx context.Context, userName string) (bool, error)
+	SaveUserStats(ctx context.Context, input model.UpdateUserStatsInput) (bool, error)
 	CreateGameRoom(ctx context.Context, input model.CreateGameRoomInput) (*model.GameRoom, error)
 	UpdateGameRoom(ctx context.Context, roomID string, input model.UpdateGameRoomInput) (*model.GameRoom, error)
 	JoinGameRoom(ctx context.Context, roomID string, userID string, password *string) (*model.GameRoom, error)
@@ -311,8 +311,6 @@ type QueryResolver interface {
 	GameRoom(ctx context.Context, id string) (*model.GameRoom, error)
 	GameRooms(ctx context.Context, gameType *model.GameType, status *model.GameRoomStatus, includePrivate *bool, hasSpace *bool, limit *int32, sortBy *string) ([]*model.GameRoom, error)
 	MyCurrentRoom(ctx context.Context, username string) (*model.GameRoom, error)
-	RandomOXQuiz(ctx context.Context, roomID *string) (*model.OXQuiz, error)
-	RandomQAQuiz(ctx context.Context, roomID *string) (*model.GeneralQuiz, error)
 	MyInvitations(ctx context.Context, userID string, status *model.InviteStatus) ([]*model.Invitation, error)
 	Invitation(ctx context.Context, id string) (*model.Invitation, error)
 	UserStats(ctx context.Context, userID string, gameType *string) ([]*model.UserStats, error)
@@ -954,6 +952,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RejectInvite(childComplexity, args["invitationId"].(string)), true
+	case "Mutation.saveUserStats":
+		if e.complexity.Mutation.SaveUserStats == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_saveUserStats_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.SaveUserStats(childComplexity, args["input"].(model.UpdateUserStatsInput)), true
 	case "Mutation.sendChat":
 		if e.complexity.Mutation.SendChat == nil {
 			break
@@ -1249,28 +1258,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.MyInvitations(childComplexity, args["userId"].(string), args["status"].(*model.InviteStatus)), true
-	case "Query.randomOXQuiz":
-		if e.complexity.Query.RandomOXQuiz == nil {
-			break
-		}
-
-		args, err := ec.field_Query_randomOXQuiz_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.RandomOXQuiz(childComplexity, args["roomId"].(*string)), true
-	case "Query.randomQAQuiz":
-		if e.complexity.Query.RandomQAQuiz == nil {
-			break
-		}
-
-		args, err := ec.field_Query_randomQAQuiz_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.RandomQAQuiz(childComplexity, args["roomId"].(*string)), true
 	case "Query.randomWordchainPrompt":
 		if e.complexity.Query.RandomWordchainPrompt == nil {
 			break
@@ -1648,6 +1635,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCreateUserInput,
 		ec.unmarshalInputUpdateGameRoomInput,
 		ec.unmarshalInputUpdateUserInput,
+		ec.unmarshalInputUpdateUserStatsInput,
 	)
 	first := true
 
@@ -1927,6 +1915,17 @@ func (ec *executionContext) field_Mutation_rejectInvite_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_saveUserStats_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateUserStatsInput2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUpdateUserStatsInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_sendChat_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2180,28 +2179,6 @@ func (ec *executionContext) field_Query_myInvitations_args(ctx context.Context, 
 		return nil, err
 	}
 	args["status"] = arg1
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_randomOXQuiz_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalOID2ᚖstring)
-	if err != nil {
-		return nil, err
-	}
-	args["roomId"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_randomQAQuiz_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "roomId", ec.unmarshalOID2ᚖstring)
-	if err != nil {
-		return nil, err
-	}
-	args["roomId"] = arg0
 	return args, nil
 }
 
@@ -5018,6 +4995,47 @@ func (ec *executionContext) fieldContext_Mutation_deleteUser(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_saveUserStats(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_saveUserStats,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().SaveUserStats(ctx, fc.Args["input"].(model.UpdateUserStatsInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_saveUserStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_saveUserStats_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createGameRoom(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7090,136 +7108,6 @@ func (ec *executionContext) fieldContext_Query_myCurrentRoom(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_myCurrentRoom_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_randomOXQuiz(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_randomOXQuiz,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().RandomOXQuiz(ctx, fc.Args["roomId"].(*string))
-		},
-		nil,
-		ec.marshalOOXQuiz2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐOXQuiz,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_randomOXQuiz(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_OXQuiz_id(ctx, field)
-			case "category":
-				return ec.fieldContext_OXQuiz_category(ctx, field)
-			case "difficulty":
-				return ec.fieldContext_OXQuiz_difficulty(ctx, field)
-			case "question":
-				return ec.fieldContext_OXQuiz_question(ctx, field)
-			case "answer":
-				return ec.fieldContext_OXQuiz_answer(ctx, field)
-			case "explanation":
-				return ec.fieldContext_OXQuiz_explanation(ctx, field)
-			case "usageCount":
-				return ec.fieldContext_OXQuiz_usageCount(ctx, field)
-			case "isActive":
-				return ec.fieldContext_OXQuiz_isActive(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_OXQuiz_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_OXQuiz_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type OXQuiz", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_randomOXQuiz_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_randomQAQuiz(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Query_randomQAQuiz,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().RandomQAQuiz(ctx, fc.Args["roomId"].(*string))
-		},
-		nil,
-		ec.marshalOGeneralQuiz2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGeneralQuiz,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_Query_randomQAQuiz(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_GeneralQuiz_id(ctx, field)
-			case "category":
-				return ec.fieldContext_GeneralQuiz_category(ctx, field)
-			case "difficulty":
-				return ec.fieldContext_GeneralQuiz_difficulty(ctx, field)
-			case "question":
-				return ec.fieldContext_GeneralQuiz_question(ctx, field)
-			case "options":
-				return ec.fieldContext_GeneralQuiz_options(ctx, field)
-			case "answer":
-				return ec.fieldContext_GeneralQuiz_answer(ctx, field)
-			case "explanation":
-				return ec.fieldContext_GeneralQuiz_explanation(ctx, field)
-			case "imageUrl":
-				return ec.fieldContext_GeneralQuiz_imageUrl(ctx, field)
-			case "usageCount":
-				return ec.fieldContext_GeneralQuiz_usageCount(ctx, field)
-			case "isActive":
-				return ec.fieldContext_GeneralQuiz_isActive(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_GeneralQuiz_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_GeneralQuiz_updatedAt(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type GeneralQuiz", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_randomQAQuiz_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -11056,6 +10944,96 @@ func (ec *executionContext) unmarshalInputUpdateUserInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateUserStatsInput(ctx context.Context, obj any) (model.UpdateUserStatsInput, error) {
+	var it model.UpdateUserStatsInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"userId", "gameType", "soloWins", "soloLoses", "soloBestScore", "teamWins", "teamLoses", "teamMVPCnt", "totalGames", "totalScore"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "userId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UserID = data
+		case "gameType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("gameType"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GameType = data
+		case "soloWins":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("soloWins"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SoloWins = data
+		case "soloLoses":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("soloLoses"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SoloLoses = data
+		case "soloBestScore":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("soloBestScore"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SoloBestScore = data
+		case "teamWins":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamWins"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamWins = data
+		case "teamLoses":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamLoses"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamLoses = data
+		case "teamMVPCnt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamMVPCnt"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamMVPCnt = data
+		case "totalGames":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("totalGames"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TotalGames = data
+		case "totalScore":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("totalScore"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TotalScore = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -11827,6 +11805,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "saveUserStats":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_saveUserStats(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createGameRoom":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createGameRoom(ctx, field)
@@ -12285,44 +12270,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_myCurrentRoom(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "randomOXQuiz":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_randomOXQuiz(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx,
-					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "randomQAQuiz":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_randomQAQuiz(ctx, field)
 				return res
 			}
 
@@ -13617,6 +13564,11 @@ func (ec *executionContext) unmarshalNUpdateUserInput2drawᚑandᚑguessᚑserve
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateUserStatsInput2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUpdateUserStatsInput(ctx context.Context, v any) (model.UpdateUserStatsInput, error) {
+	res, err := ec.unmarshalInputUpdateUserStatsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNUser2drawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
@@ -14079,13 +14031,6 @@ func (ec *executionContext) marshalOGameType2ᚖdrawᚑandᚑguessᚑserverᚋin
 	return v
 }
 
-func (ec *executionContext) marshalOGeneralQuiz2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐGeneralQuiz(ctx context.Context, sel ast.SelectionSet, v *model.GeneralQuiz) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._GeneralQuiz(ctx, sel, v)
-}
-
 func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
 	if v == nil {
 		return nil, nil
@@ -14143,13 +14088,6 @@ func (ec *executionContext) marshalOInviteStatus2ᚖdrawᚑandᚑguessᚑserver�
 		return graphql.Null
 	}
 	return v
-}
-
-func (ec *executionContext) marshalOOXQuiz2ᚖdrawᚑandᚑguessᚑserverᚋinternalᚋgraphᚋmodelᚐOXQuiz(ctx context.Context, sel ast.SelectionSet, v *model.OXQuiz) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return ec._OXQuiz(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

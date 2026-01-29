@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -293,6 +294,17 @@ func handleLobbyChatMessage(client *Client, data interface{}) {
 func handleMessages(client *Client) {
 	// Clean up client on function exit
 	defer func() {
+		// Set user status to offline
+		if client.UserID != "" {
+			statusKey := common.RedisKeyUserStatus + client.UserID
+			err := valkey.Client.Set(context.Background(), statusKey, common.UserStatusOffline, time.Duration(common.RedisUserStatusTTL)*time.Second).Err()
+			if err != nil {
+				log.Printf("[WebSocket] Failed to set user %s to offline: %v", client.UserID, err)
+			} else {
+				log.Printf("[WebSocket] User %s status set to offline", client.UserID)
+			}
+		}
+
 		// Auto-remove player from room on disconnect
 		if client.roomID != "" && client.roomID != common.ChannelLobby && client.UserID != "" {
 			log.Printf("Auto-removing user %s from room %s due to WebSocket disconnect", client.UserID, client.roomID)
@@ -339,6 +351,29 @@ func handleMessages(client *Client) {
 		case "unsubscribe":
 			if wsMsg.Channel != "" {
 				handleUnsubscribe(client, wsMsg.Channel)
+			}
+		case "set_user_id":
+			// Set user ID and auto-subscribe to personal channel
+			if data, ok := wsMsg.Data.(map[string]interface{}); ok {
+				if userID, ok := data["userId"].(string); ok && userID != "" {
+					client.mu.Lock()
+					client.UserID = userID
+					client.mu.Unlock()
+
+					// Set user status to lobby in Redis
+					statusKey := common.RedisKeyUserStatus + userID
+					err := valkey.Client.Set(context.Background(), statusKey, common.UserStatusLobby, time.Duration(common.RedisUserStatusTTL)*time.Second).Err()
+					if err != nil {
+						log.Printf("[WebSocket] Failed to set user status: %v", err)
+					} else {
+						log.Printf("[WebSocket] User %s status set to %s", userID, common.UserStatusLobby)
+					}
+
+					// Auto-subscribe to personal channel for invitations
+					personalChannel := common.ChannelUserPrefix + userID
+					handleSubscribe(client, personalChannel)
+					log.Printf("[WebSocket] User %s auto-subscribed to personal channel: %s", userID, personalChannel)
+				}
 			}
 		case "lobby_chat":
 			handleLobbyChatMessage(client, wsMsg.Data)

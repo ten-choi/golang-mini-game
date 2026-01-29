@@ -35,10 +35,7 @@ func publishLobbyUpdate() {
 
 	log.Printf("[publishLobbyUpdate] Publishing %d active rooms (total in memory: %d)", len(rooms), len(gameRooms))
 
-	// Publish to GraphQL subscribers
-	GetPubSub().PublishLobbyUpdate(rooms)
-
-	// Also publish to WebSocket clients via Valkey
+	// Publish to WebSocket clients via Valkey
 	publishLobbyUpdateToWebSocket(rooms)
 }
 
@@ -106,8 +103,6 @@ func RemoveUserFromRoom(roomID, userID string) {
 
 	go func() {
 		publishLobbyUpdate()
-		GetPubSub().PublishRoomUpdate(room)
-		GetPubSub().PublishUserLeft(roomID, leavingUser)
 		publishRoomUpdateToWebSocket(roomID, room)
 	}()
 }
@@ -582,7 +577,6 @@ func EndWordchainRound(roomID string, reason string) {
 		// Broadcast game end message with final scores
 		go publishGameEndToWebSocket(roomID, room)
 		go publishRoomUpdateToWebSocket(roomID, room)
-		go GetPubSub().PublishRoomUpdate(room)
 		go publishLobbyUpdate()
 		return
 	}
@@ -634,7 +628,6 @@ func startWordchainRound(roomID string) {
 	roomMutex.Unlock()
 
 	// Broadcast round start and initial word
-	go GetPubSub().PublishRoundStarted(roomID, room)
 	publishWordchainPromptToWebSocket(roomID, nil, initialWord)
 	publishRoomUpdateToWebSocket(roomID, room)
 
