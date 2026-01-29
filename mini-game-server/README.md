@@ -53,9 +53,7 @@ go run ./cmd/server/main.go
 |-----------|------|
 | `POST /graphql` | GraphQL Query/Mutation |
 | `GET /graphql` | GraphQL Playground (개발용) |
-| `WS /graphql` | GraphQL Subscription (WebSocket) |
-| `WS /ws/lobby` | 로비 실시간 업데이트 |
-| `WS /ws/rooms/:id` | 게임방 실시간 통신 |
+ 
 | `GET /health` | 헬스 체크 |
 
 ## 📖 GraphQL API 예제

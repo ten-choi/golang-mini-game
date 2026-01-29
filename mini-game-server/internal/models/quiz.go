@@ -42,47 +42,47 @@ type Quiz struct {
 
 // OXQuiz는 OX 퀴즈 전용 구조체입니다
 type OXQuiz struct {
-	ID          int64     `db:"id" json:"id"`
-	Category    string    `db:"category" json:"category"`
-	Difficulty  int       `db:"difficulty" json:"difficulty"`   // 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)
-	Question    string    `db:"question" json:"question"`       // 예: "사과는 과일이다"
-	Answer      bool      `db:"answer" json:"answer"`           // true (O) 또는 false (X)
-	Explanation string    `db:"explanation" json:"explanation"` // 정답 설명
-	UsageCount  int       `db:"usage_count" json:"usageCount"`  // 사용 횟수
-	IsActive    bool      `db:"is_active" json:"isActive"`
-	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
+	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Category    string             `bson:"category" json:"category"`
+	Difficulty  int                `bson:"difficulty" json:"difficulty"`   // 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)
+	Question    string             `bson:"question" json:"question"`       // 예: "사과는 과일이다"
+	Answer      bool               `bson:"answer" json:"answer"`           // true (O) 또는 false (X)
+	Explanation string             `bson:"explanation" json:"explanation"` // 정답 설명
+	UsageCount  int                `bson:"usage_count" json:"usageCount"`  // 사용 횟수
+	IsActive    bool               `bson:"is_active" json:"isActive"`
+	CreatedAt   time.Time          `bson:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time          `bson:"updated_at" json:"updatedAt"`
 }
 
 // GuessQuiz는 그림 맞추기 퀴즈 전용 구조체입니다
 type GuessQuiz struct {
-	ID           int64             `db:"id" json:"id"`
-	Category     string            `db:"category" json:"category"`         // 동물, 과일, 음식 등
-	Difficulty   int               `db:"difficulty" json:"difficulty"`     // 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)
-	Topic        string            `db:"topic" json:"topic"`               // 정답 주제 (예: "사과")
-	Translations map[string]string `db:"translations" json:"translations"` // 다국어 번역
-	Hint         string            `db:"hint" json:"hint"`                 // 힌트 (예: "과일 (2자)")
-	ImageURL     string            `db:"image_url" json:"imageUrl"`        // 참고 이미지 URL
-	UsageCount   int               `db:"usage_count" json:"usageCount"`
-	IsActive     bool              `db:"is_active" json:"isActive"`
-	CreatedAt    time.Time         `db:"created_at" json:"createdAt"`
-	UpdatedAt    time.Time         `db:"updated_at" json:"updatedAt"`
+	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Category     string             `bson:"category" json:"category"`         // 동물, 과일, 음식 등
+	Difficulty   int                `bson:"difficulty" json:"difficulty"`     // 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)
+	Topic        string             `bson:"topic" json:"topic"`               // 정답 주제 (예: "사과")
+	Translations map[string]string  `bson:"translations" json:"translations"` // 다국어 번역
+	Hint         string             `bson:"hint" json:"hint"`                 // 힌트 (예: "과일 (2자)")
+	ImageURL     string             `bson:"image_url" json:"imageUrl"`        // 참고 이미지 URL
+	UsageCount   int                `bson:"usage_count" json:"usageCount"`
+	IsActive     bool               `bson:"is_active" json:"isActive"`
+	CreatedAt    time.Time          `bson:"created_at" json:"createdAt"`
+	UpdatedAt    time.Time          `bson:"updated_at" json:"updatedAt"`
 }
 
 // GeneralQuiz는 일반 상식 퀴즈(객관식) 전용 구조체입니다
 type GeneralQuiz struct {
-	ID          int64     `db:"id" json:"id"`
-	Category    string    `db:"category" json:"category"`              // 역사, 과학, 스포츠 등
-	Difficulty  int       `db:"difficulty" json:"difficulty"`          // 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)
-	Question    string    `db:"question" json:"question"`              // 문제 (예: "대한민국의 수도는?")
-	Options     []string  `db:"options" json:"options"`                // 선택지 (4개)
-	Answer      int       `db:"answer" json:"answer"`                  // 정답 인덱스 (0-3)
-	Explanation string    `db:"explanation" json:"explanation"`        // 정답 설명
-	ImageURL    string    `bson:"image_url,omitempty" json:"imageUrl"` // 문제 이미지 URL (선택)
-	UsageCount  int       `bson:"usage_count" json:"usageCount"`
-	IsActive    bool      `bson:"is_active" json:"isActive"`
-	CreatedAt   time.Time `bson:"created_at" json:"createdAt"`
-	UpdatedAt   time.Time `bson:"updated_at" json:"updatedAt"`
+	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Category    string             `bson:"category" json:"category"`            // 역사, 과학, 스포츠 등
+	Difficulty  int                `bson:"difficulty" json:"difficulty"`        // 1-5 (1=Easy, 2=Normal, 3=Hard, 4=VeryHard, 5=Extreme)
+	Question    string             `bson:"question" json:"question"`            // 문제 (예: "대한민국의 수도는?")
+	Options     []string           `bson:"options" json:"options"`              // 선택지 (4개)
+	Answer      int                `bson:"answer" json:"answer"`                // 정답 인덱스 (0-3)
+	Explanation string             `bson:"explanation" json:"explanation"`      // 정답 설명
+	ImageURL    string             `bson:"image_url,omitempty" json:"imageUrl"` // 문제 이미지 URL (선택)
+	UsageCount  int                `bson:"usage_count" json:"usageCount"`
+	IsActive    bool               `bson:"is_active" json:"isActive"`
+	CreatedAt   time.Time          `bson:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time          `bson:"updated_at" json:"updatedAt"`
 }
 
 // QuizDifficulty 상수 정의 (1-5)

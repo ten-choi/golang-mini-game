@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"draw-and-guess-server/internal/common"
@@ -50,17 +49,16 @@ func (r *quizRepository) IsValidWord(ctx context.Context, word string) (bool, er
 func (r *quizRepository) GetRandomOXQuiz(ctx context.Context, excludedIds []string) (*models.OXQuiz, error) {
 	filter := bson.M{}
 
-	// Exclude already used IDs
+	// Exclude already used IDs (ObjectIDs)
 	if len(excludedIds) > 0 {
-		var excludeIDList []int64
+		var excludeIDList []primitive.ObjectID
 		for _, id := range excludedIds {
-			var numID int64
-			if _, err := fmt.Sscanf(id, "%d", &numID); err == nil {
-				excludeIDList = append(excludeIDList, numID)
+			if oid, err := primitive.ObjectIDFromHex(id); err == nil {
+				excludeIDList = append(excludeIDList, oid)
 			}
 		}
 		if len(excludeIDList) > 0 {
-			filter["id"] = bson.M{"$nin": excludeIDList}
+			filter["_id"] = bson.M{"$nin": excludeIDList}
 		}
 	}
 
@@ -93,18 +91,12 @@ func (r *quizRepository) GetRandomQAQuiz(ctx context.Context, excludedIds []stri
 	log.Printf("[QuizRepo] Getting random QA quiz, excluded IDs: %v", excludedIds)
 	filter := bson.M{}
 
-	// Exclude already used IDs
+	// Exclude already used IDs (ObjectIDs)
 	if len(excludedIds) > 0 {
-		var excludeIDList []interface{}
+		var excludeIDList []primitive.ObjectID
 		for _, id := range excludedIds {
-			var numID int64
-			if _, err := fmt.Sscanf(id, "%d", &numID); err == nil {
-				excludeIDList = append(excludeIDList, numID)
-			} else {
-				// Try as ObjectID
-				if oid, err := primitive.ObjectIDFromHex(id); err == nil {
-					excludeIDList = append(excludeIDList, oid)
-				}
+			if oid, err := primitive.ObjectIDFromHex(id); err == nil {
+				excludeIDList = append(excludeIDList, oid)
 			}
 		}
 		if len(excludeIDList) > 0 {
@@ -144,17 +136,16 @@ func (r *quizRepository) GetRandomOXQuizzes(ctx context.Context, excludedIds []s
 	log.Printf("[QuizRepo] Getting %d random OX quizzes, excluded IDs: %v", count, excludedIds)
 	filter := bson.M{}
 
-	// Exclude already used IDs
+	// Exclude already used IDs (ObjectIDs)
 	if len(excludedIds) > 0 {
-		var excludeIDList []int64
+		var excludeIDList []primitive.ObjectID
 		for _, id := range excludedIds {
-			var numID int64
-			if _, err := fmt.Sscanf(id, "%d", &numID); err == nil {
-				excludeIDList = append(excludeIDList, numID)
+			if oid, err := primitive.ObjectIDFromHex(id); err == nil {
+				excludeIDList = append(excludeIDList, oid)
 			}
 		}
 		if len(excludeIDList) > 0 {
-			filter["id"] = bson.M{"$nin": excludeIDList}
+			filter["_id"] = bson.M{"$nin": excludeIDList}
 		}
 	}
 
@@ -194,18 +185,12 @@ func (r *quizRepository) GetRandomQAQuizzes(ctx context.Context, excludedIds []s
 	log.Printf("[QuizRepo] Getting %d random QA quizzes, excluded IDs: %v", count, excludedIds)
 	filter := bson.M{}
 
-	// Exclude already used IDs
+	// Exclude already used IDs (ObjectIDs)
 	if len(excludedIds) > 0 {
-		var excludeIDList []interface{}
+		var excludeIDList []primitive.ObjectID
 		for _, id := range excludedIds {
-			var numID int64
-			if _, err := fmt.Sscanf(id, "%d", &numID); err == nil {
-				excludeIDList = append(excludeIDList, numID)
-			} else {
-				// Try as ObjectID
-				if oid, err := primitive.ObjectIDFromHex(id); err == nil {
-					excludeIDList = append(excludeIDList, oid)
-				}
+			if oid, err := primitive.ObjectIDFromHex(id); err == nil {
+				excludeIDList = append(excludeIDList, oid)
 			}
 		}
 		if len(excludeIDList) > 0 {

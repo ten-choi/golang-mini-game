@@ -38,6 +38,8 @@ const Home: React.FC = () => {
       wsService.connect(
         () => {
           console.log('[Home] WebSocket connected after login');
+          // Identify with userId
+          wsService.identify(user.id);
           wsService.requestLobbyChatHistory();
         },
         (error) => console.error('[Home] WebSocket connection error:', error)
@@ -88,6 +90,8 @@ const Home: React.FC = () => {
       wsService.connect(
         () => {
           console.log('[Home] WebSocket connected after signup');
+          // Identify with userId
+          wsService.identify(newUser.id);
           wsService.requestLobbyChatHistory();
         },
         (error) => console.error('[Home] WebSocket connection error:', error)

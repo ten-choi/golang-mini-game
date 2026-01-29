@@ -43,7 +43,7 @@ func (r *mutationResolver) CreateGameRoom(ctx context.Context, input model.Creat
 		ID:             roomID,
 		Name:           input.Name,
 		GameType:       input.GameType,
-		Status:         model.GameRoomStatusWaiting,
+		Status:         model.GameRoomStatus(common.RoomStatusWaiting),
 		CurrentRound:   0,
 		TotalRounds:    int32(input.TotalRounds),
 		RoundTimeLimit: roundTimeLimit,
@@ -233,7 +233,7 @@ func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model
 		}
 	}
 
-	room.Status = model.GameRoomStatusPlaying
+	room.Status = model.GameRoomStatus(common.RoomStatusPlaying)
 	room.CurrentRound = 1
 
 	// Update the room in the map (important!)
@@ -331,7 +331,7 @@ func (r *queryResolver) GameRooms(ctx context.Context, gameType *model.GameType,
 		}
 
 		// Skip finished games (should be cleaned up)
-		if room.Status == model.GameRoomStatusFinished {
+		if room.Status == model.GameRoomStatus(common.RoomStatusFinished) {
 			continue
 		}
 
@@ -595,7 +595,7 @@ func (r *mutationResolver) StartRound(ctx context.Context, roomID string) (*mode
 		return nil, fmt.Errorf("room not found")
 	}
 
-	if room.Status != model.GameRoomStatusPlaying {
+	if room.Status != model.GameRoomStatus(common.RoomStatusPlaying) {
 		return nil, fmt.Errorf("game is not in playing status")
 	}
 
@@ -656,7 +656,7 @@ func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.G
 	// Calculate rankings before changing status
 	rankings := calculateRankings(room.Users)
 
-	room.Status = model.GameRoomStatusFinished
+	room.Status = model.GameRoomStatus(common.RoomStatusFinished)
 
 	// Update all users' status back to lobby
 	for _, user := range room.Users {
@@ -669,9 +669,35 @@ func (r *mutationResolver) EndGame(ctx context.Context, roomID string) (*model.G
 		}
 	}
 
-	// Delete the room from memory
-	delete(gameRooms, roomID)
+	// Keep room in FINISHED state temporarily
+	gameRooms[roomID] = room
 	roomMutex.Unlock()
+
+	// Reset room to WAITING after 5 seconds
+	go func() {
+		time.Sleep(common.RoomResetDelaySeconds * time.Second)
+		roomMutex.Lock()
+		defer roomMutex.Unlock()
+
+		room, exists := gameRooms[roomID]
+		if !exists {
+			return
+		}
+
+		log.Printf("[EndGame] Resetting room %s from FINISHED to WAITING", roomID)
+		room.Status = model.GameRoomStatus(common.RoomStatusWaiting)
+		room.CurrentRound = 0
+
+		// Reset all users' ready status
+		for i := range room.Users {
+			room.Users[i].IsReady = false
+			room.Users[i].Score = 0
+		}
+
+		gameRooms[roomID] = room
+		go publishRoomUpdateToWebSocket(roomID, room)
+		go publishLobbyUpdate()
+	}()
 
 	// Cleanup pre-loaded quizzes if it's a quiz game
 	if room.GameType == model.GameTypeOx || room.GameType == model.GameTypeQa {
@@ -866,7 +892,7 @@ func StartWordchainTurnTimer(roomID string) {
 	go func() {
 		roomMutex.Lock()
 		room, exists := gameRooms[roomID]
-		if !exists || room.Status != model.GameRoomStatusPlaying {
+		if !exists || room.Status != model.GameRoomStatus(common.RoomStatusPlaying) {
 			roomMutex.Unlock()
 			return
 		}
@@ -883,7 +909,7 @@ func StartWordchainTurnTimer(roomID string) {
 		for i := timeLimit; i >= 0; i-- {
 			roomMutex.Lock()
 			room, exists := gameRooms[roomID]
-			if !exists || room.Status != model.GameRoomStatusPlaying {
+			if !exists || room.Status != model.GameRoomStatus(common.RoomStatusPlaying) {
 				roomMutex.Unlock()
 				return
 			}

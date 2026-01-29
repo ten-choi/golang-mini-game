@@ -30,7 +30,10 @@ const WordchainRoom: React.FC = () => {
     wsService.connect(
       () => {
         console.log('[WordchainRoom] WebSocket connected');
-        wsService.identify(username, roomId);
+        // Identify with userId
+        if (user) {
+          wsService.identify(user.id, roomId);
+        }
       }, 
       (error) => console.error('[WordchainRoom] WebSocket connection error:', error)
     );
@@ -229,7 +232,7 @@ const WordchainRoom: React.FC = () => {
 
   const loadRoom = async () => {
     try {
-      if (!roomId) return;
+      if (!roomId || !user) return;
       const gameRoom = await apiService.getGameRoom(roomId);
       if (gameRoom) {
         setRoom(gameRoom);

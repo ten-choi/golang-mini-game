@@ -54,8 +54,10 @@ const GameRoom: React.FC = () => {
     wsService.connect(
       () => {
         console.log('[GameRoom] WebSocket connected');
-        // Identify client with username and roomId
-        wsService.identify(username, roomId);
+        // Identify client with userId and roomId
+        if (user) {
+          wsService.identify(user.id, roomId);
+        }
       }, 
       (error) => console.error('[GameRoom] WebSocket connection error:', error)
     );

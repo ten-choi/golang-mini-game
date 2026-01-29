@@ -210,7 +210,7 @@ func startQuizGame(ctx context.Context, roomID string, gameType model.GameType, 
 		log.Printf("[Quiz] ERROR: Room %s not found, aborting quiz game", roomID)
 		return
 	}
-	if room.Status != model.GameRoomStatusPlaying {
+	if room.Status != model.GameRoomStatus(common.RoomStatusPlaying) {
 		log.Printf("[Quiz] ERROR: Room %s status is %s (not PLAYING), aborting quiz game", roomID, room.Status)
 		return
 	}
@@ -259,7 +259,7 @@ func preloadQuizzes(ctx context.Context, roomID string, gameType model.GameType,
 				return nil, fmt.Errorf("failed to get OX quiz for round %d: %w", i+1, err)
 			}
 
-			quizID := fmt.Sprintf("%d", quiz.ID)
+			quizID := quiz.ID.Hex()
 			excludedIds = append(excludedIds, quizID)
 
 			quizData = map[string]interface{}{
@@ -279,7 +279,7 @@ func preloadQuizzes(ctx context.Context, roomID string, gameType model.GameType,
 				return nil, fmt.Errorf("failed to get QA quiz for round %d: %w", i+1, err)
 			}
 
-			quizID := fmt.Sprintf("%d", quiz.ID)
+			quizID := quiz.ID.Hex()
 			excludedIds = append(excludedIds, quizID)
 
 			quizData = map[string]interface{}{
@@ -345,13 +345,22 @@ func sendPreloadedQuiz(roomID string, roundIndex int) {
 	storeQuizAnswer(roomID, quizID, answer, difficulty)
 	log.Printf("[Quiz Delivery] 笨・Stored answer for quiz %s (difficulty: %d)", quizID, difficulty)
 
+	// Get total rounds from room
+	room, exists := GetGameRoom(roomID)
+	totalRounds := 0
+	if exists {
+		totalRounds = int(room.TotalRounds)
+	}
+
 	// Broadcast quiz to all users via WebSocket (without answer and explanation)
 	quizWithoutAnswer := map[string]interface{}{
-		"id":         quizData["id"],
-		"type":       quizData["type"],
-		"category":   quizData["category"],
-		"difficulty": quizData["difficulty"],
-		"question":   quizData["question"],
+		"id":           quizData["id"],
+		"type":         quizData["type"],
+		"category":     quizData["category"],
+		"difficulty":   quizData["difficulty"],
+		"question":     quizData["question"],
+		"currentRound": roundIndex + 1, // 1-based: 1, 2, 3, 4, 5
+		"totalRounds":  totalRounds,    // Total number of rounds
 	}
 
 	// Add options for QA quiz
@@ -412,7 +421,7 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 		case <-time.After(1 * time.Second):
 			// Check if room still exists and is playing
 			room, exists := GetGameRoom(roomID)
-			if !exists || room.Status != model.GameRoomStatusPlaying {
+			if !exists || room.Status != model.GameRoomStatus(common.RoomStatusPlaying) {
 				log.Printf("[Quiz] Timer stopped for room %s (room ended)", roomID)
 				return
 			}
@@ -471,7 +480,7 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 
 	// Move to next round or end game
 	room, exists := GetGameRoom(roomID)
-	if !exists || room.Status != model.GameRoomStatusPlaying {
+	if !exists || room.Status != model.GameRoomStatus(common.RoomStatusPlaying) {
 		cleanupPreloadedQuizzes(roomID)
 		return
 	}
@@ -480,10 +489,36 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 	if room.CurrentRound >= room.TotalRounds {
 		// Game finished
 		log.Printf("[Quiz] Game finished for room %s", roomID)
-		room.Status = model.GameRoomStatusFinished
+		room.Status = model.GameRoomStatus(common.RoomStatusFinished)
 		SetGameRoom(roomID, room)
 		publishRoomUpdateToWebSocket(roomID, room)
 		cleanupPreloadedQuizzes(roomID)
+
+		// Reset room to WAITING after 5 seconds
+		go func() {
+			time.Sleep(common.RoomResetDelaySeconds * time.Second)
+			roomMutex.Lock()
+			defer roomMutex.Unlock()
+
+			room, exists := gameRooms[roomID]
+			if !exists {
+				return
+			}
+
+			log.Printf("[Quiz] Resetting room %s from FINISHED to WAITING", roomID)
+			room.Status = model.GameRoomStatus(common.RoomStatusWaiting)
+			room.CurrentRound = 0
+
+			// Reset all users' ready status and scores
+			for i := range room.Users {
+				room.Users[i].IsReady = false
+				room.Users[i].Score = 0
+			}
+
+			gameRooms[roomID] = room
+			go publishRoomUpdateToWebSocket(roomID, room)
+			go publishLobbyUpdate()
+		}()
 	} else {
 		// Next round
 		log.Printf("[Quiz] Moving to next round for room %s (round %d -> %d)", roomID, room.CurrentRound, room.CurrentRound+1)
@@ -547,13 +582,13 @@ func sendNextQuiz(ctx context.Context, roomID string, gameType model.GameType, q
 
 		// Add quiz ID to used list
 		if exists {
-			quizID := fmt.Sprintf("%d", quiz.ID)
+			quizID := quiz.ID.Hex()
 			room.UsedQuizIds = append(room.UsedQuizIds, quizID)
 			SetGameRoom(roomID, room)
 		}
 
 		quizData = map[string]interface{}{
-			"id":          fmt.Sprintf("%d", quiz.ID),
+			"id":          quiz.ID.Hex(),
 			"type":        common.GameTypeOX,
 			"category":    quiz.Category,
 			"difficulty":  quiz.Difficulty,
@@ -570,18 +605,18 @@ func sendNextQuiz(ctx context.Context, roomID string, gameType model.GameType, q
 			return
 		}
 
-		log.Printf("[Quiz] SUCCESS: Got QA quiz ID=%d, question=%s", quiz.ID, quiz.Question)
+		log.Printf("[Quiz] SUCCESS: Got QA quiz ID=%s, question=%s", quiz.ID.Hex(), quiz.Question)
 		log.Printf("[Quiz] Options count=%d, Options: %v", len(quiz.Options), quiz.Options)
 
 		// Add quiz ID to used list
 		if exists {
-			quizID := fmt.Sprintf("%d", quiz.ID)
+			quizID := quiz.ID.Hex()
 			room.UsedQuizIds = append(room.UsedQuizIds, quizID)
 			SetGameRoom(roomID, room)
 		}
 
 		quizData = map[string]interface{}{
-			"id":          fmt.Sprintf("%d", quiz.ID),
+			"id":          quiz.ID.Hex(),
 			"type":        common.GameTypeQA,
 			"category":    quiz.Category,
 			"difficulty":  quiz.Difficulty,

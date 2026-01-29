@@ -29,8 +29,10 @@ const QuizRoom: React.FC = () => {
     wsService.connect(
       () => {
         console.log('[QuizRoom] WebSocket connected');
-        // Identify client with username and roomId
-        wsService.identify(username, roomId);
+        // Identify client with userId and roomId
+        if (user) {
+          wsService.identify(user.id, roomId);
+        }
       }, 
       (error) => console.error('[QuizRoom] WebSocket connection error:', error)
     );
@@ -42,16 +44,32 @@ const QuizRoom: React.FC = () => {
       console.log('[QuizRoom] Received game message:', data);
       console.log('[QuizRoom] Message type:', data.type);
       
-      // Handle messages from graph package (format: {type: "quiz", quiz: {...}})
-      if (data.type === 'quiz') {
+      // Handle messages from server (format: {type: "quiz", quiz: {...}})
+      if (data.type === 'quiz' && data.quiz) {
         console.log('[QuizRoom] ========== QUIZ RECEIVED FROM SUBSCRIPTION ==========');
-        handleQuiz(data);
+        const quizData = data.quiz;
+        console.log('✓ Quiz Type:', quizData.type);
+        console.log('✓ Quiz ID:', quizData.id);
+        console.log('✓ Question:', quizData.question);
+        setCurrentQuiz(quizData);
+        setSelectedAnswer(null);
+        setAnswered(false);
       } else if (data.type === 'timer') {
-        handleTimer(data);
+        console.log('[QuizRoom] Received timer update:', data);
+        const timeValue = data.timeLeft !== undefined ? data.timeLeft : null;
+        console.log('[QuizRoom] Time left:', timeValue);
+        setTimeLeft(timeValue);
+        
+        // When timer reaches 0, reset answer state but keep quiz visible
+        if (timeValue === 0) {
+          console.log('[QuizRoom] Timer reached 0, waiting for next quiz...');
+          setSelectedAnswer(null);
+          setAnswered(false);
+        }
       } else if (data.type === 'room_deleted') {
         console.log('[QuizRoom] Room deleted:', data.data);
         alert('방이 삭제되었습니다.');
-        navigate('/room-list');
+        navigate('/rooms');
       }
       // Handle websocket handler messages (format: {type: "QUIZ_RESULT", payload: {...}})
       else if (data.type === 'QUIZ_RESULT' && data.payload) {
@@ -78,79 +96,10 @@ const QuizRoom: React.FC = () => {
           type: 'chat'
         }]);
       }
-      // Legacy format
-      else if (data.type === 'update' || data.type === 'room_update') {
-        if (data.data) {
-          console.log('[QuizRoom] Updating room from WebSocket. Users count:', data.data.users?.length);
-          setRoom(data.data);
-        } else {
-          console.log('[QuizRoom] No data in message, reloading from API');
-          loadRoom();
-        }
-      }
     });
-
-    const handleChat = (data: any) => {
-      setChatMessages(prev => [...prev, {
-        username: data.username,
-        text: data.message,
-        type: data.type || 'chat'
-      }]);
-    };
-
-    const handleQuiz = (data: any) => {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🎯 [QUIZ PRE-LOADED] Quiz received from server');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('📦 Raw data:', JSON.stringify(data, null, 2));
-      // Server sends quiz data in 'data' field
-      const quizData = data.data || data;
-      console.log('✓ Quiz Type:', quizData.type);
-      console.log('✓ Quiz ID:', quizData.id);
-      console.log('✓ Question:', quizData.question);
-      console.log('✓ Category:', quizData.category);
-      console.log('✓ Difficulty:', quizData.difficulty);
-      if (quizData.type === 'QA') {
-        console.log('✓ Options:', quizData.options);
-        console.log('✓ Options is array:', Array.isArray(quizData.options));
-        if (quizData.options) {
-          console.log('✓ Options count:', quizData.options.length);
-        }
-      } else if (quizData.type === 'OX') {
-        console.log('✓ OX Quiz - Answer format: O (true) or X (false)');
-      }
-      console.log('💡 NOTE: This quiz was pre-loaded at game start');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      setCurrentQuiz(quizData);
-      setSelectedAnswer(null);
-      setAnswered(false);
-      // Don't set timeLeft here - wait for timer message from server
-    };
-
-    const handleTimer = (data: any) => {
-      console.log('[QuizRoom] Received timer update:', data);
-      // Server sends { data: { timeLeft: X } }
-      const timeValue = data.data?.timeLeft !== undefined ? data.data.timeLeft : data.timeLeft;
-      console.log('[QuizRoom] Time left:', timeValue);
-      setTimeLeft(timeValue);
-      
-      // When timer reaches 0, reset answer state but keep quiz visible
-      if (timeValue === 0) {
-        console.log('[QuizRoom] Timer reached 0, waiting for next quiz...');
-        setSelectedAnswer(null);
-        setAnswered(false);
-      }
-    };
-
-    wsService.addMessageHandler('chat', handleChat);
-    wsService.addMessageHandler('quiz', handleQuiz);
-    wsService.addMessageHandler('timer', handleTimer);
 
     return () => {
       if (gameSubscription) gameSubscription.unsubscribe();
-      wsService.removeMessageHandler('chat', handleChat);
-      wsService.removeMessageHandler('quiz', handleQuiz);
-      wsService.removeMessageHandler('timer', handleTimer);
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [roomId]);
@@ -176,7 +125,7 @@ const QuizRoom: React.FC = () => {
 
   const loadRoom = async () => {
     try {
-      if (!roomId) return;
+      if (!roomId || !user) return;
       const gameRoom = await apiService.getGameRoom(roomId);
       if (gameRoom) {
         setRoom(gameRoom);
@@ -184,11 +133,11 @@ const QuizRoom: React.FC = () => {
         setTimeLeft(gameRoom.roundTimeLimit);
         
         // Auto-rejoin if not in users list (e.g., after refresh)
-        const isInRoom = gameRoom.users.some(p => p.name === username);
+        const isInRoom = gameRoom.users.some(p => p.userId === user.id);
         if (!isInRoom) {
           console.log('[QuizRoom] User not in room, auto-rejoining...');
           try {
-            await apiService.joinGameRoom(roomId, username);
+            await apiService.joinGameRoom(roomId, user.id);
             // Reload room to get updated user list
             const updatedRoom = await apiService.getGameRoom(roomId);
             if (updatedRoom) {
@@ -201,7 +150,7 @@ const QuizRoom: React.FC = () => {
       } else {
         console.error('[QuizRoom] Room not found:', roomId);
         alert('게임방을 찾을 수 없습니다.');
-        navigate('/room-list');
+        navigate('/rooms');
       }
     } catch (error) {
       console.error('Failed to load room:', error);
@@ -224,13 +173,28 @@ const QuizRoom: React.FC = () => {
   };
 
   const handleSubmitAnswer = () => {
-    if (answered || selectedAnswer === null || !roomId || !currentQuiz) return;
+    if (answered || selectedAnswer === null || !roomId || !currentQuiz || !user) return;
     
     setAnswered(true);
 
-    // Send answer using new format
+    // Get quiz ID
     const quizId = (currentQuiz as any)._id || (currentQuiz as any).id;
-    wsService.sendQuizAnswer(roomId, username, selectedAnswer, quizId);
+    
+    // Determine quiz type and send appropriate answer format
+    const quizType = (currentQuiz as any).type || room?.gameType;
+    let answerToSend: number | boolean;
+    
+    if (quizType === 'OX' || room?.gameType === 'OX') {
+      // OX quiz: send boolean (0 = false/X, 1 = true/O)
+      answerToSend = selectedAnswer === 1; // true for O, false for X
+      console.log('[QuizRoom] Sending OX answer:', answerToSend, '(selectedAnswer:', selectedAnswer, ')');
+    } else {
+      // QA quiz: send number index (0-3)
+      answerToSend = selectedAnswer;
+      console.log('[QuizRoom] Sending QA answer:', answerToSend);
+    }
+    
+    wsService.sendQuizAnswer(roomId, user.id, answerToSend, quizId);
 
     // Add system message
     setChatMessages(prev => [...prev, {

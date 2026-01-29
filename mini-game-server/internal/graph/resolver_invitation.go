@@ -21,10 +21,17 @@ import (
 // Currently, users join rooms directly without invitations
 
 // InviteUser is the resolver for the inviteUser field.
-func (r *mutationResolver) InviteUser(ctx context.Context, roomID string, inviteeUserID string) (*model.Invitation, error) {
+func (r *mutationResolver) InviteUser(ctx context.Context, roomID string, inviteeUsername string) (*model.Invitation, error) {
 	// Get inviter info from context (would need auth middleware)
 	// For now, we'll use a placeholder
 	inviterUserID := "" // TODO: Get from auth context
+
+	// Find user by username to get userId
+	inviteeUser, err := r.UserService.GetUserByName(ctx, inviteeUsername)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %s", inviteeUsername)
+	}
+	inviteeUserID := inviteeUser.ID.Hex()
 
 	// Check invitee's status
 	statusKey := common.RedisKeyUserStatus + inviteeUserID
@@ -117,8 +124,25 @@ func (r *mutationResolver) InviteUser(ctx context.Context, roomID string, invite
 }
 
 // InviteUsers is the resolver for the inviteUsers field.
-func (r *mutationResolver) InviteUsers(ctx context.Context, roomID string, inviteeUserIDs []string) ([]*model.Invitation, error) {
-	return nil, fmt.Errorf("invitation feature is not yet implemented - join rooms directly instead")
+func (r *mutationResolver) InviteUsers(ctx context.Context, roomID string, inviteeUsernames []string) ([]*model.Invitation, error) {
+	invitations := make([]*model.Invitation, 0, len(inviteeUsernames))
+
+	for _, username := range inviteeUsernames {
+		invitation, err := r.InviteUser(ctx, roomID, username)
+		if err != nil {
+			// Log error but continue with other invitations
+			logger := common.GetLogger()
+			logger.Warn("[Invitation] Failed to invite user %s: %v", username, err)
+			continue
+		}
+		invitations = append(invitations, invitation)
+	}
+
+	if len(invitations) == 0 {
+		return nil, fmt.Errorf("all invitations failed")
+	}
+
+	return invitations, nil
 }
 
 // AcceptInvite is the resolver for the acceptInvite field.

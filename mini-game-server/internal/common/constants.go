@@ -17,7 +17,8 @@ const (
 
 // 게임 타이밍 상수
 const (
-	RoundDelaySeconds = 6 // 라운드 종료 후 다음 라운드까지 대기 시간 (초)
+	RoundDelaySeconds     = 6 // 라운드 종료 후 다음 라운드까지 대기 시간 (초)
+	RoomResetDelaySeconds = 5 // 게임 종료 후 WAITING 상태로 리셋까지 대기 시간 (초)
 )
 
 // 유저 상태 상수
@@ -25,6 +26,13 @@ const (
 	UserStatusLobby   = "lobby"
 	UserStatusInGame  = "ingame"
 	UserStatusOffline = "offline"
+)
+
+// 게임방 상태 상수
+const (
+	RoomStatusWaiting  = "WAITING"
+	RoomStatusPlaying  = "PLAYING"
+	RoomStatusFinished = "FINISHED"
 )
 
 // Redis 키 접두사

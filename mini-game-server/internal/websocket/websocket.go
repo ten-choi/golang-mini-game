@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"draw-and-guess-server/internal/common"
+	"draw-and-guess-server/internal/database"
 	"draw-and-guess-server/internal/graph"
 	"draw-and-guess-server/internal/valkey"
 	"encoding/json"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // Global variables for managing WebSocket clients and Valkey subscriptions
@@ -353,26 +356,43 @@ func handleMessages(client *Client) {
 				handleUnsubscribe(client, wsMsg.Channel)
 			}
 		case "set_user_id":
-			// Set user ID and auto-subscribe to personal channel
 			if data, ok := wsMsg.Data.(map[string]interface{}); ok {
 				if userID, ok := data["userId"].(string); ok && userID != "" {
+					// Verify user exists in database
+					objectID, err := primitive.ObjectIDFromHex(userID)
+					if err != nil {
+						log.Printf("[WebSocket] Invalid user ID format: %s", userID)
+						sendError(client, "Invalid user ID format")
+						continue
+					}
+
+					ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+					var user bson.M
+					err = database.DB.Collection("users").FindOne(ctx, bson.M{"_id": objectID}).Decode(&user)
+					cancel()
+
+					if err != nil {
+						log.Printf("[WebSocket] User not found: %s", userID)
+						sendError(client, "User not found. Please login first.")
+						continue
+					}
+
+					// User verified, set UserID
 					client.mu.Lock()
 					client.UserID = userID
 					client.mu.Unlock()
 
 					// Set user status to lobby in Redis
 					statusKey := common.RedisKeyUserStatus + userID
-					err := valkey.Client.Set(context.Background(), statusKey, common.UserStatusLobby, time.Duration(common.RedisUserStatusTTL)*time.Second).Err()
+					err = valkey.Client.Set(context.Background(), statusKey, common.UserStatusLobby, time.Duration(common.RedisUserStatusTTL)*time.Second).Err()
 					if err != nil {
 						log.Printf("[WebSocket] Failed to set user status: %v", err)
 					} else {
-						log.Printf("[WebSocket] User %s status set to %s", userID, common.UserStatusLobby)
+						log.Printf("[WebSocket] ✅ User %s authenticated and status set to %s", userID, common.UserStatusLobby)
 					}
 
-					// Auto-subscribe to personal channel for invitations
-					personalChannel := common.ChannelUserPrefix + userID
-					handleSubscribe(client, personalChannel)
-					log.Printf("[WebSocket] User %s auto-subscribed to personal channel: %s", userID, personalChannel)
+					// Send success confirmation
+					sendSuccess(client, "User authenticated successfully")
 				}
 			}
 		case "lobby_chat":
@@ -403,13 +423,6 @@ func handleSubscribe(client *Client, channel string) {
 	client.mu.Lock()
 	client.subscriptions[channel] = true
 	userID := client.UserID
-	if client.roomID == "" && len(channel) > 0 {
-		// Extract room ID from channel (e.g. "game/room-uuid" -> "room-uuid")
-		parts := splitChannel(channel)
-		if len(parts) > 1 {
-			client.roomID = parts[1]
-		}
-	}
 	client.mu.Unlock()
 
 	// Start Valkey subscription if not already created
@@ -591,4 +604,26 @@ func splitChannel(channel string) []string {
 // removeUserFromRoom removes player from room by userID
 func removeUserFromRoom(roomID, userID string) {
 	graph.RemoveUserFromRoom(roomID, userID)
+}
+
+// sendError sends error message to client
+func sendError(client *Client, message string) {
+	errorMsg := map[string]interface{}{
+		"type":    "error",
+		"message": message,
+	}
+	if msgBytes, err := json.Marshal(errorMsg); err == nil {
+		client.conn.WriteMessage(websocket.TextMessage, msgBytes)
+	}
+}
+
+// sendSuccess sends success message to client
+func sendSuccess(client *Client, message string) {
+	successMsg := map[string]interface{}{
+		"type":    "success",
+		"message": message,
+	}
+	if msgBytes, err := json.Marshal(successMsg); err == nil {
+		client.conn.WriteMessage(websocket.TextMessage, msgBytes)
+	}
 }

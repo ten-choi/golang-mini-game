@@ -64,14 +64,21 @@ const RoomList: React.FC = () => {
     const subscription = wsService.subscribe('lobby', (data) => {
       console.log('[RoomList] Lobby update received:', data);
       
-      // Handle new server format: { type: "MESSAGE_TYPE", payload: {...} }
-      if (data.type === 'LOBBY_CHAT' && data.payload) {
+      // Handle server format: { "type": "lobby_update", "data": [...] }
+      if (data.type === 'lobby_update' && data.data && Array.isArray(data.data)) {
+        console.log('[RoomList] Updating rooms from WebSocket:', data.data.length, 'rooms');
+        setRooms(data.data);
+      }
+      // Handle lobby chat messages: { "type": "LOBBY_CHAT", "payload": {...} }
+      else if (data.type === 'LOBBY_CHAT' && data.payload) {
         const payload = data.payload;
         const username = payload.username || 'Unknown';
         const message = payload.message || '';
         console.log('[RoomList] Received lobby chat:', username, message);
         setLobbyChatMessages(prev => [...prev, { username, message }]);
-      } else if (data.type === 'LOBBY_CHAT_HISTORY' && data.payload) {
+      }
+      // Handle chat history: { "type": "LOBBY_CHAT_HISTORY", "payload": {...} }
+      else if (data.type === 'LOBBY_CHAT_HISTORY' && data.payload) {
         const messages = data.payload.messages || [];
         console.log('[RoomList] Received chat history:', messages.length, 'messages');
         setLobbyChatMessages(messages.map((msg: any) => ({
@@ -79,27 +86,9 @@ const RoomList: React.FC = () => {
           message: msg.message
         })));
       }
-      // Handle legacy format for backward compatibility
-      else if (data.type === 'lobby_update' || data.type === 'room_list_update') {
-        if (data.data && Array.isArray(data.data)) {
-          console.log('[RoomList] Updating rooms from WebSocket:', data.data.length, 'rooms');
-          setRooms(data.data);
-        } else {
-          console.warn('[RoomList] No data in lobby update, reloading from API');
-          loadRooms();
-        }
-      } else if (data.type === 'lobby_chat_history' && data.messages) {
-        console.log('[RoomList] Received chat history (legacy):', data.messages.length, 'messages');
-        setLobbyChatMessages(data.messages.map((msg: any) => ({
-          username: msg.userName || msg.username || 'Unknown',
-          message: msg.message
-        })));
-      } else if (data.type === 'lobby_chat') {
-        const payload = data.payload || {};
-        const username = payload.username || 'Unknown';
-        const message = payload.message || '';
-        console.log('[RoomList] Received lobby chat (legacy):', username, message);
-        setLobbyChatMessages(prev => [...prev, { username, message }]);
+      // Legacy/other formats
+      else {
+        console.log('[RoomList] Unhandled lobby message format:', data);
       }
     });
 
@@ -244,7 +233,7 @@ const RoomList: React.FC = () => {
                   <div style={styles.roomInfo}>
                     <div style={styles.roomHeader}>
                       <div style={styles.roomTitle}>
-                        👑 호스트 ID: {room.hostUserId.substring(0, 8)}...
+                        {room.name}
                       </div>
                       <div style={{
                         ...styles.gameTypeBadge,

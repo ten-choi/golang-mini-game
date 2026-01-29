@@ -159,6 +159,12 @@ export class WebSocketService {
     this.subscriptions.set(channel, callback);
     this.sendSubscribe(channel);
     
+    // Extract roomId from game/ channels and set it
+    if (channel.startsWith('game/')) {
+      const roomId = channel.substring(5); // Remove 'game/' prefix
+      console.log(`[WebSocket] Extracted roomId: ${roomId}`);
+    }
+    
     return {
       unsubscribe: () => this.unsubscribe(channel),
     };
@@ -184,27 +190,27 @@ export class WebSocketService {
   /**
    * Identify client with username and roomId
    * This helps the server track which user is in which room for proper cleanup
-   * @param username - Username
+   * @param userId - User ID (MongoDB ObjectID)
    * @param roomId - Room ID (optional)
    */
-  identify(username: string, roomId?: string): void {
+  identify(userId: string, roomId?: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error('[WebSocket] Cannot identify: not connected');
       return;
     }
 
     const request: WebSocketRequest = {
-      type: 'identify',
-      channel: '', // Not used for identify
+      type: 'set_user_id',
+      channel: '', // Not used for set_user_id
       data: {
-        username: username,
+        userId: userId,
         roomId: roomId || ''
       }
     };
 
     try {
       this.ws.send(JSON.stringify(request));
-      console.log(`[WebSocket] Identified as ${username} in room ${roomId || 'lobby'}`);
+      console.log(`[WebSocket] Identified as userId ${userId} in room ${roomId || 'lobby'}`);
     } catch (error) {
       console.error('[WebSocket] Failed to identify:', error);
     }
@@ -399,11 +405,11 @@ export class WebSocketService {
   /**
    * Submit quiz answer
    * @param roomId - Room ID
-   * @param username - Username
-   * @param answer - Answer (string or number)
+   * @param userId - User ID
+   * @param answer - Answer (number for index, boolean for OX)
    * @param quizId - Quiz ID
    */
-  sendQuizAnswer(roomId: string, username: string, answer: string | number, quizId: string): void {
+  sendQuizAnswer(roomId: string, userId: string, answer: number | boolean, quizId: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error('[WebSocket] Cannot send quiz answer: not connected');
       return;
@@ -414,7 +420,7 @@ export class WebSocketService {
       channel: '', // Not used
       data: {
         roomId: roomId,
-        username: username,
+        userId: userId,
         answer: answer,
         quizId: quizId
       }
@@ -422,7 +428,7 @@ export class WebSocketService {
 
     try {
       this.ws.send(JSON.stringify(request));
-      console.log(`[WebSocket] Sent quiz answer to room ${roomId}`);
+      console.log(`[WebSocket] Sent quiz answer to room ${roomId}:`, answer);
     } catch (error) {
       console.error('[WebSocket] Failed to send quiz answer:', error);
     }
@@ -514,117 +520,11 @@ export class WebSocketService {
       
       console.log('[WebSocket] Received message:', message);
       
-      // Handle new server format: { "type": "MESSAGE_TYPE", "payload": {...} }
-      if (message.type && message.payload) {
-        const messageType = message.type;
-        const payload = message.payload;
-
-        // Handle specific message types
-        switch (messageType) {
-          case 'LOBBY_CHAT':
-            console.log('[WebSocket] Received LOBBY_CHAT:', payload);
-            const lobbyCallback = this.subscriptions.get('lobby');
-            if (lobbyCallback) {
-              lobbyCallback({ type: 'LOBBY_CHAT', payload });
-            }
-            break;
-
-          case 'LOBBY_CHAT_HISTORY':
-            console.log('[WebSocket] Received LOBBY_CHAT_HISTORY:', payload);
-            const historyCallback = this.subscriptions.get('lobby');
-            if (historyCallback) {
-              historyCallback({ type: 'LOBBY_CHAT_HISTORY', payload });
-            }
-            break;
-
-          case 'CHAT_MESSAGE':
-            console.log('[WebSocket] Received CHAT_MESSAGE:', payload);
-            const roomId = payload.roomId;
-            if (roomId) {
-              const callback = this.subscriptions.get(`game/${roomId}`);
-              if (callback) {
-                callback({ type: 'CHAT_MESSAGE', payload });
-              }
-            }
-            break;
-
-          case 'DRAW_EVENT':
-            console.log('[WebSocket] Received DRAW_EVENT:', payload);
-            const drawRoomId = payload.roomId;
-            if (drawRoomId) {
-              const callback = this.subscriptions.get(`game/${drawRoomId}`);
-              if (callback) {
-                callback({ type: 'DRAW_EVENT', payload });
-              }
-            }
-            break;
-
-          case 'GAME_EVENT':
-            console.log('[WebSocket] Received GAME_EVENT:', payload);
-            const gameRoomId = payload.roomId;
-            if (gameRoomId) {
-              const callback = this.subscriptions.get(`game/${gameRoomId}`);
-              if (callback) {
-                callback({ type: 'GAME_EVENT', payload });
-              }
-            }
-            break;
-
-          case 'GAME_ACTION':
-            console.log('[WebSocket] Received GAME_ACTION:', payload);
-            const actionRoomId = payload.roomId;
-            if (actionRoomId) {
-              const callback = this.subscriptions.get(`game/${actionRoomId}`);
-              if (callback) {
-                callback({ type: 'GAME_ACTION', payload });
-              }
-            }
-            break;
-
-          case 'WORDCHAIN_RESULT':
-            console.log('[WebSocket] Received WORDCHAIN_RESULT:', payload);
-            const wordchainRoomId = payload.roomId;
-            if (wordchainRoomId) {
-              const callback = this.subscriptions.get(`game/${wordchainRoomId}`);
-              if (callback) {
-                callback({ type: 'WORDCHAIN_RESULT', payload });
-              }
-            }
-            break;
-
-          case 'WORDCHAIN_ROUND_END':
-            console.log('[WebSocket] Received WORDCHAIN_ROUND_END:', payload);
-            const roundEndRoomId = payload.roomId;
-            if (roundEndRoomId) {
-              const callback = this.subscriptions.get(`game/${roundEndRoomId}`);
-              if (callback) {
-                callback({ type: 'WORDCHAIN_ROUND_END', payload });
-              }
-            }
-            break;
-
-          case 'ERROR':
-            console.error('[WebSocket] Server error:', payload);
-            const errorHandlers = this.messageHandlers.get('ERROR');
-            if (errorHandlers) {
-              errorHandlers.forEach(handler => handler(payload));
-            }
-            break;
-
-          default:
-            console.log(`[WebSocket] Unknown message type: ${messageType}`, payload);
-            break;
-        }
-
-        // Also notify generic message handlers
-        const handlers = this.messageHandlers.get(messageType);
-        if (handlers) {
-          handlers.forEach(handler => handler(payload));
-        }
-      }
-      // Handle old format for backward compatibility
-      else if (message.type === 'message' && message.channel) {
+      // Handle server message format: { "type": "message", "channel": "...", "data": "..." }
+      if (message.type === 'message' && message.channel) {
         let parsedData = message.data;
+        
+        // Parse data if it's a JSON string
         if (typeof message.data === 'string') {
           try {
             parsedData = JSON.parse(message.data);
@@ -633,32 +533,48 @@ export class WebSocketService {
           }
         }
 
+        console.log('[WebSocket] Parsed data:', parsedData);
+
+        // Get callback for this channel
         const callback = this.subscriptions.get(message.channel);
         if (callback) {
           callback(parsedData);
         }
 
-        if (parsedData && typeof parsedData === 'object') {
-          this.handleTypedMessage(message.channel, parsedData);
+        // Also handle typed messages
+        if (parsedData && typeof parsedData === 'object' && 'type' in parsedData) {
+          const messageType = parsedData.type;
+          const handlers = this.messageHandlers.get(messageType);
+          if (handlers) {
+            handlers.forEach(handler => handler(parsedData.data || parsedData));
+          }
+        }
+      }
+      // Handle direct format messages (success, error, etc.)
+      else if (message.type) {
+        const messageType = message.type;
+        
+        switch (messageType) {
+          case 'success':
+            console.log('[WebSocket] Success:', message.message);
+            break;
+          case 'error':
+            console.error('[WebSocket] Error:', message.message);
+            const errorHandlers = this.messageHandlers.get('ERROR');
+            if (errorHandlers) {
+              errorHandlers.forEach(handler => handler(message));
+            }
+            break;
+          case 'unsubscribed':
+            console.log('[WebSocket] Unsubscribed from:', message.channel);
+            break;
+          default:
+            console.log(`[WebSocket] Unhandled message type: ${messageType}`, message);
+            break;
         }
       }
     } catch (error) {
       console.error('[WebSocket] Error parsing message:', error);
-    }
-  }
-
-  /**
-   * Handle typed messages from server based on message structure
-   * @deprecated No longer used - messages are handled directly in handleMessage
-   */
-  private handleTypedMessage(_channel: string, data: any): void {
-    // Detect message type from data structure
-    if ('type' in data) {
-      const messageType = data.type;
-      const handlers = this.messageHandlers.get(messageType);
-      if (handlers) {
-        handlers.forEach(handler => handler(data.data || data));
-      }
     }
   }
 

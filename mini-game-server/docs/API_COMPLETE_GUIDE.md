@@ -9,9 +9,7 @@
 | 항목 | URL |
 |------|-----|
 | 🌐 **Base URL** | `http://localhost:8080` |
-| 🔌 **GraphQL** | `/graphql` |
-| 💬 **Lobby WebSocket** | `ws://localhost:8080/ws/lobby` |
-| 🎯 **Room WebSocket** | `ws://localhost:8080/ws/rooms/:roomId` |
+| 🔌 **GraphQL** | `/graphql` | 
 | ❤️ **Health Check** | `GET /health` |
 
 ---
@@ -620,26 +618,7 @@
 ---
 
 ## 💬 로비 WebSocket
-
-> **연결**: `ws://localhost:8080/ws/lobby`
-
----
-
-### 1. 사용자 식별
-
-**WebSocket Event: identify**
-
-> WebSocket 연결 후 사용자 정보를 서버에 알립니다.
-
-**Client → Server**:
-```json
-{
-  "type": "identify",
-  "data": {
-    "UserName": "플레이어1",
-    "roomId": "lobby"
-  }
-}
+ 
 ```
 
 **Response**: 없음 (연결 확립)

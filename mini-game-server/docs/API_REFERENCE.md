@@ -1,9 +1,7 @@
 # API Reference
 
 **Base URL**: `http://localhost:8080`
-- GraphQL: `/graphql`
-- WebSocket (Lobby): `ws://localhost:8080/ws/lobby`
-- WebSocket (Room): `ws://localhost:8080/ws/rooms/:id`
+- GraphQL: `/graphql` 
 
 ---
 
@@ -1135,20 +1133,7 @@ subscription {
 ## 6. WebSocket 연결 및 메시지
 
 ### 6.1 로비 WebSocket 연결
-
-**연결**: `ws://localhost:8080/ws/lobby`
-
-#### 사용자 식별
-**클라이언트 → 서버**
-```json
-{
-  "type": "identify",
-  "data": {
-    "UserName": "플레이어1",
-    "roomId": "lobby"
-  }
-}
-```
+ 
 
 #### 채널 구독
 **클라이언트 → 서버**
