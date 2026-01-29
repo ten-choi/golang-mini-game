@@ -12,7 +12,7 @@ type User struct {
 	Name      string             `json:"name" bson:"name"`
 	AvatarURL string             `json:"avatarUrl" bson:"avatar_url"`
 	Level     int                `json:"level" bson:"level"`
-	Credit    int                `json:"credit" bson:"credit"` // 일반 재화 (게임 플레이로 획듍)
+	Credit    int                `json:"credit" bson:"credit"` // Normal currency (earned through gameplay)
 	GuildID   primitive.ObjectID `json:"guildId,omitempty" bson:"guild_id,omitempty"`
 	CreatedAt time.Time          `json:"createdAt" bson:"created_at"`
 	UpdatedAt time.Time          `json:"updatedAt" bson:"updated_at"`

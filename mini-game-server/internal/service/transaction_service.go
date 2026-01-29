@@ -10,17 +10,17 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// TransactionService 거래 서비스 인터페이스
+// TransactionService transaction service interface
 type TransactionService interface {
 	GetTransaction(ctx context.Context, transactionID string) (*models.Transaction, error)
 	GetUserTransactions(ctx context.Context, userID string, filter *repository.TransactionFilter) ([]*models.Transaction, error)
 	GetUserBalance(ctx context.Context, userID string, currencyType models.CurrencyType) (int, error)
 
-	// Credit/Diamond 지급/차감
+	// Grant/deduct credit/diamond
 	AddCurrency(ctx context.Context, userID string, amount int, currencyType models.CurrencyType, txType models.TransactionType, description string, metadata map[string]interface{}) error
 	DeductCurrency(ctx context.Context, userID string, amount int, currencyType models.CurrencyType, txType models.TransactionType, description string, metadata map[string]interface{}) error
 
-	// 게임 보상
+	// Game reward
 	GrantGameReward(ctx context.Context, userID string, amount int, currencyType models.CurrencyType, gameRoomID, gameType string, rank int, isWinner bool) error
 }
 
@@ -28,7 +28,7 @@ type transactionService struct {
 	transactionRepo repository.TransactionRepository
 }
 
-// NewTransactionService 새 거래 서비스 생성
+// NewTransactionService create new transaction service
 func NewTransactionService(transactionRepo repository.TransactionRepository) TransactionService {
 	return &transactionService{
 		transactionRepo: transactionRepo,

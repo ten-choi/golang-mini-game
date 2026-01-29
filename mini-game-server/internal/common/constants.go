@@ -1,13 +1,13 @@
 package common
 
-// WebSocket 채널 이름 상수
+// WebSocket channel name constants
 const (
 	ChannelLobby      = "lobby"
 	ChannelGamePrefix = "game/"
-	ChannelUserPrefix = "user/" // 개인 채널 (초대, DM 등)
+	ChannelUserPrefix = "user/" // Personal channel (invitations, DM, etc.)
 )
 
-// 게임 타입 문자열 상수
+// Game type string constants
 const (
 	GameTypeOX        = "OX"
 	GameTypeQA        = "QA"
@@ -15,30 +15,38 @@ const (
 	GameTypeDrawing   = "DRAWING"
 )
 
-// 게임 타이밍 상수
+// Game timing constants
 const (
-	RoundDelaySeconds     = 6 // 라운드 종료 후 다음 라운드까지 대기 시간 (초)
-	RoomResetDelaySeconds = 5 // 게임 종료 후 WAITING 상태로 리셋까지 대기 시간 (초)
+	RoundDelaySeconds     = 6 // Delay time in seconds after round end until next round
+	RoomResetDelaySeconds = 5 // Delay time in seconds after game end until room resets to WAITING
 )
 
-// 유저 상태 상수
+// Game scoring constants
+const (
+	WordchainCorrectScore = 50  // Points awarded for correct wordchain answer
+	QuizScorePerDifficulty = 50 // Points multiplier per difficulty level (difficulty × 50)
+	QuizMinDifficulty      = 1  // Minimum quiz difficulty level
+	QuizMaxDifficulty      = 5  // Maximum quiz difficulty level
+)
+
+// User status constants
 const (
 	UserStatusLobby   = "lobby"
 	UserStatusInGame  = "ingame"
 	UserStatusOffline = "offline"
 )
 
-// 게임방 상태 상수
+// Game room status constants
 const (
 	RoomStatusWaiting  = "WAITING"
 	RoomStatusPlaying  = "PLAYING"
 	RoomStatusFinished = "FINISHED"
 )
 
-// Redis 키 접두사
+// Redis key prefixes
 const (
 	RedisKeyUserStatus = "user:status:" // user:status:{userId}
 	RedisKeyInvitation = "invitation:"  // invitation:{invitationId}
-	RedisUserStatusTTL = 3600           // 1시간
-	RedisInvitationTTL = 86400          // 24시간
+	RedisUserStatusTTL = 3600           // 1 hour
+	RedisInvitationTTL = 86400          // 24 hours
 )

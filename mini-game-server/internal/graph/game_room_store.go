@@ -353,7 +353,7 @@ func publishGameEndToWebSocket(roomID string, room *model.GameRoom) {
 		"data": map[string]interface{}{
 			"totalRounds": room.TotalRounds,
 			"users":       scores,
-			"message":     "??? ???????! ?? ??? ?????",
+			"message":     "게임이 종료되었습니다! 최종 결과입니다",
 		},
 	}
 

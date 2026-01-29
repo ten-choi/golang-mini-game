@@ -184,12 +184,32 @@ func handleWordchainSubmit(roomID string, data interface{}) {
 		return
 	}
 
-	username, _ := wordData["username"].(string)
+	userID, _ := wordData["userId"].(string)
 	word, _ := wordData["word"].(string)
 	lastWord, _ := wordData["lastWord"].(string)
 
-	if username == "" || word == "" {
+	if userID == "" || word == "" {
 		log.Printf("Missing required fields for wordchain submit")
+		return
+	}
+
+	// Get user's name from room
+	room, exists := graph.GetGameRoom(roomID)
+	if !exists {
+		log.Printf("Room not found: %s", roomID)
+		return
+	}
+
+	var username string
+	for _, user := range room.Users {
+		if user.UserID == userID {
+			username = user.Name
+			break
+		}
+	}
+
+	if username == "" {
+		log.Printf("User not found in room: userId=%s, roomId=%s", userID, roomID)
 		return
 	}
 
@@ -229,14 +249,14 @@ func handleWordchainSubmit(roomID string, data interface{}) {
 		}
 	}
 
-	log.Printf("Wordchain validation: username=%s, word=%s, correct=%v, duplicate=%v", username, word, correct, isDuplicate)
+	log.Printf("Wordchain validation: userId=%s, username=%s, word=%s, correct=%v, duplicate=%v", userID, username, word, correct, isDuplicate)
 
 	// Check if it's this user's turn
-	isCorrectTurn := graph.CheckWordchainTurn(roomID, username)
+	isCorrectTurn := graph.CheckWordchainTurn(roomID, userID)
 	if !isCorrectTurn {
 		correct = false
 		reason = "It's not your turn"
-		log.Printf("[Wordchain] Not %s's turn in room %s", username, roomID)
+		log.Printf("[Wordchain] Not %s's turn (userId: %s) in room %s", username, userID, roomID)
 	}
 
 	// Publish result to all users via graph package
@@ -244,6 +264,10 @@ func handleWordchainSubmit(roomID string, data interface{}) {
 
 	// If correct, update last word, give points, and move to next user
 	if correct && isCorrectTurn {
+		// Add points for correct answer
+		graph.AddScoreToUser(roomID, username, common.WordchainCorrectScore)
+		log.Printf("[Wordchain] ✅ %s earned %d points for correct answer: %s", username, common.WordchainCorrectScore, word)
+
 		graph.UpdateWordchainState(roomID, word, username)
 		graph.MoveToNextTurn(roomID)
 	} else if isCorrectTurn && !isDuplicate {
@@ -423,6 +447,11 @@ func handleSubscribe(client *Client, channel string) {
 	client.mu.Lock()
 	client.subscriptions[channel] = true
 	userID := client.UserID
+
+	// Set roomID if subscribing to a game room
+	if len(channel) > len(common.ChannelGamePrefix) && channel[:len(common.ChannelGamePrefix)] == common.ChannelGamePrefix {
+		client.roomID = channel[len(common.ChannelGamePrefix):]
+	}
 	client.mu.Unlock()
 
 	// Start Valkey subscription if not already created
@@ -452,6 +481,14 @@ func handleUnsubscribe(client *Client, channel string) {
 	client.mu.Lock()
 	userID := client.UserID
 	delete(client.subscriptions, channel) // Remove from subscription list
+
+	// Clear roomID if unsubscribing from current game room
+	if len(channel) > len(common.ChannelGamePrefix) && channel[:len(common.ChannelGamePrefix)] == common.ChannelGamePrefix {
+		roomID := channel[len(common.ChannelGamePrefix):]
+		if client.roomID == roomID {
+			client.roomID = ""
+		}
+	}
 	client.mu.Unlock()
 
 	// Log unsubscription based on channel type (lobby or game room)

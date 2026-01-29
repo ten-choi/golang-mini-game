@@ -26,7 +26,7 @@ type GameEventPayload struct {
 	Data      interface{} `json:"data"`
 }
 
-// ChatMessagePayload는 채팅 메시지 데이터
+// ChatMessagePayload represents chat message data
 type ChatMessagePayload struct {
 	RoomID   string `json:"roomId"`
 	UserID   string `json:"userId"`
@@ -34,7 +34,7 @@ type ChatMessagePayload struct {
 	Message  string `json:"message"`
 }
 
-// DrawingEventPayload는 그림 그리기 데이터
+// DrawingEventPayload represents drawing data
 type DrawingEventPayload struct {
 	RoomID    string      `json:"roomId"`
 	UserID    string      `json:"userId"`
@@ -45,13 +45,13 @@ type DrawingEventPayload struct {
 	Action    string      `json:"action"` // "start", "draw", "end", "clear"
 }
 
-// DrawPoint는 그리기에서 하나의 점을 나타냄
+// DrawPoint represents a single point in drawing
 type DrawPoint struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
 }
 
-// BuildWSSuccess는 성공 WebSocket 메시지를 생성
+// BuildWSSuccess builds a success WebSocket message
 func BuildWSSuccess(msgType string, payload interface{}) []byte {
 	msg := WSSuccessMessage{
 		Type:    msgType,
@@ -61,7 +61,7 @@ func BuildWSSuccess(msgType string, payload interface{}) []byte {
 	return bytes
 }
 
-// BuildWSError는 에러 WebSocket 메시지를 생성
+// BuildWSError builds an error WebSocket message
 func BuildWSError(code string, message string) []byte {
 	msg := WSErrorMessage{
 		Type:    "ERROR",
@@ -72,7 +72,7 @@ func BuildWSError(code string, message string) []byte {
 	return bytes
 }
 
-// BuildGameEvent는 게임 이벤트 WebSocket 메시지를 생성
+// BuildGameEvent builds a game event WebSocket message
 func BuildGameEvent(roomID string, eventType string, data interface{}) []byte {
 	payload := GameEventPayload{
 		EventType: eventType,
@@ -82,7 +82,7 @@ func BuildGameEvent(roomID string, eventType string, data interface{}) []byte {
 	return BuildWSSuccess("GAME_EVENT", payload)
 }
 
-// BuildChatMessage는 채팅 WebSocket 메시지를 생성
+// BuildChatMessage builds a chat WebSocket message
 func BuildChatMessage(roomID, userID, userName, message string) []byte {
 	payload := ChatMessagePayload{
 		RoomID:   roomID,
@@ -93,7 +93,7 @@ func BuildChatMessage(roomID, userID, userName, message string) []byte {
 	return BuildWSSuccess("CHAT_MESSAGE", payload)
 }
 
-// BuildDrawingEvent는 그리기 WebSocket 메시지를 생성
+// BuildDrawingEvent builds a drawing WebSocket message
 func BuildDrawingEvent(roomID, userID, action string, data interface{}) []byte {
 	payload := DrawingEventPayload{
 		RoomID: roomID,

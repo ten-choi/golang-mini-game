@@ -77,14 +77,14 @@ func getQuizAnswer(roomID string, quizID string) (interface{}, bool) {
 // calculateQuizScore calculates score based on difficulty (1-5 -> 50-250 points)
 func calculateQuizScore(difficulty int) int32 {
 	// Validate level range (1-5)
-	if difficulty < 1 {
-		difficulty = 1
-	} else if difficulty > 5 {
-		difficulty = 5
+	if difficulty < common.QuizMinDifficulty {
+		difficulty = common.QuizMinDifficulty
+	} else if difficulty > common.QuizMaxDifficulty {
+		difficulty = common.QuizMaxDifficulty
 	}
 
 	// Calculate score: difficulty × 50
-	score := int32(difficulty * 50)
+	score := int32(difficulty * common.QuizScorePerDifficulty)
 	log.Printf("[Quiz] Difficulty %d -> %d points", difficulty, score)
 	return score
 }

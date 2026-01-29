@@ -65,11 +65,12 @@ const WordchainRoom: React.FC = () => {
         setCurrentPrompt(data.prompt);
         setLastWord(data.lastWord || '');
         setWordInput('');
-      } else if (data.type === 'round_end' && data.data) {
-        console.log('[WordchainRoom] Round ended:', data.data);
+      } else if (data.type === 'round_end' || data.type === 'ROUND_END') {
+        console.log('[WordchainRoom] Round ended:', data);
+        const roundData = data.data || data;
         setRoundEndInfo({
-          round: data.data.round,
-          reason: data.data.reason,
+          round: roundData.round,
+          reason: roundData.reason,
           countdown: 3
         });
         
@@ -83,14 +84,14 @@ const WordchainRoom: React.FC = () => {
             loadRoom();
           }
         }, 1000);
-      } else if (data.type === 'game_end' && data.data) {
-        console.log('[WordchainRoom] Game ended:', data.data);
+      } else if (data.type === 'game_end' || data.type === 'GAME_END') {
+        console.log('[WordchainRoom] Game ended:', data);
         setRoundEndInfo(null);
-        
-        const sortedusers = [...data.data.users].sort((a, b) => b.score - a.score);
+        const gameData = data.data || data;
+        const sortedusers = [...gameData.users].sort((a, b) => b.score - a.score);
         setGameEndInfo({
           users: sortedusers,
-          message: data.data.message
+          message: gameData.message
         });
       }
       // Handle room_deleted message
@@ -108,13 +109,19 @@ const WordchainRoom: React.FC = () => {
           type: 'chat'
         }]);
       }
-      // Legacy format
-      else if (data.type === 'update' || data.type === 'room_update') {
+      // Handle room update messages
+      else if (data.type === 'update' || data.type === 'room_update' || data.type === 'ROOM_UPDATE') {
         if (data.data) {
           setRoom(data.data);
+        } else if (data.payload) {
+          setRoom(data.payload);
         } else {
           loadRoom();
         }
+      }
+      // Handle timer updates
+      else if (data.type === 'timer' || data.type === 'TIMER') {
+        setTimeLeft(data.timeLeft);
       }
     });
 
@@ -240,11 +247,13 @@ const WordchainRoom: React.FC = () => {
         setTimeLeft(gameRoom.roundTimeLimit);
         
         // Auto-rejoin if not in users list (e.g., after refresh)
-        const isInRoom = gameRoom.users.some(p => p.name === username);
+        const isInRoom = gameRoom.users.some(p => p.userId === user.id);
         if (!isInRoom) {
           console.log('[WordchainRoom] User not in room, auto-rejoining...');
           try {
-            await apiService.joinGameRoom(roomId, username);
+            await apiService.joinGameRoom(roomId, user.id);
+            // Auto-set ready after joining
+            await apiService.setReady(roomId, user.id, true);
             // Reload room to get updated user list
             const updatedRoom = await apiService.getGameRoom(roomId);
             if (updatedRoom) {
@@ -252,6 +261,21 @@ const WordchainRoom: React.FC = () => {
             }
           } catch (joinError) {
             console.error('[WordchainRoom] Failed to auto-rejoin:', joinError);
+          }
+        } else {
+          // Check if user is already ready, if not, set ready
+          const currentUser = gameRoom.users.find(p => p.userId === user.id);
+          if (currentUser && !currentUser.isReady && gameRoom.status === 'WAITING') {
+            console.log('[WordchainRoom] Auto-setting user ready...');
+            try {
+              await apiService.setReady(roomId, user.id, true);
+              const updatedRoom = await apiService.getGameRoom(roomId);
+              if (updatedRoom) {
+                setRoom(updatedRoom);
+              }
+            } catch (readyError) {
+              console.error('[WordchainRoom] Failed to set ready:', readyError);
+            }
           }
         }
       } else {
@@ -335,10 +359,12 @@ const WordchainRoom: React.FC = () => {
           <span style={styles.infoLabel}>👥 플레이어</span>
           <span style={styles.infoValue}>{room.users.length}/{room.maxUsers}</span>
         </div>
-        {room.status === 'PLAYING' && (room as any).currentTurnUsername && (
+        {room.status === 'PLAYING' && room.currentTurnUserId && (
           <div style={{...styles.infoBox, background: '#4CAF50', color: 'white'}}>
             <span style={styles.infoLabel}>🎯 현재 턴</span>
-            <span style={styles.infoValue}>{(room as any).currentTurnUsername}</span>
+            <span style={styles.infoValue}>
+              {room.users.find(u => u.userId === room.currentTurnUserId)?.name || 'Unknown'}
+            </span>
           </div>
         )}
       </div>
@@ -414,14 +440,14 @@ const WordchainRoom: React.FC = () => {
               )}
 
               {/* Turn indicator */}
-              {(room as any).currentTurnUsername && (
+              {room.currentTurnUserId && (
                 <div style={{
                   ...styles.turnIndicator,
-                  background: (room as any).currentTurnUsername === username ? '#4CAF50' : '#FF9800'
+                  background: room.currentTurnUserId === user?.id ? '#4CAF50' : '#FF9800'
                 }}>
-                  {(room as any).currentTurnUsername === username 
+                  {room.currentTurnUserId === user?.id
                     ? '🎯 당신의 차례입니다!' 
-                    : `⏳ ${(room as any).currentTurnUsername}의 차례를 기다리는 중...`}
+                    : `⏳ ${room.users.find(u => u.userId === room.currentTurnUserId)?.name || 'Unknown'}의 차례를 기다리는 중...`}
                 </div>
               )}
 
@@ -431,16 +457,16 @@ const WordchainRoom: React.FC = () => {
                   value={wordInput}
                   onChange={(e) => setWordInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSubmitWord()}
-                  placeholder={(room as any).currentTurnUsername === username 
+                  placeholder={room.currentTurnUserId === user?.id
                     ? "일본어 단어를 입력하세요 (히라가나/카타카나)"
                     : "다른 플레이어의 차례입니다..."}
                   style={styles.wordInput}
-                  disabled={room.status !== 'PLAYING' || (room as any).currentTurnUsername !== username}
+                  disabled={room.status !== 'PLAYING' || room.currentTurnUserId !== user?.id}
                 />
                 <button
                   onClick={handleSubmitWord}
                   style={styles.submitButton}
-                  disabled={!wordInput.trim() || room.status !== 'PLAYING' || (room as any).currentTurnUsername !== username}
+                  disabled={!wordInput.trim() || room.status !== 'PLAYING' || room.currentTurnUserId !== user?.id}
                 >
                   제출
                 </button>
