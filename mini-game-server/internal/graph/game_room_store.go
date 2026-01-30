@@ -279,11 +279,9 @@ func publishRoundEndToWebSocket(roomID string, roundNumber int, reason string) {
 
 	// Create the message payload
 	payload := map[string]interface{}{
-		"type": "round_end",
-		"data": map[string]interface{}{
-			"round":  roundNumber,
-			"reason": reason,
-		},
+		"type":   "round_end",
+		"round":  roundNumber,
+		"reason": reason,
 	}
 
 	// Marshal to JSON
@@ -307,11 +305,9 @@ func publishRoomDeletedToWebSocket(roomID string) {
 
 	// Create the message payload
 	payload := map[string]interface{}{
-		"type": "room_deleted",
-		"data": map[string]interface{}{
-			"roomId": roomID,
-			"reason": "Room has been deleted",
-		},
+		"type":   "room_deleted",
+		"roomId": roomID,
+		"reason": "Room has been deleted",
 	}
 
 	// Marshal to JSON
@@ -349,12 +345,10 @@ func publishGameEndToWebSocket(roomID string, room *model.GameRoom) {
 
 	// Create the message payload
 	payload := map[string]interface{}{
-		"type": "game_end",
-		"data": map[string]interface{}{
-			"totalRounds": room.TotalRounds,
-			"users":       scores,
-			"message":     "게임이 종료되었습니다! 최종 결과입니다",
-		},
+		"type":        "game_end",
+		"totalRounds": room.TotalRounds,
+		"users":       scores,
+		"message":     "게임이 종료되었습니다! 최종 결과입니다",
 	}
 
 	// Marshal to JSON

@@ -460,14 +460,12 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 			// Broadcast ROUND_ENDED with correct answer and scoreboard
 			channelName := fmt.Sprintf("game/%s", roomID)
 			message := map[string]interface{}{
-				"type": "ROUND_ENDED",
-				"data": map[string]interface{}{
-					"round":         room.CurrentRound,
-					"quizId":        currentQuiz["id"],
-					"correctAnswer": currentQuiz["answer"],
-					"explanation":   currentQuiz["explanation"],
-					"scoreboard":    scoreboard,
-				},
+				"type":          "ROUND_ENDED",
+				"round":         room.CurrentRound,
+				"quizId":        currentQuiz["id"],
+				"correctAnswer": currentQuiz["answer"],
+				"explanation":   currentQuiz["explanation"],
+				"scoreboard":    scoreboard,
 			}
 
 			jsonData, err := json.Marshal(message)
@@ -538,10 +536,8 @@ func startQuizTimer(ctx context.Context, roomID string, gameType model.GameType,
 // sendTimerUpdate broadcasts timer update to WebSocket clients
 func sendTimerUpdate(channelName string, timeLeft int) {
 	message := map[string]interface{}{
-		"type": "timer",
-		"data": map[string]interface{}{
-			"timeLeft": timeLeft,
-		},
+		"type":     "timer",
+		"timeLeft": timeLeft,
 	}
 
 	jsonData, err := json.Marshal(message)
