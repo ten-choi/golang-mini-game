@@ -371,15 +371,13 @@ func sendPreloadedQuiz(roomID string, roundIndex int) {
 		}
 	}
 
-	message := map[string]interface{}{
-		"type": "quiz",
-		"data": quizWithoutAnswer,
-	}
+	// Add type field to quiz data
+	quizWithoutAnswer["type"] = "quiz"
 
 	log.Printf("[Quiz Delivery] 藤 Broadcasting quiz to all users in room %s", roomID)
 
 	// Publish to Valkey for WebSocket distribution
-	jsonData, err := json.Marshal(message)
+	jsonData, err := json.Marshal(quizWithoutAnswer)
 	if err != nil {
 		log.Printf("[Quiz] Failed to marshal quiz message: %v", err)
 		return
@@ -626,16 +624,13 @@ func sendNextQuiz(ctx context.Context, roomID string, gameType model.GameType, q
 		log.Printf("[Quiz] Created quiz data with %d options", len(quiz.Options))
 	}
 
-	// Broadcast quiz to all users via WebSocket
-	message := map[string]interface{}{
-		"type": "quiz",
-		"data": quizData,
-	}
+	// Add type field to quiz data
+	quizData["type"] = "quiz"
 
 	log.Printf("[Quiz] Broadcasting quiz message: type=%s, has options=%v", quizData["type"], quizData["options"] != nil)
 
 	// Publish to Valkey for WebSocket distribution
-	jsonData, err := json.Marshal(message)
+	jsonData, err := json.Marshal(quizData)
 	if err != nil {
 		log.Printf("[Quiz] Failed to marshal quiz message: %v", err)
 		return

@@ -102,12 +102,11 @@ func (r *mutationResolver) InviteUser(ctx context.Context, roomID string, invite
 
 	// Publish invitation to invitee's personal channel
 	channel := common.ChannelUserPrefix + inviteeUserID
-	message := map[string]interface{}{
-		"type": "INVITATION",
-		"data": invitationData,
-	}
+	
+	// Add type field to invitation data
+	invitationData["type"] = "INVITATION"
 
-	msgBytes, err := json.Marshal(message)
+	msgBytes, err := json.Marshal(invitationData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal invitation message: %w", err)
 	}

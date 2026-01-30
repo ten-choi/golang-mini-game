@@ -81,10 +81,17 @@ func HandleWebSocket(c *gin.Context) {
 // handleDrawingMessage processes drawing messages
 func handleDrawingMessage(roomID string, data interface{}) {
 	channel := common.ChannelGamePrefix + roomID
-	drawingPayload := map[string]interface{}{
-		"type":    "DRAW_EVENT",
-		"payload": data,
+	// Merge data into payload with type field
+	drawingData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid drawing data format")
+		return
 	}
+	drawingPayload := make(map[string]interface{})
+	for k, v := range drawingData {
+		drawingPayload[k] = v
+	}
+	drawingPayload["type"] = "DRAW_EVENT"
 	handlePublish(channel, drawingPayload)
 }
 
@@ -166,11 +173,9 @@ func handleQuizAnswer(roomID string, data interface{}) {
 	// Send answer submission confirmation only (no correct/incorrect info)
 	channel := common.ChannelGamePrefix + roomID
 	payload := map[string]interface{}{
-		"type": "ANSWER_SUBMITTED",
-		"payload": map[string]interface{}{
-			"userId": userID,
-			"quizId": quizID,
-		},
+		"type":   "ANSWER_SUBMITTED",
+		"userId": userID,
+		"quizId": quizID,
 	}
 	handlePublish(channel, payload)
 	log.Printf("[Quiz] 📝 Answer submitted by %s - waiting for timer to reveal results", username)
@@ -306,12 +311,10 @@ func handleLobbyChatMessage(client *Client, data interface{}) {
 
 	// Publish message to lobby channel
 	chatPayload := map[string]interface{}{
-		"type": "LOBBY_CHAT",
-		"payload": map[string]interface{}{
-			"userId":   userID,
-			"username": username,
-			"message":  message,
-		},
+		"type":     "LOBBY_CHAT",
+		"userId":   userID,
+		"username": username,
+		"message":  message,
 	}
 
 	handlePublish(common.ChannelLobby, chatPayload)
@@ -561,8 +564,11 @@ func handleChatMessage(client *Client, data interface{}) {
 	}
 
 	handlePublish(channel, map[string]interface{}{
-		"type":    "CHAT_MESSAGE",
-		"payload": chatPayload,
+		"type":     "CHAT_MESSAGE",
+		"roomId":   chatPayload.RoomID,
+		"userId":   chatPayload.UserID,
+		"username": chatPayload.Username,
+		"message":  chatPayload.Message,
 	})
 }
 

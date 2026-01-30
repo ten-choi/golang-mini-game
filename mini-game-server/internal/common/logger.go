@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Logger provides structured logging capabilities
@@ -20,6 +21,9 @@ func init() {
 	config.Encoding = "console"
 	config.DisableStacktrace = true
 	config.DisableCaller = false
+
+	// Set human-readable timestamp format
+	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006/01/02 15:04:05")
 
 	// Build logger
 	zapLogger, err := config.Build()

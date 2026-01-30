@@ -155,10 +155,10 @@ func GetGameRoomsByType(gameType *model.GameType) []*model.GameRoom {
 func publishLobbyUpdateToWebSocket(rooms []*model.GameRoom) {
 	channel := common.ChannelLobby
 
-	// Create the message payload
+	// Create the message payload with rooms array and type field
 	payload := map[string]interface{}{
-		"type": "lobby_update",
-		"data": rooms,
+		"type":  "lobby_update",
+		"rooms": rooms,
 	}
 
 	// Marshal to JSON
@@ -229,11 +229,19 @@ func StartRoomCleanupScheduler() {
 func publishQuizToWebSocket(roomID string, quiz interface{}) {
 	channel := common.ChannelGamePrefix + roomID
 
-	// Create the message payload
-	payload := map[string]interface{}{
-		"type": "quiz",
-		"quiz": quiz,
+	// Convert quiz to map and add type field
+	quizMap, ok := quiz.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid quiz format")
+		return
 	}
+
+	// Create payload by copying quiz fields and adding type
+	payload := make(map[string]interface{})
+	for k, v := range quizMap {
+		payload[k] = v
+	}
+	payload["type"] = "quiz"
 
 	// Marshal to JSON
 	jsonData, err := json.Marshal(payload)

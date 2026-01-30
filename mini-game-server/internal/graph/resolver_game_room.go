@@ -995,17 +995,15 @@ func publishGameEndedWithRankings(roomID string, room *model.GameRoom, rankings 
 
 	// Create the message payload
 	payload := map[string]interface{}{
-		"type": "GAME_ENDED",
-		"payload": map[string]interface{}{
-			"room":     room,
-			"rankings": rankings,
-			"winner":   "",
-		},
+		"type":     "GAME_ENDED",
+		"room":     room,
+		"rankings": rankings,
+		"winner":   "",
 	}
 
 	// Set winner if there are rankings
 	if len(rankings) > 0 {
-		payload["payload"].(map[string]interface{})["winner"] = rankings[0].Name
+		payload["winner"] = rankings[0].Name
 	}
 
 	// Marshal to JSON
@@ -1027,14 +1025,26 @@ func publishGameEndedWithRankings(roomID string, room *model.GameRoom, rankings 
 func publishRoomUpdateToWebSocket(roomID string, room *model.GameRoom) {
 	channel := common.ChannelGamePrefix + roomID
 
-	// Create the message payload
-	payload := map[string]interface{}{
-		"type": "room_update",
-		"data": room,
+	// Create a map with room data and type field
+	roomMap := make(map[string]interface{})
+
+	// Marshal room to JSON and unmarshal to map to preserve all fields
+	roomJSON, err := json.Marshal(room)
+	if err != nil {
+		log.Printf("Failed to marshal room: %v", err)
+		return
 	}
 
+	if err := json.Unmarshal(roomJSON, &roomMap); err != nil {
+		log.Printf("Failed to unmarshal room to map: %v", err)
+		return
+	}
+
+	// Add type field
+	roomMap["type"] = "room_update"
+
 	// Marshal to JSON
-	jsonData, err := json.Marshal(payload)
+	jsonData, err := json.Marshal(roomMap)
 	if err != nil {
 		log.Printf("Failed to marshal room update: %v", err)
 		return
