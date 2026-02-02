@@ -37,6 +37,9 @@ FROM alpine:latest
 # tzdata를 설치하면 /usr/share/zoneinfo에 타임존 정보가 포함됩니다.
 RUN apk --no-cache add ca-certificates tzdata
 
+# 타임존을 도쿄(JST)로 설정
+ENV TZ=Asia/Tokyo
+
 # 비-루트 사용자 및 그룹 생성 (보안 강화)
 RUN adduser -D -g '' appuser
 

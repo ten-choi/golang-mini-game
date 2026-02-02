@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -16,14 +17,22 @@ type Logger struct {
 var defaultLogger *Logger
 
 func init() {
+	// Load Tokyo timezone
+	jst, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		jst = time.FixedZone("JST", 9*60*60) // Fallback to UTC+9
+	}
+
 	// Create production config
 	config := zap.NewProductionConfig()
 	config.Encoding = "console"
 	config.DisableStacktrace = true
 	config.DisableCaller = false
 
-	// Set human-readable timestamp format
-	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006/01/02 15:04:05")
+	// Set human-readable timestamp format with JST timezone
+	config.EncoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		enc.AppendString(t.In(jst).Format("2006/01/02 15:04:05"))
+	}
 
 	// Build logger
 	zapLogger, err := config.Build()
