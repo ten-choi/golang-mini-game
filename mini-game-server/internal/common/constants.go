@@ -13,6 +13,7 @@ const (
 	GameTypeQA        = "QA"
 	GameTypeWordchain = "WORDCHAIN"
 	GameTypeDrawing   = "DRAWING"
+	GameTypeMafia     = "MAFIA"
 )
 
 // Game timing constants

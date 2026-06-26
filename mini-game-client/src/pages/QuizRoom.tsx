@@ -44,64 +44,104 @@ const QuizRoom: React.FC = () => {
       console.log('[QuizRoom] Received game message:', data);
       console.log('[QuizRoom] Message type:', data.type);
       
-      // Handle room_update messages
-      if (data.type === 'room_update' || data.type === 'update' || data.type === 'ROOM_UPDATE') {
-        console.log('[QuizRoom] Room update received:', data);
-        if (data.data) {
-          setRoom(data.data);
-        }
-      }
-      // Handle messages from server (format: {type: "quiz", quiz: {...}})
-      else if (data.type === 'quiz' && data.quiz) {
-        console.log('[QuizRoom] ========== QUIZ RECEIVED FROM SUBSCRIPTION ==========');
-        const quizData = data.quiz;
-        console.log('✓ Quiz Type:', quizData.type);
-        console.log('✓ Quiz ID:', quizData.id);
-        console.log('✓ Question:', quizData.question);
-        setCurrentQuiz(quizData);
+      // Handle quiz message (format: {type: "quiz", id: ..., question: ..., options: ..., currentRound: ..., totalRounds: ...})
+      if (data.type === 'quiz') {
+        console.log('[QuizRoom] ========== QUIZ RECEIVED ==========');
+        console.log('✓ Quiz ID:', data.id);
+        console.log('✓ Question:', data.question);
+        console.log('✓ Options:', data.options);
+        const quiz = {
+          id: data.id,
+          question: data.question,
+          options: data.options || [],
+          category: data.category,
+          difficulty: data.difficulty,
+          currentRound: data.currentRound,
+          totalRounds: data.totalRounds
+        };
+        setCurrentQuiz(quiz as any);
         setSelectedAnswer(null);
         setAnswered(false);
-      } else if (data.type === 'timer') {
+        setTimeLeft(room?.roundTimeLimit || 30);
+      }
+      // Handle ROUND_ENDED (format: {type: "ROUND_ENDED", round: ..., correctAnswer: ..., explanation: ..., scoreboard: [...]})
+      else if (data.type === 'ROUND_ENDED') {
+        console.log('[QuizRoom] Round ended:', data);
+        setChatMessages(prev => [...prev, {
+          username: t.gameRoom.system,
+          text: `라운드 ${data.round} 종료! 정답: ${data.correctAnswer}`,
+          type: 'system'
+        }]);
+        if (data.explanation) {
+          setChatMessages(prev => [...prev, {
+            username: t.gameRoom.system,
+            text: `해설: ${data.explanation}`,
+            type: 'system'
+          }]);
+        }
+        // Update room with new scores from scoreboard
+        if (data.scoreboard && room) {
+          const updatedUsers = room.users.map(u => {
+            const scoreData = data.scoreboard.find((s: any) => s.userId === u.userId);
+            return scoreData ? { ...u, score: scoreData.score } : u;
+          });
+          setRoom({ ...room, users: updatedUsers });
+        }
+      }
+      // Handle room_update (format: {type: "room_update", ...room fields...})
+      else if (data.type === 'room_update' || data.type === 'update' || data.type === 'ROOM_UPDATE') {
+        console.log('[QuizRoom] Room update received:', data);
+        // Extract room data (remove type field)
+        const { type, ...roomData } = data;
+        setRoom(roomData as any);
+        if (roomData.status === 'FINISHED') {
+          console.log('[QuizRoom] Game finished');
+        }
+      }
+      // Handle timer update (format: {type: "timer", timeLeft: ...})
+      else if (data.type === 'timer' || data.type === 'TIMER') {
         console.log('[QuizRoom] Received timer update:', data);
-        const timeValue = data.timeLeft !== undefined ? data.timeLeft : null;
+        const timeValue = data.timeLeft !== undefined ? data.timeLeft : data.time_left;
         console.log('[QuizRoom] Time left:', timeValue);
-        setTimeLeft(timeValue);
-        
+        if (timeValue !== undefined) {
+          setTimeLeft(timeValue);
+        }
         // When timer reaches 0, reset answer state but keep quiz visible
         if (timeValue === 0) {
           console.log('[QuizRoom] Timer reached 0, waiting for next quiz...');
           setSelectedAnswer(null);
           setAnswered(false);
         }
-      } else if (data.type === 'room_deleted') {
+      }
+      // Handle room_deleted
+      else if (data.type === 'room_deleted') {
         console.log('[QuizRoom] Room deleted:', data.data);
         alert('방이 삭제되었습니다.');
         navigate('/rooms');
       }
-      // Handle websocket handler messages (format: {type: "QUIZ_RESULT", payload: {...}})
-      else if (data.type === 'QUIZ_RESULT' && data.payload) {
-        const payload = data.payload;
-        if (payload.isCorrect) {
+      // Handle CHAT_MESSAGE (format: {type: "CHAT_MESSAGE", username: ..., message: ...})
+      else if (data.type === 'CHAT_MESSAGE') {
+        setChatMessages(prev => [...prev, {
+          username: data.username || 'Unknown',
+          text: data.message || '',
+          type: 'chat'
+        }]);
+      }
+      // Handle quiz result messages
+      else if (data.type === 'QUIZ_RESULT') {
+        if (data.isCorrect) {
           setChatMessages(prev => [...prev, {
             username: t.gameRoom.system,
-            text: `${payload.username}님 정답! +${payload.score}점 (난이도: ${payload.difficulty})`,
+            text: `${data.username}님 정답! +${data.score}점 (난이도: ${data.difficulty})`,
             type: 'system'
           }]);
         } else {
           setChatMessages(prev => [...prev, {
             username: t.gameRoom.system,
-            text: `${payload.username}님 오답`,
+            text: `${data.username}님 오답`,
             type: 'system'
           }]);
         }
-      }
-      else if (data.type === 'CHAT_MESSAGE' && data.payload) {
-        const payload = data.payload;
-        setChatMessages(prev => [...prev, {
-          username: payload.username,
-          text: payload.message,
-          type: 'chat'
-        }]);
       }
     });
 
@@ -155,21 +195,6 @@ const QuizRoom: React.FC = () => {
           } catch (joinError) {
             console.error('[QuizRoom] Failed to auto-rejoin:', joinError);
           }
-        } else {
-          // Check if user is already ready, if not, set ready
-          const currentUser = gameRoom.users.find(p => p.userId === user.id);
-          if (currentUser && !currentUser.isReady && gameRoom.status === 'WAITING') {
-            console.log('[QuizRoom] Auto-setting user ready...');
-            try {
-              await apiService.setReady(roomId, user.id, true);
-              const updatedRoom = await apiService.getGameRoom(roomId);
-              if (updatedRoom) {
-                setRoom(updatedRoom);
-              }
-            } catch (readyError) {
-              console.error('[QuizRoom] Failed to set ready:', readyError);
-            }
-          }
         }
       } else {
         console.error('[QuizRoom] Room not found:', roomId);
@@ -188,6 +213,18 @@ const QuizRoom: React.FC = () => {
       loadRoom();
     } catch (error) {
       console.error('Failed to start game:', error);
+    }
+  };
+
+  const handleToggleReady = async () => {
+    if (!roomId || !user || !room) return;
+    const currentUser = room.users.find((p) => p.userId === user.id);
+    const nextReady = !(currentUser?.isReady ?? false);
+    try {
+      await apiService.setReady(roomId, user.id, nextReady);
+      loadRoom();
+    } catch (error) {
+      console.error('[QuizRoom] Failed to toggle ready:', error);
     }
   };
 
@@ -250,6 +287,8 @@ const QuizRoom: React.FC = () => {
 
   const isHost = user && room.hostUserId === user.id;
   const sortedusers = [...room.users].sort((a, b) => b.score - a.score);
+  const currentUser = room.users.find((p) => p.userId === user?.id);
+  const isReady = currentUser?.isReady ?? false;
   const isOXQuiz = room.gameType === 'OX';
 
   return (
@@ -264,9 +303,14 @@ const QuizRoom: React.FC = () => {
             {isHost ? '👑 호스트' : '👤 플레이어'} - {username}
           </p>
         </div>
-        <button onClick={handleLeaveRoom} style={styles.leaveButton}>
-          {t.gameRoom.leave}
-        </button>
+        <div style={styles.headerButtons}>
+          <button onClick={handleToggleReady} style={styles.readyButton}>
+            {isReady ? '준비 취소' : '준비'}
+          </button>
+          <button onClick={handleLeaveRoom} style={styles.leaveButton}>
+            {t.gameRoom.leave}
+          </button>
+        </div>
       </div>
 
       {/* Game Info */}
@@ -508,6 +552,20 @@ const styles: { [key: string]: React.CSSProperties } = {
     margin: '5px 0 0 0',
     fontSize: '14px',
     color: '#666',
+  },
+  headerButtons: {
+    display: 'flex',
+    gap: '10px',
+    alignItems: 'center',
+  },
+  readyButton: {
+    padding: '10px 20px',
+    background: '#38b2ac',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
   },
   leaveButton: {
     padding: '10px 20px',

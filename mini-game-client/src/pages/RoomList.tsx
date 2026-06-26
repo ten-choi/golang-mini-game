@@ -60,37 +60,46 @@ const RoomList: React.FC = () => {
       (error) => console.error('WebSocket connection error:', error)
     );
 
-    // lobby 채널 구독하여 방 목록 업데이트 수신
-    const subscription = wsService.subscribe('lobby', (data) => {
+    const handleLobbyMessage = (data: any) => {
       console.log('[RoomList] Lobby update received:', data);
+      const type = String(data.type || '').toUpperCase();
       
-      // Handle server format: { "type": "lobby_update", "data": [...] }
-      if (data.type === 'lobby_update' && data.data && Array.isArray(data.data)) {
-        console.log('[RoomList] Updating rooms from WebSocket:', data.data.length, 'rooms');
-        setRooms(data.data);
+      // Handle server format: { "type": "lobby_update", "rooms": [...] }
+      if (type === 'LOBBY_UPDATE') {
+        const rooms = data.rooms || data.data;
+        if (rooms && Array.isArray(rooms)) {
+          console.log('[RoomList] Updating rooms from WebSocket:', rooms.length, 'rooms');
+          setRooms(rooms);
+          return;
+        }
       }
-      // Handle lobby chat messages: { "type": "LOBBY_CHAT", "payload": {...} }
-      else if (data.type === 'LOBBY_CHAT' && data.payload) {
-        const payload = data.payload;
-        const username = payload.username || 'Unknown';
+      // Handle lobby chat messages: { "type": "LOBBY_CHAT", "userId": ..., "username": ..., "message": ... }
+      if (type === 'LOBBY_CHAT') {
+        const payload = data.payload || data;
+        const username = payload.username || payload.userName || 'Unknown';
         const message = payload.message || '';
         console.log('[RoomList] Received lobby chat:', username, message);
         setLobbyChatMessages(prev => [...prev, { username, message }]);
+        return;
       }
-      // Handle chat history: { "type": "LOBBY_CHAT_HISTORY", "payload": {...} }
-      else if (data.type === 'LOBBY_CHAT_HISTORY' && data.payload) {
-        const messages = data.payload.messages || [];
+      // Handle chat history (optional / if server supports)
+      if (type === 'LOBBY_CHAT_HISTORY') {
+        const payload = data.payload || data;
+        const messages = payload.messages || [];
         console.log('[RoomList] Received chat history:', messages.length, 'messages');
         setLobbyChatMessages(messages.map((msg: any) => ({
           username: msg.userName || msg.username || 'Unknown',
           message: msg.message
         })));
+        return;
       }
       // Legacy/other formats
-      else {
-        console.log('[RoomList] Unhandled lobby message format:', data);
-      }
-    });
+      console.log('[RoomList] Unhandled lobby message format:', data);
+    };
+
+    // lobby 채널 구독하여 방 목록 업데이트 수신
+    const subscription = wsService.subscribe('lobby', handleLobbyMessage);
+
 
     return () => {
       subscription.unsubscribe();

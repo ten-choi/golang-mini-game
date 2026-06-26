@@ -9,6 +9,7 @@
 import type { 
   WebSocketRequest
 } from '../types';
+import { env } from '../config/env';
 
 // ============================================
 // Types
@@ -78,7 +79,7 @@ export class WebSocketService {
     return new Promise((resolve, reject) => {
       try {
         // Import env configuration
-        const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws';
+        const wsUrl = this.normalizeWsUrl(env.wsUrl || 'ws://localhost:8080/ws');
         
         console.log(`[WebSocket] Connecting to ${wsUrl}...`);
         this.ws = new WebSocket(wsUrl);
@@ -124,6 +125,16 @@ export class WebSocketService {
         reject(error);
       }
     });
+  }
+
+  private normalizeWsUrl(url: string): string {
+    if (!url) return 'ws://localhost:8080/ws';
+    // If URL contains /ws/extra or /ws/lobby, normalize to /ws
+    const match = url.match(/^(wss?:\/\/[^/]+\/ws)(?:\/.*)?$/);
+    if (match) {
+      return match[1];
+    }
+    return url;
   }
 
   /**
@@ -543,10 +554,21 @@ export class WebSocketService {
 
         // Also handle typed messages
         if (parsedData && typeof parsedData === 'object' && 'type' in parsedData) {
-          const messageType = parsedData.type;
-          const handlers = this.messageHandlers.get(messageType);
-          if (handlers) {
-            handlers.forEach(handler => handler(parsedData.data || parsedData));
+          const messageType = String(parsedData.type);
+          const normalized = messageType.toLowerCase();
+          const upper = messageType.toUpperCase();
+
+          const handlersToCall = new Set<MessageCallback>();
+          const exactHandlers = this.messageHandlers.get(messageType);
+          const normalizedHandlers = this.messageHandlers.get(normalized);
+          const upperHandlers = this.messageHandlers.get(upper);
+
+          exactHandlers?.forEach(handler => handlersToCall.add(handler));
+          normalizedHandlers?.forEach(handler => handlersToCall.add(handler));
+          upperHandlers?.forEach(handler => handlersToCall.add(handler));
+
+          if (handlersToCall.size > 0) {
+            handlersToCall.forEach(handler => handler(parsedData.data || parsedData));
           }
         }
       }

@@ -23,6 +23,10 @@ func (r *mutationResolver) CreateGameRoom(ctx context.Context, input model.Creat
 	roomID := uuid.New().String()
 	now := time.Now()
 
+	if input.GameType == model.GameTypeMafia && input.MaxUsers != 6 {
+		return nil, fmt.Errorf("mafia game requires maxUsers to be 6")
+	}
+
 	// Set isPrivate based on input, default to false
 	isPrivate := false
 	if input.IsPrivate != nil {
@@ -174,6 +178,10 @@ func (r *mutationResolver) LeaveGameRoom(ctx context.Context, roomID string, use
 		delete(gameRooms, roomID)
 		roomMutex.Unlock() // Unlock before goroutines
 
+		if room.GameType == model.GameTypeMafia {
+			cleanupMafiaState(roomID)
+		}
+
 		// Cleanup pre-loaded quizzes if it's a quiz game
 		if room.GameType == model.GameTypeOx || room.GameType == model.GameTypeQa {
 			go cleanupPreloadedQuizzes(roomID)
@@ -224,6 +232,12 @@ func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model
 	if len(room.Users) == 0 {
 		roomMutex.Unlock()
 		return nil, fmt.Errorf("cannot start game: no users in room")
+	}
+
+	// Mafia game requires exactly 6 players
+	if room.GameType == model.GameTypeMafia && len(room.Users) != 6 {
+		roomMutex.Unlock()
+		return nil, fmt.Errorf("mafia game requires exactly 6 players")
 	}
 
 	for _, user := range room.Users {
@@ -277,6 +291,9 @@ func (r *mutationResolver) StartGame(ctx context.Context, roomID string) (*model
 		log.Printf("[StartGame] Starting quiz game for room %s (type: %s)", roomID, room.GameType)
 		// Use background context for goroutine
 		go startQuizGame(context.Background(), roomID, room.GameType, r.QuizService)
+	} else if room.GameType == model.GameTypeMafia {
+		log.Printf("[StartGame] Starting mafia game for room %s", roomID)
+		go startMafiaGame(roomID)
 	} else {
 		log.Printf("[StartGame] ERROR: Unknown/unmatched game type: '%s' (len=%d)", room.GameType, len(room.GameType))
 	}
@@ -294,6 +311,10 @@ func (r *mutationResolver) DeleteGameRoom(ctx context.Context, roomID string) (b
 	// Cleanup pre-loaded quizzes if it's a quiz game
 	if exists && (room.GameType == model.GameTypeOx || room.GameType == model.GameTypeQa) {
 		cleanupPreloadedQuizzes(roomID)
+	}
+
+	if exists && room.GameType == model.GameTypeMafia {
+		cleanupMafiaState(roomID)
 	}
 
 	go publishLobbyUpdate()
@@ -490,6 +511,9 @@ func (r *mutationResolver) UpdateGameRoom(ctx context.Context, roomID string, in
 		room.Name = *input.Name
 	}
 	if input.MaxUsers != nil {
+		if room.GameType == model.GameTypeMafia && *input.MaxUsers != 6 {
+			return nil, fmt.Errorf("mafia game requires maxUsers to be 6")
+		}
 		room.MaxUsers = *input.MaxUsers
 	}
 	if input.TotalRounds != nil {

@@ -604,6 +604,8 @@ const (
 	GameTypeWordchain GameType = "WORDCHAIN"
 	// 그림 맞추기 게임 (그림을 그리고 정답 맞추기)
 	GameTypeDrawing GameType = "DRAWING"
+	// 마피아 게임 (6인, 역할 기반 추리 게임)
+	GameTypeMafia GameType = "MAFIA"
 )
 
 var AllGameType = []GameType{
@@ -611,11 +613,12 @@ var AllGameType = []GameType{
 	GameTypeQa,
 	GameTypeWordchain,
 	GameTypeDrawing,
+	GameTypeMafia,
 }
 
 func (e GameType) IsValid() bool {
 	switch e {
-	case GameTypeOx, GameTypeQa, GameTypeWordchain, GameTypeDrawing:
+	case GameTypeOx, GameTypeQa, GameTypeWordchain, GameTypeDrawing, GameTypeMafia:
 		return true
 	}
 	return false

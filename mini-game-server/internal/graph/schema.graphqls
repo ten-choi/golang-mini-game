@@ -91,6 +91,8 @@ enum GameType {
   WORDCHAIN
   "그림 맞추기 게임 (그림을 그리고 정답 맞추기)"
   DRAWING
+  "마피아 게임 (6인, 역할 기반 추리 게임)"
+  MAFIA
 }
 
 """

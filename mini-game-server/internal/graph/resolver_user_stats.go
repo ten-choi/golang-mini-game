@@ -22,7 +22,7 @@ func (r *queryResolver) UserStats(ctx context.Context, userID string, gameType *
 
 	stats := []*model.UserStats{}
 
-	gameTypes := []string{common.GameTypeWordchain, common.GameTypeOX, common.GameTypeQA}
+	gameTypes := []string{common.GameTypeWordchain, common.GameTypeOX, common.GameTypeQA, common.GameTypeMafia}
 	if gameType != nil {
 		gameTypes = []string{*gameType}
 	}

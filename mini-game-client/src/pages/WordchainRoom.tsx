@@ -46,17 +46,18 @@ const WordchainRoom: React.FC = () => {
       // Handle messages from graph package (format: {type: "word_result", userName: ..., word: ..., correct: ...})
       if (data.type === 'word_result') {
         console.log('[WordchainRoom] Word result:', data);
+        const userName = data.userName || data.username || 'Unknown';
         if (data.correct) {
           setChatMessages(prev => [...prev, {
             username: t.gameRoom.system,
-            text: `${data.userName}님이 정답! "${data.word}" (+50점)`,
+            text: `${userName}님이 정답! "${data.word}" (+100점)`,
             type: 'correct'
           }]);
           setLastWord(data.word);
         } else {
           setChatMessages(prev => [...prev, {
             username: t.gameRoom.system,
-            text: `${data.userName}: "${data.word}" - ${data.reason}`,
+            text: `${userName}: "${data.word}" - ${data.reason}`,
             type: 'wrong'
           }]);
         }
@@ -88,7 +89,13 @@ const WordchainRoom: React.FC = () => {
         console.log('[WordchainRoom] Game ended:', data);
         setRoundEndInfo(null);
         const gameData = data.data || data;
-        const sortedusers = [...gameData.users].sort((a, b) => b.score - a.score);
+        const roomUsers = room?.users || [];
+        const mappedUsers = (gameData.users || []).map((u: any) => {
+          const userId = u.userID || u.userId;
+          const name = roomUsers.find(r => r.userId === userId)?.name || u.name || 'Unknown';
+          return { name, score: u.score };
+        });
+        const sortedusers = [...mappedUsers].sort((a, b) => b.score - a.score);
         setGameEndInfo({
           users: sortedusers,
           message: gameData.message
@@ -100,38 +107,30 @@ const WordchainRoom: React.FC = () => {
         alert('방이 삭제되었습니다.');
         navigate('/room-list');
       }
-      // Handle websocket handler messages (format: {type: "CHAT_MESSAGE", payload: {...}})
-      else if (data.type === 'CHAT_MESSAGE' && data.payload) {
-        const payload = data.payload;
+      // Handle CHAT_MESSAGE (format: {type: "CHAT_MESSAGE", username: ..., message: ...})
+      else if (data.type === 'CHAT_MESSAGE') {
         setChatMessages(prev => [...prev, {
-          username: payload.username,
-          text: payload.message,
+          username: data.username || 'Unknown',
+          text: data.message || '',
           type: 'chat'
         }]);
       }
-      // Handle room update messages
-      else if (data.type === 'update' || data.type === 'room_update' || data.type === 'ROOM_UPDATE') {
+      // Handle room update messages (format: {type: "room_update", ...room fields...})
+      if (data.type === 'update' || data.type === 'room_update' || data.type === 'ROOM_UPDATE') {
         console.log('[WordchainRoom] Room update received:', data);
-        if (data.data) {
-          console.log('[WordchainRoom] Updating room with data.data:', data.data);
-          setRoom(data.data);
-          // Update lastWord if available in room data
-          if (data.data.wordchainLastWord) {
-            setLastWord(data.data.wordchainLastWord);
-          }
-          // Update timeLeft if status changed to PLAYING
-          if (data.data.status === 'PLAYING') {
-            setTimeLeft(data.data.roundTimeLimit);
-          }
-        } else if (data.payload) {
-          console.log('[WordchainRoom] Updating room with data.payload:', data.payload);
-          setRoom(data.payload);
-        } else {
-          console.log('[WordchainRoom] Room update without data, reloading...');
-          loadRoom();
+        // Extract room data (remove type field)
+        const { type, ...roomData } = data;
+        setRoom(roomData as any);
+        // Update lastWord if available in room data
+        if (roomData.wordchainLastWord) {
+          setLastWord(roomData.wordchainLastWord);
+        }
+        // Update timeLeft if status changed to PLAYING
+        if (roomData.status === 'PLAYING' && roomData.roundTimeLimit) {
+          setTimeLeft(roomData.roundTimeLimit);
         }
       }
-      // Handle timer updates
+      // Handle timer updates (format: {type: "timer", timeLeft: ...})
       else if (data.type === 'timer' || data.type === 'TIMER') {
         console.log('[WordchainRoom] Timer update:', data.timeLeft);
         setTimeLeft(data.timeLeft);
@@ -159,17 +158,18 @@ const WordchainRoom: React.FC = () => {
 
     const handleWordResult = (data: any) => {
       console.log('[WordchainRoom] Word result:', data);
+      const userName = data.userName || data.username || 'Unknown';
       if (data.correct) {
         setChatMessages(prev => [...prev, {
           username: t.gameRoom.system,
-          text: `${data.username}님이 정답! "${data.word}" (+100점)`,
+          text: `${userName}님이 정답! "${data.word}" (+100점)`,
           type: 'correct'
         }]);
         setLastWord(data.word);
       } else {
         setChatMessages(prev => [...prev, {
           username: t.gameRoom.system,
-          text: `${data.username}: "${data.word}" - ${data.reason}`,
+          text: `${userName}: "${data.word}" - ${data.reason}`,
           type: 'wrong'
         }]);
       }
@@ -200,8 +200,15 @@ const WordchainRoom: React.FC = () => {
       // 라운드 종료 팝업 닫기
       setRoundEndInfo(null);
       
+      const roomUsers = room?.users || [];
+      const mappedUsers = (data.users || []).map((u: any) => {
+        const userId = u.userID || u.userId;
+        const name = roomUsers.find(r => r.userId === userId)?.name || u.name || 'Unknown';
+        return { name, score: u.score };
+      });
+
       // 점수 정렬 (높은 점수 순)
-      const sortedusers = [...data.users].sort((a, b) => b.score - a.score);
+      const sortedusers = [...mappedUsers].sort((a, b) => b.score - a.score);
       
       setGameEndInfo({
         users: sortedusers,
@@ -216,7 +223,7 @@ const WordchainRoom: React.FC = () => {
       navigate('/room-list');
     };
 
-    wsService.addMessageHandler('chat', handleChat);
+    wsService.addMessageHandler('CHAT_MESSAGE', handleChat);
     wsService.addMessageHandler('wordchain_prompt', handleWordchainPrompt);
     wsService.addMessageHandler('timer', handleTimer);
     wsService.addMessageHandler('word_result', handleWordResult);
@@ -226,7 +233,7 @@ const WordchainRoom: React.FC = () => {
 
     return () => {
       if (gameSubscription) gameSubscription.unsubscribe();
-      wsService.removeMessageHandler('chat', handleChat);
+      wsService.removeMessageHandler('CHAT_MESSAGE', handleChat);
       wsService.removeMessageHandler('wordchain_prompt', handleWordchainPrompt);
       wsService.removeMessageHandler('timer', handleTimer);
       wsService.removeMessageHandler('word_result', handleWordResult);
@@ -265,8 +272,6 @@ const WordchainRoom: React.FC = () => {
           console.log('[WordchainRoom] User not in room, auto-rejoining...');
           try {
             await apiService.joinGameRoom(roomId, user.id);
-            // Auto-set ready after joining
-            await apiService.setReady(roomId, user.id, true);
             // Reload room to get updated user list
             const updatedRoom = await apiService.getGameRoom(roomId);
             if (updatedRoom) {
@@ -274,21 +279,6 @@ const WordchainRoom: React.FC = () => {
             }
           } catch (joinError) {
             console.error('[WordchainRoom] Failed to auto-rejoin:', joinError);
-          }
-        } else {
-          // Check if user is already ready, if not, set ready
-          const currentUser = gameRoom.users.find(p => p.userId === user.id);
-          if (currentUser && !currentUser.isReady && gameRoom.status === 'WAITING') {
-            console.log('[WordchainRoom] Auto-setting user ready...');
-            try {
-              await apiService.setReady(roomId, user.id, true);
-              const updatedRoom = await apiService.getGameRoom(roomId);
-              if (updatedRoom) {
-                setRoom(updatedRoom);
-              }
-            } catch (readyError) {
-              console.error('[WordchainRoom] Failed to set ready:', readyError);
-            }
           }
         }
       } else {
@@ -308,6 +298,18 @@ const WordchainRoom: React.FC = () => {
       loadRoom();
     } catch (error) {
       console.error('Failed to start game:', error);
+    }
+  };
+
+  const handleToggleReady = async () => {
+    if (!roomId || !user || !room) return;
+    const currentUser = room.users.find((p) => p.userId === user.id);
+    const nextReady = !(currentUser?.isReady ?? false);
+    try {
+      await apiService.setReady(roomId, user.id, nextReady);
+      loadRoom();
+    } catch (error) {
+      console.error('[WordchainRoom] Failed to toggle ready:', error);
     }
   };
 
@@ -339,6 +341,8 @@ const WordchainRoom: React.FC = () => {
   }
 
   const isHost = user && room.hostUserId === user.id;
+  const currentUser = room.users.find((p) => p.userId === user?.id);
+  const isReady = currentUser?.isReady ?? false;
   const sortedusers = [...room.users].sort((a, b) => b.score - a.score);
 
   return (
@@ -351,9 +355,14 @@ const WordchainRoom: React.FC = () => {
             {isHost ? '👑 호스트' : '👤 플레이어'} - {username}
           </p>
         </div>
-        <button onClick={handleLeaveRoom} style={styles.leaveButton}>
-          {t.gameRoom.leave}
-        </button>
+        <div style={styles.headerButtons}>
+          <button onClick={handleToggleReady} style={styles.readyButton}>
+            {isReady ? '준비 취소' : '준비'}
+          </button>
+          <button onClick={handleLeaveRoom} style={styles.leaveButton}>
+            {t.gameRoom.leave}
+          </button>
+        </div>
       </div>
 
       {/* Game Info */}
@@ -673,6 +682,20 @@ const styles: { [key: string]: React.CSSProperties } = {
     margin: '5px 0 0 0',
     fontSize: '14px',
     color: '#666',
+  },
+  headerButtons: {
+    display: 'flex',
+    gap: '10px',
+    alignItems: 'center',
+  },
+  readyButton: {
+    padding: '10px 20px',
+    background: '#38b2ac',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
   },
   leaveButton: {
     padding: '10px 20px',

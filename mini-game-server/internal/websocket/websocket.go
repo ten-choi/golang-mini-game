@@ -438,6 +438,24 @@ func handleMessages(client *Client) {
 			if client.roomID != "" {
 				handleQuizAnswer(client.roomID, wsMsg.Data)
 			}
+		case "mafia_day_vote":
+			if client.roomID != "" {
+				handleMafiaDayVoteMessage(client, wsMsg.Data)
+			}
+		case "mafia_night_vote":
+			if client.roomID != "" {
+				handleMafiaNightVoteMessage(client, wsMsg.Data)
+			}
+		case "mafia_doctor_save":
+			if client.roomID != "" {
+				handleMafiaDoctorSaveMessage(client, wsMsg.Data)
+			}
+		case "mafia_police_check":
+			if client.roomID != "" {
+				handleMafiaPoliceCheckMessage(client, wsMsg.Data)
+			}
+		case "voice_signal":
+			handleVoiceSignalMessage(client, wsMsg.Data)
 		default:
 			log.Printf("Unknown message type: %s", wsMsg.Type)
 		}
@@ -512,7 +530,9 @@ func handleUnsubscribe(client *Client, channel string) {
 		"message": "Successfully unsubscribed from " + channel,
 	}
 	if msgBytes, err := json.Marshal(confirmMsg); err == nil {
+		client.mu.Lock()
 		client.conn.WriteMessage(websocket.TextMessage, msgBytes)
+		client.mu.Unlock()
 	}
 }
 
@@ -572,6 +592,124 @@ func handleChatMessage(client *Client, data interface{}) {
 	})
 }
 
+// handleMafiaDayVoteMessage processes day vote for mafia game
+func handleMafiaDayVoteMessage(client *Client, data interface{}) {
+	voteData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid mafia day vote data format")
+		return
+	}
+
+	userID, _ := voteData["userId"].(string)
+	targetID, _ := voteData["targetId"].(string)
+	if userID == "" || targetID == "" {
+		log.Printf("Missing required fields for mafia day vote")
+		return
+	}
+
+	if err := graph.SubmitMafiaDayVote(client.roomID, userID, targetID); err != nil {
+		log.Printf("Mafia day vote error: %v", err)
+		sendError(client, err.Error())
+	}
+}
+
+// handleMafiaNightVoteMessage processes mafia night vote
+func handleMafiaNightVoteMessage(client *Client, data interface{}) {
+	voteData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid mafia night vote data format")
+		return
+	}
+
+	userID, _ := voteData["userId"].(string)
+	targetID, _ := voteData["targetId"].(string)
+	if userID == "" || targetID == "" {
+		log.Printf("Missing required fields for mafia night vote")
+		return
+	}
+
+	if err := graph.SubmitMafiaNightVote(client.roomID, userID, targetID); err != nil {
+		log.Printf("Mafia night vote error: %v", err)
+		sendError(client, err.Error())
+	}
+}
+
+// handleMafiaDoctorSaveMessage processes doctor save action
+func handleMafiaDoctorSaveMessage(client *Client, data interface{}) {
+	actionData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid mafia doctor save data format")
+		return
+	}
+
+	userID, _ := actionData["userId"].(string)
+	targetID, _ := actionData["targetId"].(string)
+	if userID == "" || targetID == "" {
+		log.Printf("Missing required fields for mafia doctor save")
+		return
+	}
+
+	if err := graph.SubmitMafiaDoctorSave(client.roomID, userID, targetID); err != nil {
+		log.Printf("Mafia doctor save error: %v", err)
+		sendError(client, err.Error())
+	}
+}
+
+// handleMafiaPoliceCheckMessage processes police check action
+func handleMafiaPoliceCheckMessage(client *Client, data interface{}) {
+	actionData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid mafia police check data format")
+		return
+	}
+
+	userID, _ := actionData["userId"].(string)
+	targetID, _ := actionData["targetId"].(string)
+	if userID == "" || targetID == "" {
+		log.Printf("Missing required fields for mafia police check")
+		return
+	}
+
+	if err := graph.SubmitMafiaPoliceCheck(client.roomID, userID, targetID); err != nil {
+		log.Printf("Mafia police check error: %v", err)
+		sendError(client, err.Error())
+	}
+}
+
+// handleVoiceSignalMessage relays WebRTC signaling messages in a room or direct user channel
+func handleVoiceSignalMessage(client *Client, data interface{}) {
+	signalData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid voice signal data format")
+		return
+	}
+
+	fromUserID, _ := signalData["fromUserId"].(string)
+	if fromUserID == "" {
+		fromUserID = client.UserID
+	}
+
+	payload := map[string]interface{}{
+		"type":       "VOICE_SIGNAL",
+		"roomId":     client.roomID,
+		"fromUserId": fromUserID,
+		"signal":     signalData["signal"],
+	}
+
+	if targetUserID, ok := signalData["targetUserId"].(string); ok && targetUserID != "" {
+		payload["targetUserId"] = targetUserID
+		handlePublish(common.ChannelUserPrefix+targetUserID, payload)
+		return
+	}
+
+	if client.roomID == "" {
+		log.Printf("Voice signal missing room context")
+		return
+	}
+
+	handlePublish(common.ChannelGamePrefix+client.roomID, payload)
+}
+
 // startValkeySubscription subscribes to Valkey channel and broadcasts messages to WebSocket clients
 func startValkeySubscription(ctx context.Context, channel string) {
 	log.Printf("Starting Valkey subscription for channel: %s", channel)
@@ -615,9 +753,11 @@ func startValkeySubscription(ctx context.Context, channel string) {
 				}
 
 				// Send message to client
+				client.mu.Lock()
 				if err := client.conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
 					log.Printf("Error sending message to client: %v", err)
 				}
+				client.mu.Unlock()
 			}
 		}
 		log.Printf("[Broadcast] Channel '%s': sent to %d/%d clients", channel, subscribedCount, totalClients)
@@ -656,7 +796,9 @@ func sendError(client *Client, message string) {
 		"message": message,
 	}
 	if msgBytes, err := json.Marshal(errorMsg); err == nil {
+		client.mu.Lock()
 		client.conn.WriteMessage(websocket.TextMessage, msgBytes)
+		client.mu.Unlock()
 	}
 }
 
@@ -667,6 +809,8 @@ func sendSuccess(client *Client, message string) {
 		"message": message,
 	}
 	if msgBytes, err := json.Marshal(successMsg); err == nil {
+		client.mu.Lock()
 		client.conn.WriteMessage(websocket.TextMessage, msgBytes)
+		client.mu.Unlock()
 	}
 }

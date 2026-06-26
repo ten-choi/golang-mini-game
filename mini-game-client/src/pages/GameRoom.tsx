@@ -64,16 +64,15 @@ const GameRoom: React.FC = () => {
     
     loadRoom();
 
-    // Subscribe to game channel - handle new server format
+    // Subscribe to game channel - handle server format
     const gameSubscription = wsService.subscribe(`game/${roomId}`, (data) => {
       console.log('[GameRoom] Received game message:', data);
       
-      // Handle new server format: { type: "MESSAGE_TYPE", payload: {...} }
-      if (data.type === 'CHAT_MESSAGE' && data.payload) {
-        const payload = data.payload;
+      // Handle CHAT_MESSAGE (format: {type: "CHAT_MESSAGE", username: ..., message: ...})
+      if (data.type === 'CHAT_MESSAGE') {
         setChatMessages((prev) => [...prev, {
-          username: payload.username || 'System',
-          text: payload.message,
+          username: data.username || 'System',
+          text: data.message || '',
           type: 'chat'
         }]);
       } else if (data.type === 'GAME_EVENT' && data.payload) {
@@ -99,24 +98,20 @@ const GameRoom: React.FC = () => {
         // Drawing events are handled by DrawingCanvas component
         console.log('[GameRoom] Draw event received:', data.payload.action);
       }
-      // Handle legacy format for backward compatibility
-      else if (data.type === 'update' || data.type === 'room_update') {
-        if (data.data) {
-          console.log('[GameRoom] Updating room from WebSocket:', data.data);
-          setRoom(data.data);
-          
-          if (data.data.hostUserId) {
-            setIsDrawer(data.data.hostUserId === user?.id);
-          }
-        } else {
-          loadRoom();
+      // Handle room_update (format: {type: "room_update", ...room fields...})
+      else if (data.type === 'update' || data.type === 'room_update' || data.type === 'ROOM_UPDATE') {
+        console.log('[GameRoom] Room update received:', data);
+        // Extract room data (remove type field)
+        const { type, ...roomData } = data;
+        setRoom(roomData as any);
+        
+        if (roomData.hostUserId) {
+          setIsDrawer(roomData.hostUserId === user?.id);
         }
         
-        if (data.time_left !== undefined) {
-          setTimeLeft(data.time_left);
-        }
-        if (data.status !== undefined && data.status === 'FINISHED') {
+        if (roomData.status === 'FINISHED') {
           setMessage(t.gameRoom.gameFinished);
+          loadRoom();
         }
       } else if (data.type === 'timer_update') {
         if (data.data) {
@@ -127,15 +122,6 @@ const GameRoom: React.FC = () => {
           }
         }
       }
-    });
-
-    // Subscribe to chat channel
-    const chatSubscription = wsService.subscribe(`chat/${roomId}`, (data) => {
-      setChatMessages((prev) => [...prev, {
-        username: data.username || 'System',
-        text: data.message,
-        type: data.type || 'chat'
-      }]);
     });
 
     // Handle GAME_EVENT messages
@@ -177,19 +163,18 @@ const GameRoom: React.FC = () => {
     };
 
     // Register message handlers
-    wsService.addMessageHandler('game_event', gameEventHandler);
-    wsService.addMessageHandler('chat_message', chatMessageHandler);
+    wsService.addMessageHandler('GAME_EVENT', gameEventHandler);
+    wsService.addMessageHandler('CHAT_MESSAGE', chatMessageHandler);
     wsService.addMessageHandler('ERROR', errorHandler);
     wsService.addMessageHandler('room_deleted', roomDeletedHandler);
 
     return () => {
       if (gameSubscription) gameSubscription.unsubscribe();
-      if (chatSubscription) chatSubscription.unsubscribe();
       if (timerRef.current) clearInterval(timerRef.current);
       
       // Remove message handlers
-      wsService.removeMessageHandler('game_event', gameEventHandler);
-      wsService.removeMessageHandler('chat_message', chatMessageHandler);
+      wsService.removeMessageHandler('GAME_EVENT', gameEventHandler);
+      wsService.removeMessageHandler('CHAT_MESSAGE', chatMessageHandler);
       wsService.removeMessageHandler('ERROR', errorHandler);
       wsService.removeMessageHandler('room_deleted', roomDeletedHandler);
     };
@@ -287,6 +272,18 @@ const GameRoom: React.FC = () => {
     }
   };
 
+  const handleToggleReady = async () => {
+    if (!roomId || !user || !room) return;
+    const currentUser = room.users.find((p) => p.userId === user.id);
+    const nextReady = !(currentUser?.isReady ?? false);
+    try {
+      await apiService.setReady(roomId, user.id, nextReady);
+      loadRoom();
+    } catch (error) {
+      console.error('[GameRoom] Failed to toggle ready:', error);
+    }
+  };
+
   const handleSendChat = async () => {
     if (!chatInput.trim() || !roomId) return;
 
@@ -319,6 +316,8 @@ const GameRoom: React.FC = () => {
 
   // const myuser = room.users.find((p: GameUser) => p.userId === user?.id);
   const sortedusers = [...room.users].sort((a, b) => b.score - a.score);
+  const currentUser = room.users.find((p) => p.userId === user?.id);
+  const isReady = currentUser?.isReady ?? false;
 
   return (
     <div style={styles.container}>
@@ -329,9 +328,14 @@ const GameRoom: React.FC = () => {
             {isDrawer ? `🎨 ${t.gameRoom.host}` : `👀 ${t.gameRoom.user}`}
           </p>
         </div>
-        <button onClick={handleLeaveRoom} style={styles.leaveButton}>
-          {t.gameRoom.leave}
-        </button>
+        <div style={styles.headerButtons}>
+          <button onClick={handleToggleReady} style={styles.readyButton}>
+            {isReady ? '준비 취소' : '준비'}
+          </button>
+          <button onClick={handleLeaveRoom} style={styles.leaveButton}>
+            {t.gameRoom.leave}
+          </button>
+        </div>
       </div>
 
       {/* Game Info */}
@@ -391,7 +395,8 @@ const GameRoom: React.FC = () => {
           selectedColor={selectedColor}
           username={username}
           clearTrigger={clearCanvasTrigger}
-        />          {/* Start Button (Drawer only) */}
+        />
+          {/* Start Button (Drawer only) */}
           {isDrawer && room.status === 'WAITING' && (
             <button onClick={handleStartGame} style={styles.startButton}>
               {t.gameRoom.gameStart}
@@ -505,6 +510,11 @@ const styles: { [key: string]: React.CSSProperties } = {
     margin: '0 0 5px 0',
     color: '#333',
     fontSize: 'clamp(16px, 4vw, 24px)',
+  },
+  headerButtons: {
+    display: 'flex',
+    gap: '10px',
+    alignItems: 'center',
   },
   subtitle: {
     margin: 0,
@@ -631,6 +641,18 @@ const styles: { [key: string]: React.CSSProperties } = {
     cursor: 'pointer',
     fontWeight: 'bold',
     fontSize: 'clamp(12px, 2.5vw, 14px)',
+  },
+  readyButton: {
+    marginTop: '15px',
+    width: '100%',
+    padding: '12px',
+    background: '#38b2ac',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: 'clamp(14px, 3vw, 18px)',
   },
   startButton: {
     marginTop: '15px',

@@ -81,6 +81,9 @@ func RemoveUserFromRoom(roomID, userID string) {
 	// Only delete if room was in PLAYING or FINISHED state
 	if len(room.Users) == 0 {
 		if room.Status != model.GameRoomStatus(common.RoomStatusWaiting) {
+			if room.GameType == model.GameTypeMafia {
+				cleanupMafiaState(roomID)
+			}
 			delete(gameRooms, roomID)
 			log.Printf("[RemoveUserFromRoom] Room %s deleted (empty, status: %s)", roomID, room.Status)
 			go publishLobbyUpdate()
@@ -97,6 +100,10 @@ func RemoveUserFromRoom(roomID, userID string) {
 	}
 
 	gameRooms[roomID] = room
+
+	if room.GameType == model.GameTypeMafia {
+		HandleMafiaUserLeft(roomID, userID)
+	}
 
 	// Publish events - all in goroutine to avoid deadlock
 	log.Printf("[RemoveUserFromRoom] User %s removed from room %s (WebSocket disconnect)", userID, roomID)
